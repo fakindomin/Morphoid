@@ -51,7 +51,7 @@ function sdPolys(edges: Edge[], polys: XY[][], x: number, y: number): number {
   return inside ? -d : d;
 }
 
-export function makeGrid(parts: Part3D[], h: number, margin = 3): Grid3 {
+export function gridDims(parts: Part3D[], h: number, margin = 3): { nx: number; ny: number; nz: number; ox: number; oy: number; oz: number } {
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity;
   for (const p of parts) {
     for (const poly of p.polys) for (const [x, y] of poly) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
@@ -61,7 +61,12 @@ export function makeGrid(parts: Part3D[], h: number, margin = 3): Grid3 {
   // grid phase is fixed in space (multiples of h): two bakes of nearly the same model give comparable meshes
   const ox = Math.floor((x0 - m) / h) * h, oy = Math.floor((y0 - m) / h) * h, oz = Math.floor((z0 - m) / h) * h;
   const nx = Math.ceil((x1 + m - ox) / h) + 1, ny = Math.ceil((y1 + m - oy) / h) + 1, nz = Math.ceil((z1 + m - oz) / h) + 1;
-  return { nx, ny, nz, h, ox, oy, oz, data: new Float32Array(nx * ny * nz).fill(BIG) };
+  return { nx, ny, nz, ox, oy, oz };
+}
+
+export function makeGrid(parts: Part3D[], h: number, margin = 3): Grid3 {
+  const d = gridDims(parts, h, margin);
+  return { ...d, h, data: new Float32Array(d.nx * d.ny * d.nz).fill(BIG) };
 }
 
 /** Fuse a part into the grid with a smooth union. */
@@ -77,13 +82,17 @@ export function addPart(g: Grid3, part: Part3D, k: number): void {
   const half = part.thickness / 2, r = Math.min(part.bevel, half - 0.01);
   const k0 = Math.max(0, Math.floor((part.z - half - pad - g.oz) / h)), k1 = Math.min(nz - 1, Math.ceil((part.z + half + pad - g.oz) / h));
   const w2 = i1 - i0 + 1;
+  const far = k + 2 * h; // beyond this distance the field value is irrelevant (only its sign, which stays positive)
   const d2 = new Float32Array(w2 * (j1 - j0 + 1));
   for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) d2[(j - j0) * w2 + (i - i0)] = sdPolys(edges, part.polys, g.ox + i * h, g.oy + j * h);
   for (let kk = k0; kk <= k1; kk++) {
     const wy = Math.abs(g.oz + kk * h - part.z) - half + r;
     for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
-      const wx = d2[(j - j0) * w2 + (i - i0)]! + r;
-      const d3 = Math.min(Math.max(wx, wy), 0) + Math.hypot(Math.max(wx, 0), Math.max(wy, 0)) - r;
+      const sd = d2[(j - j0) * w2 + (i - i0)]!;
+      if (sd > far) continue; // farther than the blend radius from this part's outline: cannot matter
+      const wx = sd + r;
+      const px = wx > 0 ? wx : 0, py = wy > 0 ? wy : 0;
+      const d3 = Math.min(Math.max(wx, wy), 0) + Math.sqrt(px * px + py * py) - r;
       const idx = (kk * ny + j) * nx + i;
       const cur = g.data[idx]!;
       g.data[idx] = d3 > cur + k ? cur : smin(cur, d3, k);

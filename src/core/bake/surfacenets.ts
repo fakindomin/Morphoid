@@ -27,64 +27,93 @@ const EDGES: readonly (readonly [number, number])[] = [
   [0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7],
 ];
 
+/**
+ * Sparse scan: the surface touches a tiny fraction of the grid, so instead of testing every cell we walk
+ * the nodes once, find the grid edges whose ends have opposite signs, and mark the 4 cells around each.
+ * Returns the sign-changing edges (node index * 3 + axis) and the list of crossed cells.
+ */
+function crossings(g: Grid3): { edges: number[]; cells: Int32Array } {
+  const { nx, ny, nz, data } = g;
+  const cx = nx - 1, cy = ny - 1, cz = nz - 1;
+  const mark = new Uint8Array(cx * cy * cz);
+  const edges: number[] = [];
+  const m = (i: number, j: number, k: number): void => { mark[(k * cy + j) * cx + i] = 1; };
+  for (let k = 0; k < nz; k++) for (let j = 0; j < ny; j++) {
+    const row = (k * ny + j) * nx;
+    for (let i = 0; i < nx; i++) {
+      const idx = row + i;
+      const neg = data[idx]! < 0;
+      if (i < nx - 1 && j >= 1 && j < ny - 1 && k >= 1 && k < nz - 1 && neg !== (data[idx + 1]! < 0)) {
+        edges.push(idx * 3);
+        m(i, j - 1, k - 1); m(i, j, k - 1); m(i, j, k); m(i, j - 1, k);
+      }
+      if (j < ny - 1 && i >= 1 && i < nx - 1 && k >= 1 && k < nz - 1 && neg !== (data[idx + nx]! < 0)) {
+        edges.push(idx * 3 + 1);
+        m(i - 1, j, k - 1); m(i - 1, j, k); m(i, j, k); m(i, j, k - 1);
+      }
+      if (k < nz - 1 && i >= 1 && i < nx - 1 && j >= 1 && j < ny - 1 && neg !== (data[idx + nx * ny]! < 0)) {
+        edges.push(idx * 3 + 2);
+        m(i - 1, j - 1, k); m(i, j - 1, k); m(i, j, k); m(i - 1, j, k);
+      }
+    }
+  }
+  let n = 0;
+  for (let c = 0; c < mark.length; c++) if (mark[c]) n++;
+  const cells = new Int32Array(n);
+  n = 0;
+  for (let c = 0; c < mark.length; c++) if (mark[c]) cells[n++] = c;
+  return { edges, cells };
+}
+
 export function surfaceNets(g: Grid3): Mesh {
   const { nx, ny, nz, h, data } = g;
-  const cx = nx - 1, cy = ny - 1, cz = nz - 1; // cells per axis
+  const cx = nx - 1, cy = ny - 1, cz = nz - 1;
+  const { edges, cells } = crossings(g);
   const cellVertex = new Int32Array(cx * cy * cz).fill(-1);
-  const pos: number[] = [];
-  const cellOf: number[] = [];
+  const positions = new Float32Array(cells.length * 3);
   const val = new Float32Array(8);
 
-  for (let k = 0; k < cz; k++) for (let j = 0; j < cy; j++) for (let i = 0; i < cx; i++) {
-    let mask = 0;
-    for (let c = 0; c < 8; c++) {
-      const [di, dj, dk] = CORNERS[c]!;
-      const v = data[((k + dk) * ny + (j + dj)) * nx + i + di]!;
-      val[c] = v;
-      if (v < 0) mask |= 1 << c;
+  for (let n = 0; n < cells.length; n++) {
+    const c = cells[n]!;
+    const i = c % cx, j = Math.floor(c / cx) % cy, k = Math.floor(c / (cx * cy));
+    for (let q = 0; q < 8; q++) {
+      const [di, dj, dk] = CORNERS[q]!;
+      val[q] = data[((k + dk) * ny + (j + dj)) * nx + i + di]!;
     }
-    if (mask === 0 || mask === 255) continue;
-    let sx = 0, sy = 0, sz = 0, n = 0;
+    let sx = 0, sy = 0, sz = 0, cnt = 0;
     for (const [a, b] of EDGES) {
       const va = val[a]!, vb = val[b]!;
       if ((va < 0) === (vb < 0)) continue;
       const t = va / (va - vb);
       const [ai, aj, ak] = CORNERS[a]!, [bi, bj, bk] = CORNERS[b]!;
-      sx += ai + (bi - ai) * t; sy += aj + (bj - aj) * t; sz += ak + (bk - ak) * t; n++;
+      sx += ai + (bi - ai) * t; sy += aj + (bj - aj) * t; sz += ak + (bk - ak) * t; cnt++;
     }
-    cellVertex[(k * cy + j) * cx + i] = pos.length / 3;
-    cellOf.push((k * cy + j) * cx + i);
-    pos.push(g.ox + (i + sx / n) * h, g.oy + (j + sy / n) * h, g.oz + (k + sz / n) * h);
+    cellVertex[c] = n;
+    positions[3 * n] = g.ox + (i + sx / cnt) * h; positions[3 * n + 1] = g.oy + (j + sy / cnt) * h; positions[3 * n + 2] = g.oz + (k + sz / cnt) * h;
   }
 
-  const idx: number[] = [];
+  const indices = new Uint32Array(edges.length * 6);
+  let ni = 0;
+  const d2 = (p: number, q: number): number => (positions[3 * p]! - positions[3 * q]!) ** 2 + (positions[3 * p + 1]! - positions[3 * q + 1]!) ** 2 + (positions[3 * p + 2]! - positions[3 * q + 2]!) ** 2;
   const cv = (i: number, j: number, k: number): number => cellVertex[(k * cy + j) * cx + i]!;
   const quad = (a: number, b: number, c: number, d: number, flip: boolean): void => {
     if (a < 0 || b < 0 || c < 0 || d < 0) return;
-    // split along the shorter diagonal
-    const dx = (p: number, q: number): number => (pos[3 * p]! - pos[3 * q]!) ** 2 + (pos[3 * p + 1]! - pos[3 * q + 1]!) ** 2 + (pos[3 * p + 2]! - pos[3 * q + 2]!) ** 2;
-    const useAC = dx(a, c) <= dx(b, d);
-    const tris = useAC ? [[a, b, c], [a, c, d]] : [[a, b, d], [b, c, d]];
-    for (const [p, q, r] of tris as number[][]) { if (flip) idx.push(p!, r!, q!); else idx.push(p!, q!, r!); }
+    const ac = d2(a, c) <= d2(b, d); // split along the shorter diagonal
+    const t = ac ? [a, b, c, a, c, d] : [a, b, d, b, c, d];
+    for (let q = 0; q < 6; q += 3) {
+      if (flip) { indices[ni++] = t[q]!; indices[ni++] = t[q + 2]!; indices[ni++] = t[q + 1]!; }
+      else { indices[ni++] = t[q]!; indices[ni++] = t[q + 1]!; indices[ni++] = t[q + 2]!; }
+    }
   };
-
-  for (let k = 0; k < nz; k++) for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
-    const v0 = data[(k * ny + j) * nx + i]!;
-    const in0 = v0 < 0;
-    // x-edge: (i,j,k) -> (i+1,j,k); cells (i,j-1..j,k-1..k)
-    if (i < nx - 1 && j >= 1 && j < ny - 1 && k >= 1 && k < nz - 1) {
-      if (in0 !== (data[(k * ny + j) * nx + i + 1]! < 0)) quad(cv(i, j - 1, k - 1), cv(i, j, k - 1), cv(i, j, k), cv(i, j - 1, k), !in0);
-    }
-    // y-edge: (i,j,k) -> (i,j+1,k); cells (i-1..i,j,k-1..k)
-    if (j < ny - 1 && i >= 1 && i < nx - 1 && k >= 1 && k < nz - 1) {
-      if (in0 !== (data[(k * ny + j + 1) * nx + i]! < 0)) quad(cv(i - 1, j, k - 1), cv(i - 1, j, k), cv(i, j, k), cv(i, j, k - 1), !in0);
-    }
-    // z-edge: (i,j,k) -> (i,j,k+1); cells (i-1..i,j-1..j,k)
-    if (k < nz - 1 && i >= 1 && i < nx - 1 && j >= 1 && j < ny - 1) {
-      if (in0 !== (data[((k + 1) * ny + j) * nx + i]! < 0)) quad(cv(i - 1, j - 1, k), cv(i, j - 1, k), cv(i, j, k), cv(i - 1, j, k), !in0);
-    }
+  for (const e of edges) {
+    const axis = e % 3, idx = (e - axis) / 3;
+    const i = idx % nx, j = Math.floor(idx / nx) % ny, k = Math.floor(idx / (nx * ny));
+    const inside = data[idx]! < 0;
+    if (axis === 0) quad(cv(i, j - 1, k - 1), cv(i, j, k - 1), cv(i, j, k), cv(i, j - 1, k), !inside);
+    else if (axis === 1) quad(cv(i - 1, j, k - 1), cv(i - 1, j, k), cv(i, j, k), cv(i, j, k - 1), !inside);
+    else quad(cv(i - 1, j - 1, k), cv(i, j - 1, k), cv(i, j, k), cv(i - 1, j, k), !inside);
   }
-  return { positions: new Float32Array(pos), indices: new Uint32Array(idx), cells: new Int32Array(cellOf) };
+  return { positions, indices: indices.slice(0, ni), cells: cells.slice() };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -129,9 +158,10 @@ export function makeManifoldField(g: Grid3, maxFlips = 400000): number {
     return m;
   };
   const queue: number[] = [];
-  for (let k = 0; k < cz; k++) for (let j = 0; j < cy; j++) for (let i = 0; i < cx; i++) {
+  for (const c of crossings(g).cells) {
+    const i = c % cx, j = Math.floor(c / cx) % cy, k = Math.floor(c / (cx * cy));
     const m = maskOf(i, j, k);
-    if (m !== 0 && m !== 255 && !SAFE[m]) queue.push((k * cy + j) * cx + i);
+    if (m !== 0 && m !== 255 && !SAFE[m]) queue.push(c);
   }
   let flips = 0;
   while (queue.length && flips < maxFlips) {

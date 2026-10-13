@@ -20,12 +20,15 @@ export interface MeshValidation {
 export function validateMesh(m: Mesh): MeshValidation {
   const P = m.positions, I = m.indices;
   const nv = P.length / 3, nt = I.length / 3;
-  const dir = new Map<number, number>();
   let degenerate = 0, vol6 = 0;
   const parent = new Int32Array(nv).map((_, i) => i);
   const find = (a: number): number => { while (parent[a] !== a) { parent[a] = parent[parent[a]!]!; a = parent[a]!; } return a; };
   const min: [number, number, number] = [Infinity, Infinity, Infinity], max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
   for (let v = 0; v < nv; v++) for (let a = 0; a < 3; a++) { min[a] = Math.min(min[a]!, P[3 * v + a]!); max[a] = Math.max(max[a]!, P[3 * v + a]!); }
+  // directed edges as sortable keys p * nv + q (< 2^53 for any realistic mesh)
+  const keys = new Float64Array(nt * 3);
+  let ne = 0;
+  const used = new Uint8Array(nv);
   for (let t = 0; t < nt; t++) {
     const a = I[3 * t]!, b = I[3 * t + 1]!, c = I[3 * t + 2]!;
     if (a === b || b === c || a === c) { degenerate++; continue; }
@@ -33,22 +36,27 @@ export function validateMesh(m: Mesh): MeshValidation {
     const bx = P[3 * b]!, by = P[3 * b + 1]!, bz = P[3 * b + 2]!;
     const cx = P[3 * c]!, cy = P[3 * c + 1]!, cz = P[3 * c + 2]!;
     vol6 += ax * (by * cz - bz * cy) - ay * (bx * cz - bz * cx) + az * (bx * cy - by * cx);
-    for (const [p, q] of [[a, b], [b, c], [c, a]] as const) {
-      const key = p * nv + q;
-      dir.set(key, (dir.get(key) ?? 0) + 1);
-      const ra = find(p), rb = find(q);
-      if (ra !== rb) parent[ra] = rb;
-    }
+    keys[ne++] = a * nv + b; keys[ne++] = b * nv + c; keys[ne++] = c * nv + a;
+    used[a] = used[b] = used[c] = 1;
+    const ra = find(a), rb = find(b), rc = find(c);
+    if (ra !== rb) parent[ra] = rb;
+    const r2 = find(b); if (r2 !== rc) parent[r2] = rc;
   }
+  const sorted = keys.subarray(0, ne).slice().sort();
+  const has = (key: number): boolean => {
+    let lo = 0, hi = sorted.length - 1;
+    while (lo <= hi) { const mid = (lo + hi) >> 1, v = sorted[mid]!; if (v === key) return true; if (v < key) lo = mid + 1; else hi = mid - 1; }
+    return false;
+  };
   let bad = 0;
   const badVertices: number[] = [];
-  for (const [key, count] of dir) {
+  for (let e = 0; e < sorted.length; e++) {
+    const key = sorted[e]!;
+    const dup = (e > 0 && sorted[e - 1] === key) || (e < sorted.length - 1 && sorted[e + 1] === key);
     const p = Math.floor(key / nv), q = key - p * nv;
-    if (count !== 1 || dir.get(q * nv + p) !== 1) { bad++; if (badVertices.length < 4000) badVertices.push(p, q); }
+    if (dup || !has(q * nv + p)) { bad++; if (badVertices.length < 4000) badVertices.push(p, q); }
   }
   const roots = new Set<number>();
-  const used = new Uint8Array(nv);
-  for (let t = 0; t < nt; t++) for (let k = 0; k < 3; k++) used[I[3 * t + k]!] = 1;
   for (let v = 0; v < nv; v++) if (used[v]) roots.add(find(v));
   return {
     triangles: nt, vertices: nv, watertight: bad === 0 && nt > 0, badEdges: bad, degenerate,

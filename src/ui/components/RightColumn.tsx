@@ -4,7 +4,7 @@ import { newSeed, storage, studio, useStudioState } from '../studio';
 import { TILES } from '../tiles';
 import { PrintPanel } from './PrintPanel';
 import { Viewport3D } from './Viewport3D';
-import { ExportPanel, type BakeState } from './ExportPanel';
+import { ExportPanel } from './ExportPanel';
 
 export type ViewMode = '2d' | '3d';
 const SAVE_KEY = 'morphoid.saved';
@@ -33,13 +33,11 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
 interface Props {
   view: ViewMode;
   explode: number; setExplode: (v: number) => void;
-  baked: BakeState | null; setBaked: (b: BakeState | null) => void;
-  showBaked: boolean; setShowBaked: (v: boolean) => void;
   showBones: boolean; setShowBones: (v: boolean) => void;
   breathing: boolean; setBreathing: (v: boolean) => void;
 }
 
-function Tools2D({ showBones, setShowBones, breathing, setBreathing }: Omit<Props, 'view' | 'explode' | 'setExplode' | 'baked' | 'setBaked' | 'showBaked' | 'setShowBaked'>) {
+function Tools2D({ showBones, setShowBones, breathing, setBreathing }: Omit<Props, 'view' | 'explode' | 'setExplode'>) {
   const [input, setInput] = useState('');
   const [msg, setMsg] = useState<{ text: string; warn: boolean } | null>(null);
   const { past, future } = useStudioState();
@@ -108,7 +106,7 @@ function Tools2D({ showBones, setShowBones, breathing, setBreathing }: Omit<Prop
   );
 }
 
-function Steps3D({ explode, setExplode, baked, setBaked, showBaked, setShowBaked }: Pick<Props, 'explode' | 'setExplode' | 'baked' | 'setBaked' | 'showBaked' | 'setShowBaked'>) {
+function Steps3D({ explode, setExplode }: Pick<Props, 'explode' | 'setExplode'>) {
   const { genome } = useStudioState();
   const stepFields = TILES.flatMap((t) => t.fields).filter((tf) =>
     blockDef(tf.block).fields.find((f) => f.name === tf.field)?.kind === 'step');
@@ -135,7 +133,7 @@ function Steps3D({ explode, setExplode, baked, setBaked, showBaked, setShowBaked
           );
         })}
       </section>
-      <ExportPanel baked={baked} setBaked={setBaked} showBaked={showBaked} setShowBaked={setShowBaked} />
+      <ExportPanel />
     </>
   );
 }
@@ -144,7 +142,7 @@ export function RightColumn(props: Props) {
   return (
     <aside className="column right">
       <PrintPanel />
-      {props.view === '2d' ? <Tools2D {...props} /> : <Steps3D explode={props.explode} setExplode={props.setExplode} baked={props.baked} setBaked={props.setBaked} showBaked={props.showBaked} setShowBaked={props.setShowBaked} />}
+      {props.view === '2d' ? <Tools2D {...props} /> : <Steps3D explode={props.explode} setExplode={props.setExplode} />}
     </aside>
   );
 }

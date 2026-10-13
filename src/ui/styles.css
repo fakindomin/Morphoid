@@ -266,3 +266,34 @@ kbd { font: 10.5px ui-monospace, Menlo, monospace; padding: 1px 6px; border: 1px
 .valid.ok { color: #2ecc71; font-weight: 700; font-size: 11px; }
 .valid.bad { color: var(--red); font-weight: 700; font-size: 11px; }
 .check { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+
+/* ---- bake indicator ---- */
+.spinner { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--cyan) 30%, transparent); border-top-color: var(--cyan); animation: spin-s .8s linear infinite; flex: none; }
+@keyframes spin-s { to { transform: rotate(360deg); } }
+.bake-chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; border: 1px solid color-mix(in srgb, var(--cyan) 45%, transparent); background: color-mix(in srgb, var(--cyan) 10%, var(--bg-card)); white-space: nowrap; }
+button.bake-chip:hover { background: color-mix(in srgb, var(--cyan) 22%, var(--bg-card)); }
+.bake-chip.stale { border-color: #f1c40f; }
+.bake-chip.done { border-color: color-mix(in srgb, #2ecc71 60%, transparent); background: color-mix(in srgb, #2ecc71 12%, var(--bg-card)); padding: 0; overflow: hidden; }
+.bake-chip.done .chip-main { padding: 6px 12px; font-weight: 800; color: #2ecc71; }
+.bake-chip .chip-x { padding: 4px 9px; font-size: 14px; line-height: 1; opacity: .8; }
+.bake-chip .chip-x:hover { opacity: 1; }
+.chip-bar { width: 60px; height: 5px; border-radius: 999px; background: var(--bg-input); overflow: hidden; }
+.chip-bar i, .mini-bar i { display: block; height: 100%; background: var(--cyan); transition: width .2s; }
+.bake-progress { display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: 10px; background: var(--bg-input); border: 1px solid color-mix(in srgb, var(--cyan) 40%, transparent); }
+.bake-progress-top { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.bake-progress-top b { font: 800 16px ui-monospace, Menlo, monospace; color: var(--cyan); }
+.bake-label { color: var(--text); flex: 1; }
+.bake-progress-bottom { display: flex; justify-content: space-between; font: 11px ui-monospace, Menlo, monospace; color: var(--muted); }
+.status-bake { display: inline-flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--text); }
+button.status-bake:hover { color: var(--cyan); }
+.status-bake.running { color: var(--cyan); font-weight: 700; }
+.status-bake.done { color: #2ecc71; font-weight: 700; }
+.status-bake.stale { color: #d4a900; }
+.status-bake.bad { color: var(--red); }
+.status-bake.muted { color: var(--muted); }
+.mini-bar { width: 70px; height: 4px; border-radius: 999px; background: var(--bg-input); overflow: hidden; }
+.bake-toast { position: fixed; z-index: 60; left: 50%; bottom: 56px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 10px; background: var(--bg-card); border: 1px solid #2ecc71; box-shadow: 0 10px 30px rgba(0, 0, 0, .4); font-size: 12.5px; animation: pop-notice .2s ease-out; }
+.bake-toast.bad { border-color: #f1c40f; }
+.bake-toast b { color: #2ecc71; }
+.bake-toast.bad b { color: #d4a900; }
+@media (prefers-reduced-motion: reduce) { .spinner, .progress i { animation: none; } }

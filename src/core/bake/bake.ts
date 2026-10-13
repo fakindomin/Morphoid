@@ -7,8 +7,8 @@ import { solveRig } from '../rig';
 import { targetPose } from '../art/pose';
 import { buildPaths, type SlotId } from '../art/shapes';
 import { buildParts3D, type Part3D } from '../art/spec3d';
-import { GROUPS, groupOfSlot, isSeparate, pieceOf, type PartGroup, type PrintPlan } from '../print';
-import { addPart, clipBelow, makeGrid } from './field';
+import { GROUPS, isSeparate, pieceOf, type PartGroup, type PrintPlan } from '../print';
+import { addPart, clipBelow, gridDims, makeGrid } from './field';
 import { flipMesh, validateMesh, type MeshValidation } from './mesh';
 import { makeManifoldField, surfaceNets, type Grid3, type Mesh } from './surfacenets';
 
@@ -24,10 +24,15 @@ export const MIN_SOLID_MM = 0.8;
  * voxel thin). The validator finds those cells; we flip the sign of the weakest corner (a change
  * of less than a voxel) and mesh again, until every edge is shared by exactly two triangles.
  */
-export function meshWithRepair(grid: Grid3, maxIter = 12): { mesh: Mesh; validation: MeshValidation; repairs: number } {
+export function meshWithRepair(
+  grid: Grid3, maxIter = 12, phase?: (name: 'topology' | 'mesh' | 'validate') => void,
+): { mesh: Mesh; validation: MeshValidation; repairs: number } {
+  phase?.('topology');
   let repairs = makeManifoldField(grid);
+  phase?.('mesh');
   for (let iter = 0; ; iter++) {
     let mesh = surfaceNets(grid);
+    phase?.('validate');
     let validation = validateMesh(mesh);
     if (validation.volume < 0) { mesh = flipMesh(mesh); validation = validateMesh(mesh); }
     if (validation.watertight || iter >= maxIter || !mesh.cells) return { mesh, validation, repairs };
@@ -62,7 +67,21 @@ export interface BakedPiece {
 
 export interface BakeResult { pieces: BakedPiece[]; ms: number; quality: BakeQuality }
 
-type Progress = (stage: string, done: number, total: number) => void;
+export interface BakeProgress {
+  /** 0..1 over the whole bake, weighted by the size of every piece's grid */
+  frac: number;
+  /** what is happening right now, in Polish */
+  label: string;
+  /** name of the piece being baked and its position */
+  piece: string;
+  index: number;
+  count: number;
+}
+type Progress = (p: BakeProgress) => void;
+
+/** Share of one piece's time spent in each phase (measured on typical models). */
+const PHASES = { field: 0.28, topology: 0.2, mesh: 0.37, validate: 0.15 } as const;
+const PHASE_LABEL = { field: 'Zrost elementów w bryłę', topology: 'Naprawa topologii', mesh: 'Tworzenie siatki', validate: 'Kontrola szczelności' } as const;
 
 export function bake(genome: MorphotypeGenome, plan: PrintPlan, quality: BakeQuality, onProgress?: Progress): BakeResult {
   const t0 = performance.now();
@@ -78,11 +97,17 @@ export function bake(genome: MorphotypeGenome, plan: PrintPlan, quality: BakeQua
   }
   const legsSeparate = isSeparate(plan, 'legs');
   const order = ['body', ...GROUPS.map((g) => g.id)].filter((id) => byPiece.has(id));
+  const labelOf = (id: string): string => (id === 'body' ? (byPiece.size === 1 ? 'Całość' : 'Korpus') : GROUPS.find((x) => x.id === id)!.label);
+  const weights = order.map((id) => { const d = gridDims(byPiece.get(id)!, h); return d.nx * d.ny * d.nz; });
+  const totalW = weights.reduce((a, b) => a + b, 0) || 1;
+  let doneW = 0;
+  const report = (n: number, phaseDone: number, label: string): void =>
+    onProgress?.({ frac: Math.min(1, (doneW + weights[n]! * phaseDone) / totalW), label, piece: labelOf(order[n]!), index: n + 1, count: order.length });
   const pieces: BakedPiece[] = [];
   order.forEach((id, n) => {
-    onProgress?.(id, n, order.length);
     const ps = byPiece.get(id)!;
     const t1 = performance.now();
+    report(n, 0, PHASE_LABEL.field);
     const grid = makeGrid(ps, h);
     for (const p of ps) addPart(grid, p, BLEND_MM);
     // flat cuts so a piece has a real footprint on the bed
@@ -92,15 +117,12 @@ export function bake(genome: MorphotypeGenome, plan: PrintPlan, quality: BakeQua
       for (const p of ps) for (const poly of p.polys) for (const [, y] of poly) ymin = Math.min(ymin, y);
       clipBelow(grid, ymin + 2);
     }
-    const { mesh, validation } = meshWithRepair(grid);
-    const gdef = groupOfSlot(ps[0]!.slot as SlotId);
+    const start = { topology: PHASES.field, mesh: PHASES.field + PHASES.topology, validate: PHASES.field + PHASES.topology + PHASES.mesh } as const;
+    const { mesh, validation } = meshWithRepair(grid, 12, (name) => report(n, start[name], PHASE_LABEL[name]));
     const flat = id !== 'body' && GROUPS.find((x: { id: PartGroup }) => x.id === id)?.orientation === 'flat';
-    void gdef;
-    pieces.push({
-      id, label: id === 'body' ? (byPiece.size === 1 ? 'Całość' : 'Korpus') : GROUPS.find((x) => x.id === id)!.label,
-      orientation: flat ? 'flat' : 'upright', mesh, validation, ms: performance.now() - t1,
-    });
+    pieces.push({ id, label: labelOf(id), orientation: flat ? 'flat' : 'upright', mesh, validation, ms: performance.now() - t1 });
+    doneW += weights[n]!;
   });
-  onProgress?.('done', order.length, order.length);
+  onProgress?.({ frac: 1, label: 'Gotowe', piece: '', index: order.length, count: order.length });
   return { pieces, ms: performance.now() - t0, quality };
 }
