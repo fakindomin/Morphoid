@@ -524,18 +524,25 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
   const mouthA: XY = [tipX - 1.6, tip[1] - 1.6];
   const mouthB: XY = [head[0] + hs.rx * 0.22, head[1] - hs.ry * 0.4];
   const expr = face.expression!;
-  put('mouth', expr === 1
-    ? taper(mouthA, [(mouthA[0] + mouthB[0]) / 2, mouthA[1] - 2.8], [mouthB[0], mouthB[1] + 1.4], () => G, 8)
-    : tube(mouthA, mouthB, G, G));
+  // the mouth line as drawn: a smile is a curve, other expressions a straight cut (teeth follow the same line)
+  const smile: [XY, XY, XY] = [mouthA, [(mouthA[0] + mouthB[0]) / 2, mouthA[1] - 2.8], [mouthB[0], mouthB[1] + 1.4]];
+  const mouthAt = (f: number): XY => {
+    if (expr !== 1) return [mouthA[0] + (mouthB[0] - mouthA[0]) * f, mouthA[1] + (mouthB[1] - mouthA[1]) * f];
+    const [a, c, b] = smile, u = 1 - f;
+    return [u * u * a[0] + 2 * u * f * c[0] + f * f * b[0], u * u * a[1] + 2 * u * f * c[1] + f * f * b[1]];
+  };
+  put('mouth', expr === 1 ? taper(smile[0], smile[1], smile[2], () => G, 8) : tube(mouthA, mouthB, G, G));
   if (expr === 2) put('brow', tube([eye[0] - er2 - 1.4, eye[1] + er2 + 3], [eye[0] + er2 + 1.4, eye[1] + er2 + 1], G, G));
 
   if (face.teeth! > 0) { // flat relief on the muzzle side, inside the silhouette
     const t = new Path();
-    const count = face.teeth === 1 ? 2 : 4;
-    for (let i = 0; i < count; i++) {
-      const f = face.teeth === 1 ? 0.35 + i * 0.4 : 0.2 + i * 0.2;
-      const x = mouthA[0] + (mouthB[0] - mouthA[0]) * f, y = mouthA[1] + (mouthB[1] - mouthA[1]) * f + 0.5;
-      t.append(polygon([[x - 1.2, y + 2.6], [x + 1.2, y + 2.6], [x, y]]));
+    // Seen from the side: fangs = a matched pair near the front of the mouth;
+    // a row = four even teeth along the front half. Each hangs from the upper lip, its tip just over the mouth line.
+    const spots = face.teeth === 1 ? [0.16, 0.34] : [0.12, 0.24, 0.36, 0.48];
+    const [len, half] = face.teeth === 1 ? [3.2, 1.3] : [2.4, 1];
+    for (const f of spots) {
+      const [x, y] = mouthAt(f);
+      t.append(polygon([[x - half, y + len - 0.6], [x + half, y + len - 0.6], [x, y - 0.6]]));
     }
     put('teeth', t);
   }
