@@ -3,8 +3,8 @@
  * (discrete) rig target, so a variant change animates instead of popping,
  * while the target itself stays exactly on Y = 0 (feet are pinned).
  */
-import type { MorphotypeGenome } from '../../core/genome';
-import { dimensions as D, idleOffsets, type NodeId, type Rig } from '../../core/rig';
+import type { MorphotypeGenome } from '../genome';
+import { dimensions as D, idleOffsets, type NodeId, type Rig } from '../rig';
 
 export type PosMap = Record<NodeId, [number, number]>;
 

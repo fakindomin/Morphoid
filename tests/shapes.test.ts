@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { mulberry32, randomGenome } from '../src/core/genome';
 import { solveRig } from '../src/core/rig';
-import { buildShapes, SLOTS } from '../src/ui/render2d/shapes';
-import { targetPose } from '../src/ui/render2d/pose';
+import { buildShapes, SLOTS } from '../src/core/art/shapes';
+import { targetPose } from '../src/core/art/pose';
 
 describe('2D artwork', () => {
   it('produces finite path data for 1500 random genomes, incl. breathing and mouse offsets', () => {

@@ -5,7 +5,7 @@ import { Header, type Theme } from './components/Header';
 import { LeftColumn } from './components/LeftColumn';
 import { RadialMenu, useRadial } from './components/RadialMenu';
 import { RightColumn, type ViewMode } from './components/RightColumn';
-import { rigSize } from './render2d/shapes';
+import { rigSize } from '../core/art/shapes';
 import { storage, studio, useStudioState } from './studio';
 
 const THEME_KEY = 'morphoid.theme';

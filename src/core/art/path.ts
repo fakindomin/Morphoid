@@ -26,6 +26,38 @@ export class Path {
     return out;
   }
 
+  /** Polygons (one per subpath) with curves sampled; coordinates stay in mm. */
+  flatten(steps = 8): XY[][] {
+    const polys: XY[][] = [];
+    let cur: XY[] = [];
+    let last: XY = [0, 0];
+    const flush = (): void => { if (cur.length > 2) polys.push(cur); cur = []; };
+    for (const [op, ...n] of this.c) {
+      if (op === 'M') { flush(); last = [n[0]!, n[1]!]; cur.push(last); }
+      else if (op === 'L') { last = [n[0]!, n[1]!]; cur.push(last); }
+      else if (op === 'Q') {
+        const [cx, cy, x, y] = n as [number, number, number, number];
+        for (let i = 1; i <= steps; i++) {
+          const t = i / steps, u = 1 - t;
+          cur.push([u * u * last[0] + 2 * u * t * cx + t * t * x, u * u * last[1] + 2 * u * t * cy + t * t * y]);
+        }
+        last = [x, y];
+      } else if (op === 'C') {
+        const [a, b, c2, d, x, y] = n as [number, number, number, number, number, number];
+        for (let i = 1; i <= steps; i++) {
+          const t = i / steps, u = 1 - t;
+          cur.push([
+            u * u * u * last[0] + 3 * u * u * t * a + 3 * u * t * t * c2 + t * t * t * x,
+            u * u * u * last[1] + 3 * u * u * t * b + 3 * u * t * t * d + t * t * t * y,
+          ]);
+        }
+        last = [x, y];
+      } else if (op === 'Z') flush();
+    }
+    flush();
+    return polys;
+  }
+
   /** Copy shifted by (dx, dy) mm. */
   translated(dx: number, dy: number): Path {
     const p = new Path();

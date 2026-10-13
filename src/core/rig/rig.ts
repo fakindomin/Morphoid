@@ -13,7 +13,7 @@ import { serialize, type MorphotypeGenome } from '../genome';
 import * as D from './dimensions';
 
 export type NodeId =
-  | 'torso' | 'shoulderF' | 'hipB' | 'neckBase' | 'head' | 'muzzle' | 'tailBase' | 'tailTip' | 'wingRoot'
+  | 'torso' | 'shoulderF' | 'hipB' | 'neckBase' | 'head' | 'muzzle' | 'tailBase' | 'tailMid' | 'tailTip' | 'wingRoot'
   | 'hornRoot' | 'earRoot' | 'crestRoot'
   | 'footFL' | 'footFR' | 'footBL' | 'footBR';
 
@@ -53,8 +53,11 @@ export interface Rig {
   issues: string[];
 }
 
-const NECK_ANGLE = 0.95; // rad above horizontal
-const TAIL_RISE = 0.15; // rad: tail leaves the rump backwards, slightly up (never below the bed)
+const NECK_ANGLE = 1.15; // rad above horizontal (steep: the head sits over the chest, not in front of it)
+// The tail leaves the rump backwards and UP, curling steeper towards the tip, so
+// every part of it is >= 45 deg above horizontal (support-free print, see PRINT_RULES).
+const TAIL_RISE = 0.80;      // rad (~46 deg) first half
+const TAIL_CURL = 0.30;      // rad extra steepness for the second half
 
 interface Spec { id: NodeId; parent: NodeId | null; contact?: boolean }
 const SPECS: readonly Spec[] = [
@@ -73,7 +76,8 @@ const SPECS: readonly Spec[] = [
   { id: 'crestRoot', parent: 'neckBase' },
   { id: 'wingRoot', parent: 'torso' },
   { id: 'tailBase', parent: 'torso' },
-  { id: 'tailTip', parent: 'tailBase' },
+  { id: 'tailMid', parent: 'tailBase' },
+  { id: 'tailTip', parent: 'tailMid' },
 ];
 
 const cache = new Map<string, Rig>();
@@ -97,31 +101,35 @@ function build(g: MorphotypeGenome, code: string): Rig {
   const tailLen = g.tail!.type === 0 ? 0 : D.TAIL_LENGTH[g.tail!.length!]!;
   const sole = D.FOOT_SOLE[g.legs!.foot!]!;
   const legZ = W * 0.32;
+  const legX = Math.max(6, L / 2 - G / 2 - 1.3);
 
   // Local offsets are a function of the dims only -> hierarchy: stretching the
   // torso moves neck/head/front legs forward and tail/hind legs backward.
   const local: Record<NodeId, [number, number, number]> = {
     torso: [0, 0, 0],
-    shoulderF: [L * 0.32, -G * 0.35, 0],
-    hipB: [-L * 0.32, -G * 0.35, 0],
+    // legs stand under the flat part of the torso underside (its 45 deg chamfers start at the leg outer edges)
+    shoulderF: [legX, -G * 0.35, 0],
+    hipB: [-legX, -G * 0.35, 0],
     footFL: [0, -legLen, legZ],
     footFR: [0, -legLen, -legZ],
     footBL: [0, -legLen, legZ],
     footBR: [0, -legLen, -legZ],
-    neckBase: [L * 0.42, G * 0.25, 0],
+    neckBase: [L * 0.36, G * 0.25, 0],
     head: [neckLen, 0, 0], // along the neck's rotated frame
     muzzle: [D.HEAD_RADIUS + D.SNOUT_REACH[g.snout!.reach!]!, -2, 0],
     hornRoot: [1, 4, 0],
     earRoot: [-2, 4, 0],
     crestRoot: [0, 2, 0],
     wingRoot: [L * 0.18, G * 0.45, W * 0.3],
-    tailBase: [-L * 0.5, G * 0.1, 0],
-    tailTip: [tailLen, 0, 0], // along the tail's rotated frame
+    tailBase: [-L * 0.5 + 4, G * 0.1, 0], // root buried in the rump
+    tailMid: [tailLen * 0.5, 0, 0], // along the tail's rotated frame
+    tailTip: [tailLen * 0.5, 0, 0],
   };
   const rot: Partial<Record<NodeId, number>> = {
     neckBase: NECK_ANGLE,
     head: -NECK_ANGLE, // head level again
-    tailBase: Math.PI - TAIL_RISE, // pointing backwards
+    tailBase: Math.PI - TAIL_RISE, // pointing backwards and up
+    tailMid: -TAIL_CURL,           // facing backwards, so a negative turn = steeper
   };
 
   const nodes = {} as Record<NodeId, RigNode>;
@@ -228,6 +236,7 @@ export function idleOffsets(rig: Rig, t: number): Partial<Record<NodeId, { dx: n
     neckBase: { dx: 0, dy: breath },
     head: { dx: 0, dy: breath * 1.2 },
     wingRoot: { dx: 0, dy: breath },
-    tailTip: { dx: 0, dy: wave },
+    tailMid: { dx: 0, dy: wave * 0.4 },
+    tailTip: { dx: 0, dy: wave * 0.6 },
   };
 }

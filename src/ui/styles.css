@@ -156,7 +156,7 @@ kbd { font: 10.5px ui-monospace, Menlo, monospace; padding: 1px 6px; border: 1px
 .shape.white { fill: #fff; }
 .shape.ink { fill: var(--ink); stroke: none; }
 .shape.glint { fill: #fff; stroke: none; }
-.shape.line { fill: none; stroke-width: 2; }
+.shape.groove { fill: var(--ink); stroke: none; }
 .s-horns, .s-tuft, .s-spines, .s-mane { stroke-width: 1.8; }
 .shape.bone { fill: none; stroke: var(--bone-faint); stroke-width: 1.4; stroke-dasharray: 4 4; }
 

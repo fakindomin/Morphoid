@@ -2,8 +2,8 @@ import { useEffect, useRef } from 'react';
 import { solveRig, SOCKET_NODE, type SocketId } from '../../core';
 import { PALETTES } from '../../core/palette';
 import { studio } from '../studio';
-import { clonePose, easePose, targetPose, type Pose } from '../render2d/pose';
-import { buildShapes, SLOTS, rigSize, type Shapes } from '../render2d/shapes';
+import { clonePose, easePose, targetPose, type Pose } from '../../core/art/pose';
+import { buildShapes, SLOTS, rigSize, type Shapes } from '../../core/art/shapes';
 
 const W = 820, H = 520, SCALE = 4.6, CX = 430, GROUND = 440;
 const to = (x: number, y: number) => [CX - x * SCALE, GROUND - y * SCALE] as const;
