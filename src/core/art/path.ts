@@ -109,7 +109,7 @@ export function tube(a: XY, b: XY, w0: number, w1: number): Path {
 }
 
 /** Quadratic curve a -> b (control c) swept with a width profile w(t), t in [0,1]. */
-export function taper(a: XY, c: XY, b: XY, w: (t: number) => number, n = 10): Path {
+export function taper(a: XY, c: XY, b: XY, w: (t: number) => number, n = 10, oneSided = false): Path {
   const left: XY[] = [], right: XY[] = [];
   for (let i = 0; i <= n; i++) {
     const t = i / n, u = 1 - t;
@@ -119,8 +119,13 @@ export function taper(a: XY, c: XY, b: XY, w: (t: number) => number, n = 10): Pa
     const ty = 2 * u * (c[1] - a[1]) + 2 * t * (b[1] - c[1]);
     const l = Math.hypot(tx, ty) || 1;
     const nx = -ty / l, ny = tx / l, hw = Math.max(0, w(t)) / 2;
-    left.push([x + nx * hw, y + ny * hw]);
-    right.push([x - nx * hw, y - ny * hw]);
+    if (oneSided) { // spine is the left edge; the body grows to the right of the direction of travel
+      left.push([x, y]);
+      right.push([x - nx * hw * 2, y - ny * hw * 2]);
+    } else {
+      left.push([x + nx * hw, y + ny * hw]);
+      right.push([x - nx * hw, y - ny * hw]);
+    }
   }
   return polygon([...left, ...right.reverse()]);
 }

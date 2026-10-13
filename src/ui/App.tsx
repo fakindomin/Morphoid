@@ -6,6 +6,7 @@ import { LeftColumn } from './components/LeftColumn';
 import { RadialMenu, useRadial } from './components/RadialMenu';
 import { RightColumn, type ViewMode } from './components/RightColumn';
 import { rigSize } from '../core/art/shapes';
+import { usePrintReport } from './printReport';
 import { storage, studio, useStudioState } from './studio';
 
 const THEME_KEY = 'morphoid.theme';
@@ -22,8 +23,10 @@ export function App() {
   const [showBones, setShowBones] = useState(false);
   const [breathing, setBreathing] = useState(true);
   const radial = useRadial();
-  const { genome } = useStudioState();
+  const { genome, plan } = useStudioState();
   const rig = solveRig(genome);
+  const report = usePrintReport(genome, plan);
+  const markers = report.issues.filter((i) => i.severity !== 'info').map((i) => ({ at: i.at, severity: i.severity, text: i.message }));
   const size = rigSize(rig);
 
   useEffect(() => {
@@ -54,7 +57,7 @@ export function App() {
         <section className="blueprint">
           <div className="hud-tag">{view === '2d' ? 'WIDOK Z BOKU · kliknij pomarańczowy punkt, aby zmienić część' : '3D STUDIO · PODGLĄD (ETAP 2)'}</div>
           {view === '2d' ? (
-            <Canvas2D showBones={showBones} breathing={breathing} frozen={radial.state.open} onSocket={onSocket} />
+            <Canvas2D showBones={showBones} breathing={breathing} frozen={radial.state.open} onSocket={onSocket} markers={markers} />
           ) : (
             <div className="placeholder3d">
               <div className="cube" aria-hidden />
@@ -70,6 +73,10 @@ export function App() {
         <span className={rig.issues.length ? 'bad' : 'ok'}>
           <i className="dot" />
           {rig.issues.length ? `Naruszenia: ${rig.issues.join(', ')}` : 'Podstawa Y=0: zablokowana'}
+        </span>
+        <span className={`print-status ${report.level}`}>
+          <i className="dot" />
+          Druk: {report.level === 'green' ? 'OK' : report.level === 'yellow' ? 'z uwagami' : 'wymaga zmian'}
         </span>
         <span className="muted">Model {size.length.toFixed(0)} × {size.width.toFixed(0)} × {size.height.toFixed(0)} mm</span>
         <span className="spacer" />

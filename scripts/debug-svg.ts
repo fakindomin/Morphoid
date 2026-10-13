@@ -4,13 +4,13 @@ import { defaultGenome, parse } from '../src/core/genome';
 import { solveRig } from '../src/core/rig';
 import { targetPose } from '../src/core/art/pose';
 import { buildPaths } from '../src/core/art/shapes';
-import { analyzePrint, PRINT_SOLID_SLOTS } from '../src/core/print';
+import { analyzePrint, PRINT_SOLID_SLOTS, planModular, planWhole } from '../src/core/print';
 
 const arg = process.argv[2] ?? 'default';
 const g = arg === 'default' ? defaultGenome() : (parse(arg) as { ok: true; genome: ReturnType<typeof defaultGenome> }).genome;
 const rig = solveRig(g);
 const paths = buildPaths(targetPose(rig, g, 0, false, { x: 0, y: 0 }), g, rig, false);
-const rep = analyzePrint(paths, rig);
+const rep = analyzePrint(paths, rig, process.argv[4] === 'modular' ? planModular() : planWhole());
 const S = 8, X0 = 60, H = 90;
 const to = (x: number, y: number) => [(X0 - x) * S, (H - y) * S] as const;
 let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${(X0 + 80) * S}" height="${(H + 4) * S}" style="background:#fff">`;

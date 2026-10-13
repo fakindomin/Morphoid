@@ -48,18 +48,25 @@ function leg(top: XY, foot: XY, w: number, type: number, soleL: number): Path {
   return path.Z();
 }
 
-/** Torso silhouette: elliptical back, flat belly with 45 degree chamfers at both ends (support-free). */
-function hull(cx: number, cy: number, rx: number, ry: number): Path {
-  const r = Math.min(ry, rx * 0.9);
-  const c = rx - r;
+/** Torso silhouette: elliptical, lower corners cut by 45 degree chamfers down to a flat belly (support-free). */
+function hull(cx: number, cy: number, bodyL: number, bodyG: number): Path {
+  const h = D.hullGeometry(bodyL, bodyG);
+  const { rx, ry, theta, px, py, xc } = h;
   const p = new Path().M(cx + rx, cy);
-  for (let i = 1; i <= 24; i++) {
+  for (let i = 1; i <= 24; i++) {                       // back + top: tip -> over the top -> far tip
     const a = (Math.PI * i) / 24;
     p.L(cx + rx * Math.cos(a), cy + ry * Math.sin(a));
   }
-  // lower half: 45 deg chamfer in, flat belly, 45 deg chamfer out (corners softened)
-  p.L(cx - c - 2.1, cy - r + 2.1).Q(cx - c, cy - r, cx - c + 3, cy - r);
-  p.L(cx + c - 3, cy - r).Q(cx + c, cy - r, cx + c + 2.1, cy - r + 2.1);
+  const steps = 6;                                      // lower far side, ellipse down to the 45 deg point
+  for (let i = 1; i <= steps; i++) {
+    const a = Math.PI + (theta * i) / steps;
+    p.L(cx + rx * Math.cos(a), cy + ry * Math.sin(a));
+  }
+  p.L(cx - xc, cy - ry).L(cx + xc, cy - ry).L(cx + px, cy + py);
+  for (let i = steps - 1; i >= 1; i--) {                // near side, back up to the tip
+    const a = -(theta * i) / steps;
+    p.L(cx + rx * Math.cos(a), cy + ry * Math.sin(a));
+  }
   return p.Z();
 }
 
@@ -132,13 +139,13 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
   put('legFFar', leg([shF[0] + 3.2, shF[1]], [fF[0] + 3.2, fF[1]], legW, foot, n.soleL));
 
   // ---- torso (flat belly + 45 deg chamfers) and the belly arch between the legs ----
-  put('torso', hull(torso[0], torso[1], tRx, tRy));
-  put('torsoClip', hull(torso[0], torso[1], tRx, tRy));
+  put('torso', hull(torso[0], torso[1], n.bodyL, n.bodyG));
+  put('torsoClip', hull(torso[0], torso[1], n.bodyL, n.bodyG));
   put('belly', ellipse(torso[0] - 0.5, torso[1] - tRy * 0.38, tRx * 0.62, tRy * 0.44));
 
   const innerB = hipB[0] + legW / 2, innerF = shF[0] - legW / 2;
   const gap = innerF - innerB;
-  const bottomY = torso[1] - Math.min(tRy, tRx * 0.9);
+  const bottomY = torso[1] - tRy;
   if (gap > 1 && bottomY > 0.5) {
     // Pointed arch under the belly: walls rise at 45 deg, the flat ceiling (= the belly) is never wider than maxBridge.
     const hb = Math.min(gap / 2, bottomY + maxBridge / 2);
@@ -174,15 +181,18 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
     const width = tailType === 1 ? (t: number) => Math.max(1.8, w0 * (1 - t * 0.9))
       : tailType === 2 ? (t: number) => Math.max(1.8, w0 * (1 - t) + n.bodyG * 0.95 * Math.sin(Math.PI * Math.min(0.98, t * 0.95 + 0.04)))
       : (t: number) => Math.max(1.8, w0 * (1 - t) + n.bodyG * 1.1 * t * t);
-    put('tail', taper(tailBase, ctrl, tailTip, width, 14));
+    // (one-sided: widths above are the FULL thickness measured upwards from the spine)
+    put('tail', taper(tailBase, ctrl, tailTip, width, 14, true)); // lower edge = spine (>= 45 deg)
   }
 
   // ---- neck ---------------------------------------------------------------------
-  put('neck', tube(neckBase, head, n.bodyG * 0.72, R * 1.15));
-  const neckType = g.head!.neck!;
+  const w0 = n.bodyG * 0.72;
   const dir: XY = [head[0] - neckBase[0], head[1] - neckBase[1]];
   const dl = Math.hypot(dir[0], dir[1]) || 1;
   const up: XY = [-dir[1] / dl, dir[0] / dl];
+  const q0: XY = [neckBase[0] - (up[0] * w0) / 2, neckBase[1] - (up[1] * w0) / 2]; // front/lower side of the neck
+  put('neck', tube(neckBase, head, n.bodyG * 0.72, R * 1.15));
+  const neckType = g.head!.neck!;
   const at = (t: number, off: number): XY => [neckBase[0] + dir[0] * t + up[0] * off, neckBase[1] + dir[1] * t + up[1] * off];
   const upSign = up[1] >= 0 ? 1 : -1;
   const neckW = (t: number): number => (n.bodyG * 0.72) * (1 - t) + R * 1.15 * t;
@@ -208,7 +218,11 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
   const snoutType = g.snout!.type!;
   const topB: XY = [head[0] + hs.rx * 0.5, head[1] + hs.ry * 0.5];
   const botB: XY = [head[0] + hs.rx * 0.45, head[1] - hs.ry * 0.78];
-  const tipX = Math.max(muzzle[0], head[0] + hs.rx * 0.95);
+  // The muzzle may not reach further than a 45 degree chin line can be carried by the neck.
+  const minTip = head[0] + hs.rx * 0.95;
+  const chinY = muzzle[1] - 0.5 - 4.2;
+  const maxTip = q0[0] - q0[1] + chinY + 0.5;
+  const tipX = Math.max(minTip, Math.min(muzzle[0], maxTip));
   const tip: XY = [tipX, muzzle[1] - 0.5];
   if (snoutType === 0) {
     put('snout', new Path().M(topB[0], topB[1]).Q(tipX + 1, tip[1] + 3, tipX, tip[1] - 1.5).Q(tipX - 0.5, tip[1] - 4, botB[0], botB[1]).Z());
@@ -223,8 +237,6 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
   // Chin/throat wedge: the muzzle underside runs 45 deg down-back from the chin until it meets the
   // FRONT edge of the neck; the triangle in between is filled so nothing hangs in the air.
   const chin: XY = [tipX - 0.5, tip[1] - 4.2];
-  const w0 = n.bodyG * 0.72;
-  const q0: XY = [neckBase[0] - (up[0] * w0) / 2, neckBase[1] - (up[1] * w0) / 2]; // front/lower side of the neck
   const dn: XY = [dir[0] / dl, dir[1] / dl];
   const den = dn[0] - dn[1];
   if (Math.abs(den) > 1e-6) {
@@ -338,6 +350,7 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
   if (face.whiskers! > 0) { // separate flat part: 1.4 mm wide plates, 1.6 mm thick
     const len = face.whiskers === 1 ? 6 : 11;
     const wk = new Path();
+    wk.append(ellipse(tipX - 4.2, tip[1] + 0.2, 3.4, 2.7)); // root pad: carries the peg, sits in a socket in the muzzle
     for (const a of [-0.25, 0.05, 0.35]) {
       const wx = tipX - 3, wy = tip[1] + 1;
       wk.append(tube([wx, wy], [wx + Math.cos(a) * len, wy + Math.sin(a) * len - 1], 1.4, 1.4));

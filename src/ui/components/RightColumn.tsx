@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { STEPS, blockDef, stepToClass } from '../../core';
 import { newSeed, storage, studio, useStudioState } from '../studio';
 import { TILES } from '../tiles';
+import { PrintPanel } from './PrintPanel';
 
 export type ViewMode = '2d' | '3d';
 const SAVE_KEY = 'morphoid.saved';
@@ -128,6 +129,11 @@ function Steps3D() {
 }
 
 export function RightColumn(props: Props) {
-  return <aside className="column right">{props.view === '2d' ? <Tools2D {...props} /> : <Steps3D />}</aside>;
+  return (
+    <aside className="column right">
+      <PrintPanel />
+      {props.view === '2d' ? <Tools2D {...props} /> : <Steps3D />}
+    </aside>
+  );
 }
 

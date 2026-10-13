@@ -45,6 +45,9 @@ Genom 13 bajtów + CRC-4, rig z kotwicą Y=0, reguła N→2N, automat menu koło
 - *Zrealizowane odstępstwa:* jeden ekran z przełącznikiem `2D | 3D` (zatwierdzone), motyw jasny/ciemny do wyboru (domyślnie wg systemu, zapamiętany), bez dźwięków. Pole `legs.count` zostaje w genomie, ale nie ma jeszcze kontrolki, bo rig nie rozróżnia 2 i 4 nóg. Suwaki skokowe 2N działają już w trybie 3D, więc część Etapu 2 jest wcześniej gotowa.
 - *Styl rysunku:* figurkowy (decyzja: narzędzie dla amatorów). Kolorowe, obłe sylwetki wypełnione kolorami z palety DNA (c1 ciało, c2 akcenty, c3 wzory), obrys w kolorze atramentu, duże oczy z odblaskiem, cień na stole, ukryta druga para nóg, wzory ciała (pręgi, cętki), obroża i siodło. Kości riga są domyślnie wyłączone (przełącznik zostaje). Sylwetki są parametryczne (elipsy, tuby, wielokąty), więc szlif artystyczny wariantów pozostaje osobnym zadaniem.
 
+**Etap 1b – Kontrola druku (ZROBIONE)**
+Kontrakt elementu 2D↔3D↔druk (`docs/ELEMENT_CONTRACT.md`), audyt sylwetki bez podpór, profil Bambu Lab P1S, plan druku (Całość / Moduły / własny) poza DNA, panel „Kontrola druku" z akcjami i znacznikami na rysunku, testy egzekwujące zasadę (34 testy). Anatomia przeprojektowana pod druk: tułów z płaskim brzuchem i fazami 45°, łuk między nogami, klin podbródka, ogon unoszony pod kątem, skrzydła w „piłę", płaskie zęby, wąsy jako osobna część.
+
 **Etap 2 – Viewport 3D (1–2 tyg.)**
 - Three.js z tym samym `Rig`. Na początek prymitywy (elipsoidy/kapsuły) na węzłach, bez SDF.
 - Suwaki skokowe 6-pozycyjne i przełączanie klasy w 2D przy przekroczeniu progu.

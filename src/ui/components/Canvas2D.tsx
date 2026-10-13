@@ -22,9 +22,11 @@ interface Props {
   /** menu open: freeze idle + mouse tracking so sockets don't drift under the cursor */
   frozen: boolean;
   onSocket: (socket: SocketId, screen: { x: number; y: number }) => void;
+  /** print problems to point at (rig mm) */
+  markers?: { at: [number, number]; severity: 'info' | 'warn' | 'error'; text: string }[];
 }
 
-export function Canvas2D({ showBones, breathing, frozen, onSocket }: Props) {
+export function Canvas2D({ showBones, breathing, frozen, onSocket, markers = [] }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const slotEls = useRef<Record<string, SVGPathElement | null>>({});
   const socketEls = useRef<Record<string, SVGGElement | null>>({});
@@ -124,6 +126,15 @@ export function Canvas2D({ showBones, breathing, frozen, onSocket }: Props) {
               clipPath={id === 'pattern' ? 'url(#torsoClip)' : undefined} />
           ))}
         </g>
+        {markers.map((m, k) => {
+          const [mx, my] = to(m.at[0], m.at[1]);
+          return (
+            <g key={k} className={`marker ${m.severity}`} transform={`translate(${mx.toFixed(1)} ${my.toFixed(1)})`}>
+              <title>{m.text}</title>
+              <circle r={11} /><text y={4}>!</text>
+            </g>
+          );
+        })}
         {SOCKETS.map((s) => (
           <g key={s.id} ref={(el) => { socketEls.current[s.id] = el; }} className="socket"
             onClick={(e) => {

@@ -1,6 +1,6 @@
 import type { BlockId } from '../core';
 
-export interface TileField { block: BlockId; field: string; label: string }
+export interface TileField { block: BlockId; field: string; label: string; /** not drawn in 2D/3D yet: shown disabled */ planned?: boolean }
 export interface TileDef { id: string; title: string; fields: TileField[]; palette?: boolean }
 
 /** Left column: anatomical stack from the spec (1-7) plus the remaining genome blocks. */
@@ -48,7 +48,7 @@ export const TILES: TileDef[] = [
     { block: 'face', field: 'expression', label: 'Mina' },
   ] },
   { id: 'coat', title: '10. Pokrycie i wzór', fields: [
-    { block: 'coat', field: 'texture', label: 'Faktura' },
+    { block: 'coat', field: 'texture', label: 'Faktura (wkrótce)', planned: true },
     { block: 'coat', field: 'pattern', label: 'Wzór' },
   ] },
   { id: 'accessory', title: '11. Dodatki', fields: [{ block: 'accessory', field: 'type', label: 'Akcesorium' }] },

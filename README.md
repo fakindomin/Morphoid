@@ -12,4 +12,6 @@ npm run typecheck
 npm run build
 ```
 
-Docs: `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`.
+npm run audit -- 200 whole    # print audit over random Morphoids (or: modular)
+
+Docs: `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, `docs/ELEMENT_CONTRACT.md` (the 2D↔3D↔print rule).

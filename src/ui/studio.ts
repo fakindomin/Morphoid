@@ -32,3 +32,17 @@ export const storage = {
   get(key: string): string | null { try { return localStorage.getItem(key); } catch { return null; } },
   set(key: string, v: string): void { try { localStorage.setItem(key, v); } catch { /* ignore */ } },
 };
+
+// The print plan is a per-user preference (not part of the DNA): persist it locally.
+const PLAN_KEY = 'morphoid.plan';
+try {
+  const raw = storage.get(PLAN_KEY);
+  if (raw) {
+    const plan = JSON.parse(raw) as import('../core/print').PrintPlan;
+    if (plan && Array.isArray(plan.separate) && typeof plan.maxBridge === 'number') studio.setPlan(plan);
+  }
+} catch { /* ignore a corrupted value */ }
+let lastPlan = studio.getState().plan;
+studio.subscribe((s) => {
+  if (s.plan !== lastPlan) { lastPlan = s.plan; storage.set(PLAN_KEY, JSON.stringify(s.plan)); }
+});

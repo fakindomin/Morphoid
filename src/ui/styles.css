@@ -201,3 +201,33 @@ kbd { font: 10.5px ui-monospace, Menlo, monospace; padding: 1px 6px; border: 1px
 .bad .dot { background: var(--red); box-shadow: 0 0 6px var(--red); }
 
 @media (max-width: 1100px) { .studio { grid-template-columns: 260px 1fr 260px; } .statusbar .muted:last-child { display: none; } }
+
+/* ---- print panel ---- */
+.print-tile.green { border-color: color-mix(in srgb, #2ecc71 55%, transparent); }
+.print-tile.yellow { border-color: color-mix(in srgb, #f1c40f 60%, transparent); }
+.print-tile.red { border-color: color-mix(in srgb, var(--red) 60%, transparent); }
+.level-pill { font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 999px; letter-spacing: .3px; white-space: nowrap; }
+.level-pill.green { background: rgba(46, 204, 113, .18); color: #2ecc71; }
+.level-pill.yellow { background: rgba(241, 196, 15, .2); color: #d4a900; }
+.level-pill.red { background: rgba(255, 23, 68, .18); color: var(--red); }
+.group-list, .issues { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+.group-list li { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.group-name { flex: 1; }
+.segment.mini { flex: none; padding: 2px; }
+.segment.mini .seg-pill { padding: 3px 7px; font-size: 10.5px; }
+.forced { font-size: 10.5px; color: var(--muted); }
+.peg-badge { font: 600 9.5px ui-monospace, Menlo, monospace; padding: 2px 5px; border-radius: 4px; background: var(--bg-input); color: var(--muted); }
+.issue { display: flex; align-items: center; gap: 8px; font-size: 11.5px; line-height: 1.35; padding: 6px 8px; border-radius: 6px; background: var(--bg-input); border-left: 3px solid var(--muted); }
+.issue.error { border-left-color: var(--red); }
+.issue.warn { border-left-color: #f1c40f; }
+.issue-text { flex: 1; }
+.btn-mini { flex: none; font-size: 10.5px; font-weight: 700; padding: 4px 7px; border-radius: 6px; border: 1px solid color-mix(in srgb, var(--cyan) 40%, transparent); background: color-mix(in srgb, var(--cyan) 12%, transparent); }
+.btn-mini:hover { background: color-mix(in srgb, var(--cyan) 25%, transparent); }
+.marker { pointer-events: all; cursor: help; }
+.marker circle { fill: rgba(255, 23, 68, .85); stroke: #fff; stroke-width: 2; }
+.marker.warn circle { fill: rgba(241, 196, 15, .9); }
+.marker text { text-anchor: middle; font: 800 13px sans-serif; fill: #fff; pointer-events: none; }
+.print-status.green .dot { background: #2ecc71; box-shadow: 0 0 6px #2ecc71; }
+.print-status.yellow .dot { background: #f1c40f; box-shadow: 0 0 6px #f1c40f; }
+.print-status.red .dot { background: var(--red); box-shadow: 0 0 6px var(--red); }
+.print-status.red { color: var(--red); font-weight: 700; }

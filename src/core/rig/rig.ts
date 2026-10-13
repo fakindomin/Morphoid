@@ -101,7 +101,9 @@ function build(g: MorphotypeGenome, code: string): Rig {
   const tailLen = g.tail!.type === 0 ? 0 : D.TAIL_LENGTH[g.tail!.length!]!;
   const sole = D.FOOT_SOLE[g.legs!.foot!]!;
   const legZ = W * 0.32;
-  const legX = Math.max(6, L / 2 - G / 2 - 1.3);
+  const hull = D.hullGeometry(L, G);
+  const legW = Math.max(6.5, G * 0.5);
+  const legX = Math.max(5, hull.xc - legW / 2); // leg outer edge sits on the corner of the flat belly
 
   // Local offsets are a function of the dims only -> hierarchy: stretching the
   // torso moves neck/head/front legs forward and tail/hind legs backward.
