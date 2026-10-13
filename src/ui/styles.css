@@ -254,3 +254,15 @@ kbd { font: 10.5px ui-monospace, Menlo, monospace; padding: 1px 6px; border: 1px
 .viewport3d canvas { outline: none; }
 .viewport-reset { position: absolute; right: 14px; top: 14px; }
 .viewport3d-fail { padding: 24px; color: var(--muted); font-size: 13px; text-align: center; }
+
+/* ---- export ---- */
+.progress { height: 8px; border-radius: 999px; background: var(--bg-input); overflow: hidden; border: 1px solid var(--border); }
+.progress i { display: block; height: 100%; background: linear-gradient(90deg, var(--cyan), var(--red)); transition: width .2s; animation: pulse-bar 1.2s ease-in-out infinite alternate; }
+@keyframes pulse-bar { to { opacity: .6; } }
+.bake-result { display: flex; flex-direction: column; gap: 8px; }
+.bake-result.stale .piece-list { opacity: .5; }
+.piece-list { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+.piece-list li { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.valid.ok { color: #2ecc71; font-weight: 700; font-size: 11px; }
+.valid.bad { color: var(--red); font-weight: 700; font-size: 11px; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 12px; }

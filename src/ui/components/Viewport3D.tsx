@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import type { BakeResult } from '../../core/bake/bake';
 import { reportFor } from '../printReport';
+import { buildBakedModel } from '../three/bakedModel';
 import { buildModel, type Model } from '../three/model';
 import { studio } from '../studio';
 
@@ -10,11 +12,15 @@ interface Props {
   variant: 'main' | 'mini';
   /** exploded view of the separately printed parts, 0..1 */
   explode?: number;
+  /** show this baked solid instead of the preview built from outlines (only while it matches the model) */
+  baked?: BakeResult | null;
 }
 
-export function Viewport3D({ variant, explode = 0 }: Props) {
+export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
   const host = useRef<HTMLDivElement>(null);
-  const api = useRef<{ explode: (f: number) => void; resetView: () => void } | null>(null);
+  const api = useRef<{ explode: (f: number) => void; resetView: () => void; rebuild: () => void } | null>(null);
+  const bakedRef = useRef(baked);
+  bakedRef.current = baked;
   const explodeRef = useRef(explode);
   explodeRef.current = explode;
   const [failed, setFailed] = useState(false);
@@ -66,7 +72,8 @@ export function Viewport3D({ variant, explode = 0 }: Props) {
     };
     const rebuild = (): void => {
       const { genome, plan } = studio.getState();
-      const next = buildModel(genome, plan, reportFor(genome, plan));
+      const b = bakedRef.current;
+      const next = b ? buildBakedModel(b, genome.palette!.index!) : buildModel(genome, plan, reportFor(genome, plan));
       if (model) { scene.remove(model.root); model.dispose(); }
       model = next;
       scene.add(model.root);
@@ -94,7 +101,7 @@ export function Viewport3D({ variant, explode = 0 }: Props) {
     let raf = 0;
     const loop = (): void => { controls.update(); renderer.render(scene, camera); raf = requestAnimationFrame(loop); };
     raf = requestAnimationFrame(loop);
-    api.current = { explode: (f) => model?.explode(f), resetView: () => { controls.autoRotate = true; frame(); } };
+    api.current = { explode: (f) => model?.explode(f), resetView: () => { controls.autoRotate = true; frame(); }, rebuild };
 
     return () => {
       cancelAnimationFrame(raf); unsub(); ro.disconnect(); controls.dispose();
@@ -103,6 +110,7 @@ export function Viewport3D({ variant, explode = 0 }: Props) {
   }, [variant]);
 
   useEffect(() => { api.current?.explode(explode); }, [explode]);
+  useEffect(() => { api.current?.rebuild(); }, [baked]);
 
   if (failed) return <div className="viewport3d-fail">Przeglądarka nie udostępnia WebGL, więc podgląd 3D jest niedostępny.</div>;
   return (

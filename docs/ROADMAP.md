@@ -54,14 +54,17 @@ Kontrakt elementu 2D↔3D↔druk (`docs/ELEMENT_CONTRACT.md`), audyt sylwetki be
 - *Kryterium:* suwak 3D zmienia rysunek 2D i odwrotnie (spójność obu kierunków).
 - *Zrealizowane:* Three.js na tym samym rigu i tych samych konturach w mm (wyciągnięcie w osi Z z zaokrągleniem, części parzyste lustrzane, wzór ciała malowany na tułowiu). `core/art/spec3d.ts` to tabela 3D dla każdego slotu 2D, a `tests/art3d.test.ts` wymusza pełne pokrycie (to on wykrył brak ogona). Widok rozłożony pokazuje części drukowane osobno i czopy, mały podgląd 3D jest w trybie 2D, widok na stole P1S. To jest podgląd z wyciągniętych sylwetek, a nie końcowa bryła: gładka, szczelna bryła powstanie w silniku bake (Etap 3).
 
-**Etap 3 – Bake Engine (3–5 tyg., główne ryzyko)**
+**Etap 3 – Bake Engine (ZROBIONE, bez czopów i 3MF)**
 - SDF: kapsuły/elipsoidy po kościach plus `smin`. Najpierw tułów + głowa + 4 łapy ze stopą płaską na Y=0.
 - Surface Nets w Workerze, walidator (parzystość krawędzi, jedna powłoka, objętość > 0, min. grubość, płaska stopa o wymaganej powierzchni).
 - Analiza nawisów (kąt > ~45° → ostrzeżenie), aby „bez podpór" było sprawdzane, a nie zakładane.
 - Eksport `.stl` (binarny). Strojenie tabel `dimensions.ts` na prawdziwych wydrukach.
 - *Kryterium:* 100% losowych genomów z puli testowej przechodzi walidator, 10 figurek wydrukowanych bez podpór.
+- *Zrealizowane:* `core/bake`: pole SDF z dokładnych odległości do konturów (wyciągnięcie w Z z zaokrągleniem, jak w podglądzie 3D), zrost `smin` (promień 1,2 mm), Surface Nets, **naprawa topologii przed siatkowaniem** (każda komórka ma połączone rogi wewnątrz i na zewnątrz, więc siatka się nie „zaciska"), walidator (każda krawędź dokładnie raz w każdym kierunku, objętość, liczba powłok), STL binarny, Web Worker z postępem i anulowaniem, orientacja do druku (stojące zostają, płaskie kładą się na stole), eksport STL lub ZIP części. Testy: kula (objętość ±3%), domyślny stworek w jednej szczelnej powłoce, 25 losowych w trybie całość i modułowym, STL, orientacja.
+- *Pomiary (domyślny stworek):* szkic 0,6 mm ok. 0,5 s i 44k trójkątów, standard 0,3 mm ok. 3,5 s i 177k trójkątów (8,8 MB), dokładny 0,2 mm ok. 10 s i 400k trójkątów (20 MB). Budżet „< 3 s przy 0,2 mm" nie jest spełniony: wąskie gardło to pełne skany siatki, do optymalizacji w paśmie przy powierzchni.
+- *Jeszcze nie ma:* czopów i gniazd jako geometrii (części modułowe są szczelne, ale bez złączy), elementów cieńszych niż 0,8 mm (źrenice, usta, brwi, wnętrze ucha), które mają być obszarami koloru w 3MF, oraz 3MF (Etap 4).
 
-**Etap 4 – Części, kolory, dopracowanie (3–5 tyg.)**
+**Etap 4 – Części, kolory, dopracowanie (do zrobienia)**
 - Czopy/gniazda w domenie SDF (`max(a, -b)`), luz 0,2 mm konfigurowalny. Orientacja i układ części na stole.
 - `.3mf` wielomateriałowy: **spike na Bambu Studio i PrusaSlicer jako pierwszy krok etapu**, bo mechanizmy podziału na kolory są specyficzne dla slicera.
 - Pozostałe klocki z katalogu (krest, coat, accessory), landing, pasek postępu bake'u, dopracowanie Dark-Tech (`clip-path` 45°).

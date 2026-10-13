@@ -7,6 +7,7 @@ import { LeftColumn } from './components/LeftColumn';
 import { RadialMenu, useRadial } from './components/RadialMenu';
 import { RightColumn, type ViewMode } from './components/RightColumn';
 import { rigSize } from '../core/art/shapes';
+import { signatureOf, type BakeState } from './components/ExportPanel';
 import { SupportNotice } from './components/SupportNotice';
 import { usePrintReport } from './printReport';
 import { useSupportNotice } from './useSupportNotice';
@@ -26,6 +27,8 @@ export function App() {
   const [showBones, setShowBones] = useState(false);
   const [breathing, setBreathing] = useState(true);
   const [explode, setExplode] = useState(0);
+  const [baked, setBaked] = useState<BakeState | null>(null);
+  const [showBaked, setShowBaked] = useState(true);
   const radial = useRadial();
   const { genome, plan } = useStudioState();
   const rig = solveRig(genome);
@@ -68,10 +71,10 @@ export function App() {
           {view === '2d' ? (
             <Canvas2D showBones={showBones} breathing={breathing} frozen={radial.state.open} onSocket={onSocket} markers={markers} />
           ) : (
-            <Viewport3D variant="main" explode={explode} />
+            <Viewport3D variant="main" explode={explode} baked={showBaked && baked && baked.signature === signatureOf(studio.code(), plan.separate) ? baked.result : null} />
           )}
         </section>
-        <RightColumn explode={explode} setExplode={setExplode} view={view} showBones={showBones} setShowBones={setShowBones} breathing={breathing} setBreathing={setBreathing} />
+        <RightColumn explode={explode} setExplode={setExplode} baked={baked} setBaked={setBaked} showBaked={showBaked} setShowBaked={setShowBaked} view={view} showBones={showBones} setShowBones={setShowBones} breathing={breathing} setBreathing={setBreathing} />
       </main>
       <footer className="statusbar">
         <span className={rig.issues.length ? 'bad' : 'ok'}>
