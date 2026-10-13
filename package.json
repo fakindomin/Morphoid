@@ -1,0 +1,15 @@
+{
+  "name": "morphoid-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Morphoid Studio - parametric FDM collectible generator (PoC core)",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
