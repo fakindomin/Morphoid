@@ -31,6 +31,8 @@ export interface PrintIssue {
   fuse?: PartGroup;
   at: [number, number];
   size: number;
+  /** for OVERHANG / BRIDGE: side-view area (mm^2) of the supports needed under this part */
+  area?: number;
   message: string;
 }
 
@@ -50,6 +52,8 @@ export interface PrintReport {
   level: 'green' | 'blue' | 'yellow' | 'red';
   issues: PrintIssue[];
   pieces: PieceInfo[];
+  /** total side-view area (mm^2) that would need supports: the number to compare before/after a change */
+  supportArea: number;
 }
 
 const CELL = 0.3;
@@ -109,6 +113,12 @@ function maxInscribed(g: Grid): number {
   return (best - 0.5) * CELL;
 }
 
+/** Which group a fused slot rides along with when that group is printed separately (crest: only tuft + mane sit on the head). */
+function hostOf(slot: SlotId, g: GroupDef | undefined): PartGroup | undefined {
+  if (g?.id === 'crest') return slot === 'tuft' || slot === 'mane' ? 'head' : undefined;
+  return g?.host;
+}
+
 interface PieceSpec { id: string; label: string; kind: 'body' | 'part'; orientation: 'upright' | 'flat'; slots: SlotId[]; clipY?: number }
 
 export function analyzePrint(paths: SlotPaths, rig: Rig, plan: PrintPlan): PrintReport {
@@ -130,8 +140,9 @@ export function analyzePrint(paths: SlotPaths, rig: Rig, plan: PrintPlan): Print
     const gdef: GroupDef | undefined = groupOfSlot(slot);
     if (gdef && sep(gdef.id)) { spec(gdef.id, gdef.label, 'part', gdef.orientation, gdef.id === 'head' ? rig.nodes.neckBase.y : undefined).slots.push(slot); continue; }
     // fused group whose host is a separate part rides along with the host
-    if (gdef?.host && sep(gdef.host)) {
-      const host = GROUPS.find((x) => x.id === gdef.host)!;
+    const hostId = hostOf(slot, gdef);
+    if (hostId && sep(hostId)) {
+      const host = GROUPS.find((x) => x.id === hostId)!;
       spec(host.id, host.label, 'part', host.orientation, host.id === 'head' ? rig.nodes.neckBase.y : undefined).slots.push(slot);
       continue;
     }
@@ -148,7 +159,8 @@ export function analyzePrint(paths: SlotPaths, rig: Rig, plan: PrintPlan): Print
   const errors = issues.some((i) => i.severity === 'error');
   const warns = issues.some((i) => i.severity === 'warn');
   const supports = issues.some((i) => i.severity === 'support');
-  return { ok: !errors, level: errors ? 'red' : warns ? 'yellow' : supports ? 'blue' : 'green', issues, pieces };
+  const supportArea = issues.reduce((sum, i) => sum + (i.code === 'OVERHANG' || i.code === 'BRIDGE' ? (i.area ?? 0) : 0), 0);
+  return { ok: !errors, level: errors ? 'red' : warns ? 'yellow' : supports ? 'blue' : 'green', issues, pieces, supportArea };
 
   // ---------------------------------------------------------------------------------------
   function analyzePiece(s: PieceSpec): void {
@@ -158,22 +170,25 @@ export function analyzePrint(paths: SlotPaths, rig: Rig, plan: PrintPlan): Print
     for (const o of solids) for (const poly of o.polys) for (const [x, y] of poly) {
       xmin = Math.min(xmin, x); xmax = Math.max(xmax, x); ymin = Math.min(ymin, y); ymax = Math.max(ymax, y);
     }
-    const y0 = s.clipY !== undefined ? Math.max(ymin, s.clipY) : Math.max(0, ymin);
-    const pad = 2, x0 = xmin - pad;
+    const y0raw = s.clipY !== undefined ? Math.max(ymin, s.clipY) : Math.max(0, ymin);
+    const y0 = Math.floor(y0raw / CELL) * CELL;      // grid phase is fixed in space so areas of two states compare cleanly
+    const pad = 2, x0 = Math.floor((xmin - pad) / CELL) * CELL;
     const w = Math.ceil((xmax + pad - x0) / CELL), h = Math.max(2, Math.ceil((ymax - y0 + pad) / CELL));
     const grid: Grid = { w, h, x0, y0, occ: new Uint8Array(w * h), owner: new Uint8Array(w * h) };
     solids.forEach((o, idx) => o.polys.forEach((poly) => fillPolygon(grid, poly, idx + 1)));
     const at = (i: number, j: number): [number, number] => [x0 + (i + 0.5) * CELL, y0 + (j + 0.5) * CELL];
     const slotAt = (i: number, j: number): SlotId | null => { const o = grid.owner[j * w + i]!; return o > 0 ? solids[o - 1]!.id : null; };
     const worst = new Map<string, PrintIssue>();
-    const report = (code: PrintIssueCode, severity: Severity, i: number, j: number, size: number, text: (part: string) => string): void => {
+    const report = (code: PrintIssueCode, severity: Severity, i: number, j: number, size: number, text: (part: string) => string, area = 0): void => {
       const slot = slotAt(i, j);
       const part = slot ? SLOT_NAME_PL[slot] : s.label.toLowerCase();
       const gdef = slot ? groupOfSlot(slot) : undefined;
       const fix = gdef && !sep(gdef.id) && !gdef.forced ? gdef.id : null;
       const key = `${code}:${part}`;
       const prev = worst.get(key);
-      if (!prev || size > prev.size) worst.set(key, { code, severity, piece: s.id, part, slot, fix, at: at(i, j), size, message: text(part) });
+      const total = (prev?.area ?? 0) + area;
+      if (!prev || size > prev.size) worst.set(key, { code, severity, piece: s.id, part, slot, fix, at: at(i, j), size, area: total, message: text(part) });
+      else prev.area = total;
     };
 
     const sizeMm: [number, number] = [xmax - xmin, ymax - y0];
@@ -184,6 +199,14 @@ export function analyzePrint(paths: SlotPaths, rig: Rig, plan: PrintPlan): Print
     if (s.orientation === 'upright') {
       const prefix = new Int32Array(w + 1);
       const sup = new Uint8Array(w * h);
+      // air[j][i] = empty cells directly below (j, i) down to the bed or the next solid: the height of a support column
+      const air = new Int32Array(w * h);
+      for (let j = 1; j < h; j++) for (let i = 0; i < w; i++) air[j * w + i] = grid.occ[(j - 1) * w + i] ? 0 : air[(j - 1) * w + i]! + 1;
+      const columnArea = (j: number, a: number, b: number): number => {
+        let sum = 0;
+        for (let k = a; k <= b; k++) sum += air[j * w + k]!;
+        return sum * CELL * CELL;
+      };
       for (let j = 0; j < h; j++) {
         if (j < LOOK) { for (let i = 0; i < w; i++) sup[j * w + i] = 1; continue; }
         const below = (j - LOOK) * w;
@@ -206,14 +229,14 @@ export function analyzePrint(paths: SlotPaths, rig: Rig, plan: PrintPlan): Print
             const left = a > i && sup[j * w + a - 1] === 1, right = b < e && sup[j * w + b + 1] === 1;
             if (left && right) {
               if (mm > plan.maxBridge) {
-                if (plan.supports === 'allowed') report('BRIDGE', 'support', mid, j, mm, (p) => `${p}: podpory pod spodem (rozpiętość ${mm.toFixed(0)} mm)`);
+                if (plan.supports === 'allowed') report('BRIDGE', 'support', mid, j, mm, (p) => `${p}: podpory pod spodem (rozpiętość ${mm.toFixed(0)} mm)`, columnArea(j, a, b));
                 else report('BRIDGE', mm > plan.maxBridge * 2 ? 'error' : 'warn', mid, j, mm,
-                  (p) => `${p}: wisi nad pustką na ${mm.toFixed(0)} mm (most do ${plan.maxBridge} mm)`);
+                  (p) => `${p}: wisi nad pustką na ${mm.toFixed(0)} mm (most do ${plan.maxBridge} mm)`, columnArea(j, a, b));
               }
             } else if (len > TOL_CELLS && mm > 2.5) {
-              if (plan.supports === 'allowed') report('OVERHANG', 'support', mid, j, mm, (p) => `${p}: potrzebne podpory (nawis ~${mm.toFixed(0)} mm)`);
+              if (plan.supports === 'allowed') report('OVERHANG', 'support', mid, j, mm, (p) => `${p}: potrzebne podpory (nawis ~${mm.toFixed(0)} mm)`, columnArea(j, a, b));
               else report('OVERHANG', mm > 4 ? 'error' : 'warn', mid, j, mm,
-                (p) => `${p}: nawis ostrzejszy niż ${R.maxOverhangDeg}° (~${mm.toFixed(1)} mm bez podparcia)`);
+                (p) => `${p}: nawis ostrzejszy niż ${R.maxOverhangDeg}° (~${mm.toFixed(1)} mm bez podparcia)`, columnArea(j, a, b));
             }
             a = b + 1;
           }

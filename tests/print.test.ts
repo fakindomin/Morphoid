@@ -93,3 +93,44 @@ describe('print audit (Bambu P1S profile)', () => {
     expect(wide.issues.some((i) => i.code === 'BRIDGE' || i.code === 'OVERHANG')).toBe(true);
   });
 });
+
+describe('design policy: elements are support-free by default, deviations are detectable', () => {
+  const avoid = { ...planWhole(), supports: 'avoid' as const };
+  const area = (g: ReturnType<typeof defaultGenome>): number => {
+    const { rig, paths } = geometry(g);
+    return analyzePrint(paths, rig, avoid).supportArea;
+  };
+  const base = area(defaultGenome());
+  const withField = (block: 'ears' | 'horns' | 'wings' | 'crest' | 'tail' | 'snout', type: number, stepField: string, step: number) => {
+    const g = defaultGenome();
+    g[block]!.type = type;
+    g[block]![stepField] = step;
+    return g;
+  };
+
+  it('ears, horns, wings, crest and tail add NO supports in any variant at any of the 6 sizes', () => {
+    const cases: ['ears' | 'horns' | 'wings' | 'crest' | 'tail', number, string][] = [
+      ['ears', 3, 'scale'], ['horns', 4, 'span'], ['wings', 2, 'scale'], ['crest', 3, 'scale'], ['tail', 3, 'length'],
+    ];
+    for (const [block, variants, stepField] of cases) {
+      for (let v = 1; v <= variants; v++) for (let s = 0; s < 6; s++) {
+        expect(area(withField(block, v, stepField, s)) - base, `${block} variant ${v} size ${s + 1}`).toBeLessThanOrEqual(25);
+      }
+    }
+  });
+
+  it('the default-size muzzle needs no supports, a long muzzle does (so the app can warn)', () => {
+    for (const type of [0, 1, 2]) {
+      expect(area(withField('snout', type, 'reach', 2)) - base, `snout ${type} default`).toBeLessThanOrEqual(25);
+      expect(area(withField('snout', type, 'reach', 5)) - base, `snout ${type} longest`).toBeGreaterThan(100);
+    }
+  });
+
+  it('splitting the offending part away removes the need for supports', () => {
+    const g = withField('snout', 1, 'reach', 5);
+    const { rig, paths } = geometry(g);
+    const whole = analyzePrint(paths, rig, avoid);
+    const split = analyzePrint(paths, rig, { ...avoid, separate: [...avoid.separate, 'head'] });
+    expect(split.supportArea).toBeLessThan(whole.supportArea);
+  });
+});

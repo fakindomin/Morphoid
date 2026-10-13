@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { solveRig, type SocketId } from '../core';
 import { Canvas2D } from './components/Canvas2D';
 import { Header, type Theme } from './components/Header';
@@ -6,7 +6,9 @@ import { LeftColumn } from './components/LeftColumn';
 import { RadialMenu, useRadial } from './components/RadialMenu';
 import { RightColumn, type ViewMode } from './components/RightColumn';
 import { rigSize } from '../core/art/shapes';
+import { SupportNotice } from './components/SupportNotice';
 import { usePrintReport } from './printReport';
+import { useSupportNotice } from './useSupportNotice';
 import { storage, studio, useStudioState } from './studio';
 
 const THEME_KEY = 'morphoid.theme';
@@ -26,6 +28,10 @@ export function App() {
   const { genome, plan } = useStudioState();
   const rig = solveRig(genome);
   const report = usePrintReport(genome, plan);
+  const { notice, dismiss } = useSupportNotice(genome, plan);
+  const prevPlan = useRef(plan);
+  const lastPlan = useRef(plan);
+  if (lastPlan.current !== plan) { prevPlan.current = lastPlan.current; lastPlan.current = plan; }
   const markers = report.issues.filter((i) => i.severity !== 'info').map((i) => ({ at: i.at, severity: i.severity, text: i.message }));
   const size = rigSize(rig);
 
@@ -55,6 +61,7 @@ export function App() {
       <main className="studio">
         <LeftColumn activeSocket={radial.state.open ? radial.state.socket : null} />
         <section className="blueprint">
+          {notice && <SupportNotice key={notice.key} notice={notice} previousPlan={prevPlan.current} dismiss={dismiss} />}
           <div className="hud-tag">{view === '2d' ? 'WIDOK Z BOKU · kliknij pomarańczowy punkt, aby zmienić część' : '3D STUDIO · PODGLĄD (ETAP 2)'}</div>
           {view === '2d' ? (
             <Canvas2D showBones={showBones} breathing={breathing} frozen={radial.state.open} onSocket={onSocket} markers={markers} />

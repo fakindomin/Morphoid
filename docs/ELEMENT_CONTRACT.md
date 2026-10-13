@@ -23,6 +23,11 @@ Nie dodajemy niczego do rysunku bez wpisu w katalogu. Pilnują tego testy (`test
 | Reliefy (oczy, nos) | wysokość ≥ 0,8 mm |
 | Czop montażowy | 3×3×5 lub 5×5×8 mm, luz 0,2 mm na stronę, korzeń ≥ czop + 0,8 mm |
 
+## Polityka: projektujemy bez podpór, użytkownik może wszystko zmienić, aplikacja mówi o skutkach
+1. **Elementy w katalogu są projektowane tak, by w domyślnych rozmiarach drukowały się bez podpór.** Pilnuje tego `tests/print.test.ts`: uszy, rogi, skrzydła, grzywa/kolce i ogon nie dodają podpór w żadnym wariancie ani rozmiarze, a pysk w rozmiarach 1–3.
+2. **Użytkownik może wybrać dowolny kształt i rozmiar**, także taki, który wymaga podpór (np. najdłuższy pysk, bardzo krótka szyja). Kształt nie jest wypaczany ani ograniczany pod druk. Brzuch jest okrągły, więc wymaga podpór u każdego stworka.
+3. **Aplikacja mierzy zapotrzebowanie na podpory** (`supportArea`, mm² podpór w rzucie z boku) i po każdej zmianie porównuje stan przed i po. Jeśli zmiana je zwiększa albo łamie limit, który użytkownik chciał zachować, pokazuje komunikat: które części (z rozmiarem małe/średnie/duże), przyciski „Wydrukuj osobno: …" (z podpowiedzią, która część da największą poprawę), „Cofnij zmianę" i „Rozumiem". Przy dużym wzroście (> 400 mm²) komunikat zaleca rozbicie modelu. Zmiany zbiorcze (losuj, mutuj, wklejenie kodu) nie są ogłaszane, wynik widać w panelu.
+
 ## Podpory: kształt nigdy nie jest wypaczany
 **Kształt figurki wynika z projektu, nie z ograniczeń druku.** Tułów jest okrągły, a podpory to ustawienie planu druku:
 - **Dozwolone (domyślnie):** nawisy i mosty nie są błędem, slicer (Bambu Studio) doda podpory. Audyt tylko wskazuje, gdzie będą potrzebne (poziom niebieski „Z podporami").

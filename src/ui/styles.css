@@ -236,3 +236,14 @@ kbd { font: 10.5px ui-monospace, Menlo, monospace; padding: 1px 6px; border: 1px
 .issue.support { border-left-color: var(--cyan); }
 .marker.support circle { fill: color-mix(in srgb, var(--cyan) 80%, transparent); r: 8; }
 .print-status.blue .dot { background: var(--cyan); box-shadow: 0 0 6px var(--cyan); }
+
+/* ---- support notice ---- */
+.support-notice { position: absolute; z-index: 20; top: 40px; left: 50%; transform: translateX(-50%); width: min(560px, calc(100% - 36px));
+  display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; background: var(--bg-card); border: 1px solid var(--cyan);
+  border-left-width: 4px; border-radius: 10px; box-shadow: 0 10px 30px rgba(0, 0, 0, .35); animation: pop-notice .18s ease-out; }
+.support-notice.strict { border-color: #f1c40f; }
+.notice-title { font-weight: 800; font-size: 13px; }
+.notice-body { font-size: 12px; color: var(--muted); line-height: 1.45; }
+.notice-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.btn-mini.ghost { background: none; border-color: var(--border); }
+@keyframes pop-notice { from { opacity: 0; transform: translate(-50%, -6px); } }

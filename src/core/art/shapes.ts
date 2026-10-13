@@ -18,7 +18,7 @@ export type SlotKind =
 
 export const SLOTS = [
   ['shadow', 'shadow'], ['wingFar', 'accentFar'], ['tail', 'skin'], ['legBFar', 'skinFar'], ['legFFar', 'skinFar'],
-  ['legB', 'skin'], ['torso', 'skin'], ['torsoClip', 'clip'], ['belly', 'belly'], ['pattern', 'pattern'],
+  ['legB', 'skin'], ['throat', 'skin'], ['torso', 'skin'], ['torsoClip', 'clip'], ['belly', 'belly'], ['pattern', 'pattern'],
   ['saddle', 'accent'], ['spines', 'accent'], ['legF', 'skin'], ['neck', 'skin'], ['neckDecor', 'skinFar'],
   ['mane', 'accent'], ['collar', 'accent'], ['ear', 'skin'], ['earIn', 'accentSoft'], ['horns', 'accent'], ['tuft', 'accent'],
   ['head', 'skin'], ['snout', 'skin'], ['wingNear', 'accent'], ['nose', 'ink'],
@@ -191,6 +191,22 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
       .L(tipX - 3.5, tip[1] - 4).L(botB[0], botB[1]).Z());
   }
   if (snoutType !== 2) put('nose', ellipse(tipX - 1.1, tip[1] + 0.7, 1.5, 1.2));
+
+  // Chin/throat wedge: the muzzle underside runs 45 deg down-back from the chin to the FRONT edge of the
+  // neck. Muzzles that reach further than this wedge can carry simply need supports (the app says so).
+  const w0 = n.bodyG * 0.72;
+  const q0: XY = [neckBase[0] - (up[0] * w0) / 2, neckBase[1] - (up[1] * w0) / 2];
+  const chin: XY = [tipX - 0.5, tip[1] - 4.2];
+  const dn: XY = [dir[0] / dl, dir[1] / dl];
+  const den = dn[0] - dn[1];
+  if (Math.abs(den) > 1e-6) {
+    const u = ((chin[0] - chin[1]) - (q0[0] - q0[1])) / den;
+    const s = chin[0] - q0[0] - u * dn[0];
+    if (s > 0.2) {
+      const uc = Math.max(0, Math.min(dl, u));
+      put('throat', polygon([chin, [q0[0] + dn[0] * uc, q0[1] + dn[1] * uc], head]));
+    }
+  }
 
   // ---- ears (behind the head so their base is hidden) -----------------------------
   const er = p(pose, 'earRoot');
