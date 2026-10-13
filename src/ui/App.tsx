@@ -19,7 +19,7 @@ function initialTheme(): Theme {
 export function App() {
   const [theme, setTheme] = useState<Theme>(initialTheme);
   const [view, setView] = useState<ViewMode>('2d');
-  const [showBones, setShowBones] = useState(true);
+  const [showBones, setShowBones] = useState(false);
   const [breathing, setBreathing] = useState(true);
   const radial = useRadial();
   const { genome } = useStudioState();
@@ -52,7 +52,7 @@ export function App() {
       <main className="studio">
         <LeftColumn activeSocket={radial.state.open ? radial.state.socket : null} />
         <section className="blueprint">
-          <div className="hud-tag">{view === '2d' ? 'CAD 2D // JEDEN BAZOWY SZKIELET [Y = 0 LOCKED]' : '3D STUDIO // PODGLĄD (ETAP 2)'}</div>
+          <div className="hud-tag">{view === '2d' ? 'WIDOK Z BOKU · kliknij pomarańczowy punkt, aby zmienić część' : '3D STUDIO · PODGLĄD (ETAP 2)'}</div>
           {view === '2d' ? (
             <Canvas2D showBones={showBones} breathing={breathing} frozen={radial.state.open} onSocket={onSocket} />
           ) : (

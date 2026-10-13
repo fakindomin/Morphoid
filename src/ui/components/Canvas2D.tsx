@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { solveRig, SOCKET_NODE, type SocketId } from '../../core';
+import { PALETTES } from '../../core/palette';
 import { studio } from '../studio';
 import { clonePose, easePose, targetPose, type Pose } from '../render2d/pose';
 import { buildShapes, SLOTS, rigSize, type Shapes } from '../render2d/shapes';
@@ -41,6 +42,7 @@ export function Canvas2D({ showBones, breathing, frozen, onSocket }: Props) {
     const cache: Partial<Record<keyof Shapes, string>> = {};
     let dirty = true;
     let lastBones = live.current.showBones;
+    let lastPalette = -1;
 
     const frame = (now: number): void => {
       const dt = Math.min(0.05, (now - last) / 1000);
@@ -48,6 +50,14 @@ export function Canvas2D({ showBones, breathing, frozen, onSocket }: Props) {
       const { breathing: br, frozen: fz, showBones: sb } = live.current;
       const g = studio.getState().genome;
       const rig = solveRig(g);
+      const pal = g.palette!.index!;
+      if (pal !== lastPalette && svgRef.current) {
+        lastPalette = pal;
+        const [c1, c2, c3] = PALETTES[pal]!;
+        svgRef.current.style.setProperty('--c1', c1);
+        svgRef.current.style.setProperty('--c2', c2);
+        svgRef.current.style.setProperty('--c3', c3);
+      }
       if (br && !fz) t += dt * 2;
       const m = fz ? { x: 0, y: 0 } : mouse.current;
       const tgt = targetPose(rig, g, t, br && !fz, m);
@@ -85,18 +95,35 @@ export function Canvas2D({ showBones, breathing, frozen, onSocket }: Props) {
     mouse.current = { x: -rx * 3.5, y: -ry * 2.5 }; // +x is "forward" = screen-left
   };
 
-  const [gx0] = to(-200, 0), [gx1] = to(200, 0);
-
-  return (
+    return (
     <div className="creature-viewport" onPointerMove={onMove}>
       <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Rzut boczny Morphoida">
-        <line className="ground-line" x1={gx1} x2={gx0} y1={GROUND} y2={GROUND} />
-        <text className="ground-label" x={24} y={GROUND + 18}>POZIOM STOŁU (Y = 0)</text>
-        <text className="ground-label" x={W - 24} y={GROUND + 18} textAnchor="end">PEŁNA ADHEZJA STÓP</text>
+        <defs>
+          <linearGradient id="skinGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" className="g-hi" />
+            <stop offset="0.55" className="g-mid" />
+            <stop offset="1" className="g-lo" />
+          </linearGradient>
+          <linearGradient id="deskGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" className="desk-hi" />
+            <stop offset="1" className="desk-lo" />
+          </linearGradient>
+          <clipPath id="torsoClip">
+            <path ref={(el) => { slotEls.current.torsoClip = el; }} d="" />
+          </clipPath>
+        </defs>
+        <rect className="desk" x={0} y={GROUND} width={W} height={H - GROUND} />
+        <line className="desk-edge" x1={0} x2={W} y1={GROUND} y2={GROUND} />
+        <text className="desk-label" x={24} y={GROUND + 22}>STÓŁ DRUKARKI · Y = 0</text>
+        <text className="desk-label" x={W - 24} y={GROUND + 22} textAnchor="end">stopy zawsze przylegają do stołu</text>
         <text ref={sizeRef} className="size-label" x={W - 24} y={28} textAnchor="end" />
-        {SLOTS.map(([id, kind]) => (
-          <path key={id} ref={(el) => { slotEls.current[id] = el; }} className={`shape ${kind}`} d="" />
-        ))}
+        <path ref={(el) => { slotEls.current.shadow = el; }} className="shape shadow" d="" />
+        <g className="figure">
+          {SLOTS.filter(([id, kind]) => kind !== 'clip' && id !== 'shadow').map(([id, kind]) => (
+            <path key={id} ref={(el) => { slotEls.current[id] = el; }} className={`shape ${kind} s-${id}`} d=""
+              clipPath={id === 'pattern' ? 'url(#torsoClip)' : undefined} />
+          ))}
+        </g>
         {SOCKETS.map((s) => (
           <g key={s.id} ref={(el) => { socketEls.current[s.id] = el; }} className="socket"
             onClick={(e) => {
