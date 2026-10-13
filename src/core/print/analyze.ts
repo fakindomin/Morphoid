@@ -17,7 +17,7 @@ import { GROUPS, PRINTERS, groupOfSlot, isSeparate, type GroupDef, type PartGrou
 import { PRINT_RULES as R } from './rules';
 
 export type PrintIssueCode = 'OVERHANG' | 'BRIDGE' | 'FLOATING' | 'THIN' | 'PEG' | 'SOLE' | 'BED';
-export type Severity = 'info' | 'warn' | 'error';
+export type Severity = 'info' | 'support' | 'warn' | 'error';
 
 export interface PrintIssue {
   code: PrintIssueCode;
@@ -46,7 +46,8 @@ export interface PieceInfo {
 export interface PrintReport {
   /** no errors (warnings are allowed) */
   ok: boolean;
-  level: 'green' | 'yellow' | 'red';
+  /** green: prints as is; blue: needs supports (allowed); yellow: care needed; red: will not print as planned */
+  level: 'green' | 'blue' | 'yellow' | 'red';
   issues: PrintIssue[];
   pieces: PieceInfo[];
 }
@@ -146,7 +147,8 @@ export function analyzePrint(paths: SlotPaths, rig: Rig, plan: PrintPlan): Print
   }
   const errors = issues.some((i) => i.severity === 'error');
   const warns = issues.some((i) => i.severity === 'warn');
-  return { ok: !errors, level: errors ? 'red' : warns ? 'yellow' : 'green', issues, pieces };
+  const supports = issues.some((i) => i.severity === 'support');
+  return { ok: !errors, level: errors ? 'red' : warns ? 'yellow' : supports ? 'blue' : 'green', issues, pieces };
 
   // ---------------------------------------------------------------------------------------
   function analyzePiece(s: PieceSpec): void {
@@ -204,11 +206,13 @@ export function analyzePrint(paths: SlotPaths, rig: Rig, plan: PrintPlan): Print
             const left = a > i && sup[j * w + a - 1] === 1, right = b < e && sup[j * w + b + 1] === 1;
             if (left && right) {
               if (mm > plan.maxBridge) {
-                report('BRIDGE', mm > plan.maxBridge * 2 ? 'error' : 'warn', mid, j, mm,
+                if (plan.supports === 'allowed') report('BRIDGE', 'support', mid, j, mm, (p) => `${p}: podpory pod spodem (rozpiętość ${mm.toFixed(0)} mm)`);
+                else report('BRIDGE', mm > plan.maxBridge * 2 ? 'error' : 'warn', mid, j, mm,
                   (p) => `${p}: wisi nad pustką na ${mm.toFixed(0)} mm (most do ${plan.maxBridge} mm)`);
               }
             } else if (len > TOL_CELLS && mm > 2.5) {
-              report('OVERHANG', mm > 4 ? 'error' : 'warn', mid, j, mm,
+              if (plan.supports === 'allowed') report('OVERHANG', 'support', mid, j, mm, (p) => `${p}: potrzebne podpory (nawis ~${mm.toFixed(0)} mm)`);
+              else report('OVERHANG', mm > 4 ? 'error' : 'warn', mid, j, mm,
                 (p) => `${p}: nawis ostrzejszy niż ${R.maxOverhangDeg}° (~${mm.toFixed(1)} mm bez podparcia)`);
             }
             a = b + 1;

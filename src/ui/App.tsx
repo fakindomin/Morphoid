@@ -76,7 +76,7 @@ export function App() {
         </span>
         <span className={`print-status ${report.level}`}>
           <i className="dot" />
-          Druk: {report.level === 'green' ? 'OK' : report.level === 'yellow' ? 'z uwagami' : 'wymaga zmian'}
+          Druk: {report.level === 'green' ? 'bez podpór' : report.level === 'blue' ? 'z podporami' : report.level === 'yellow' ? 'z uwagami' : 'wymaga zmian'}
         </span>
         <span className="muted">Model {size.length.toFixed(0)} × {size.width.toFixed(0)} × {size.height.toFixed(0)} mm</span>
         <span className="spacer" />

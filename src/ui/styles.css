@@ -231,3 +231,8 @@ kbd { font: 10.5px ui-monospace, Menlo, monospace; padding: 1px 6px; border: 1px
 .print-status.yellow .dot { background: #f1c40f; box-shadow: 0 0 6px #f1c40f; }
 .print-status.red .dot { background: var(--red); box-shadow: 0 0 6px var(--red); }
 .print-status.red { color: var(--red); font-weight: 700; }
+.print-tile.blue { border-color: color-mix(in srgb, var(--cyan) 55%, transparent); }
+.level-pill.blue { background: color-mix(in srgb, var(--cyan) 18%, transparent); color: var(--cyan); }
+.issue.support { border-left-color: var(--cyan); }
+.marker.support circle { fill: color-mix(in srgb, var(--cyan) 80%, transparent); r: 8; }
+.print-status.blue .dot { background: var(--cyan); box-shadow: 0 0 6px var(--cyan); }

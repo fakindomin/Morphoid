@@ -101,15 +101,12 @@ function build(g: MorphotypeGenome, code: string): Rig {
   const tailLen = g.tail!.type === 0 ? 0 : D.TAIL_LENGTH[g.tail!.length!]!;
   const sole = D.FOOT_SOLE[g.legs!.foot!]!;
   const legZ = W * 0.32;
-  const hull = D.hullGeometry(L, G);
-  const legW = Math.max(6.5, G * 0.5);
-  const legX = Math.max(5, hull.xc - legW / 2); // leg outer edge sits on the corner of the flat belly
+  const legX = Math.max(5, L * 0.3);
 
   // Local offsets are a function of the dims only -> hierarchy: stretching the
   // torso moves neck/head/front legs forward and tail/hind legs backward.
   const local: Record<NodeId, [number, number, number]> = {
     torso: [0, 0, 0],
-    // legs stand under the flat part of the torso underside (its 45 deg chamfers start at the leg outer edges)
     shoulderF: [legX, -G * 0.35, 0],
     hipB: [-legX, -G * 0.35, 0],
     footFL: [0, -legLen, legZ],

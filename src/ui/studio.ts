@@ -39,7 +39,7 @@ try {
   const raw = storage.get(PLAN_KEY);
   if (raw) {
     const plan = JSON.parse(raw) as import('../core/print').PrintPlan;
-    if (plan && Array.isArray(plan.separate) && typeof plan.maxBridge === 'number') studio.setPlan(plan);
+    if (plan && Array.isArray(plan.separate) && typeof plan.maxBridge === 'number') studio.setPlan({ ...plan, supports: plan.supports ?? 'allowed' });
   }
 } catch { /* ignore a corrupted value */ }
 let lastPlan = studio.getState().plan;

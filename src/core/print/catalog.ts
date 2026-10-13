@@ -31,11 +31,11 @@ export interface PartSpec {
 }
 
 export const PARTS: readonly PartSpec[] = [
-  { id: 'torso', blocks: ['body'], slots: ['torso'], repr3D: 'ellipsoid', modular: false, note: 'elipsoida L x W x G z płaskim brzuchem i fazami 45°, baza modelu' },
-  { id: 'legs', blocks: ['legs'], slots: ['legB', 'legF', 'legBFar', 'legFFar', 'web'], repr3D: 'sweep', modular: false,
-    note: '4 nogi (druga para = lustro w Z), płaska podeszwa na Y=0, pazury jako klin leżący na stole; między nogami łuk 45° (web)' },
+  { id: 'torso', blocks: ['body'], slots: ['torso'], repr3D: 'ellipsoid', modular: false, note: 'elipsoida L x W x G, baza modelu' },
+  { id: 'legs', blocks: ['legs'], slots: ['legB', 'legF', 'legBFar', 'legFFar'], repr3D: 'sweep', modular: false,
+    note: '4 nogi (druga para = lustro w Z), płaska podeszwa na Y=0, pazury jako klin leżący na stole' },
   { id: 'neck', blocks: ['head'], slots: ['neck', 'neckDecor'], repr3D: 'sweep', modular: false, note: 'stożek ścięty; grzebień/pancerz jako grzbiety o wysokości 0,8 mm' },
-  { id: 'head', blocks: ['head'], slots: ['head', 'throat'], repr3D: 'ellipsoid', modular: false, note: 'elipsoida czaszki + podbródek (klin ≥ 45° do klatki piersiowej)' },
+  { id: 'head', blocks: ['head'], slots: ['head'], repr3D: 'ellipsoid', modular: false, note: 'elipsoida czaszki' },
   { id: 'snout', blocks: ['snout'], slots: ['snout', 'nose'], repr3D: 'sweep', modular: false, note: 'zwężająca się kufa; nos jako kopułka' },
   { id: 'ears', blocks: ['ears'], slots: ['ear', 'earIn'], repr3D: 'plate', modular: false, note: 'płytka 1,6 mm; wnętrze jako zagłębienie koloru' },
   { id: 'horns', blocks: ['horns'], slots: ['horns'], repr3D: 'sweep', modular: false, note: 'rogi jako sweep, kąt nawisu <= 45°, czubek >= 1,2 mm' },
@@ -57,7 +57,7 @@ export const RENDER_ONLY_SLOTS: readonly SlotId[] = ['shadow', 'torsoClip', 'bel
 /** Additive parts that form the support-free print silhouette (whiskers are printed separately). */
 export const PRINT_SOLID_SLOTS: readonly SlotId[] = [
   'tail', 'legBFar', 'legFFar', 'legB', 'torso', 'saddle', 'spines', 'legF', 'neck', 'mane', 'collar',
-  'ear', 'horns', 'tuft', 'head', 'snout', 'wingNear', 'wingFar', 'web', 'throat',
+  'ear', 'horns', 'tuft', 'head', 'snout', 'wingNear', 'wingFar',
 ];
 
 export const SLOT_NAME_PL: Record<SlotId, string> = {
@@ -65,5 +65,5 @@ export const SLOT_NAME_PL: Record<SlotId, string> = {
   torso: 'brzuch/tułów', torsoClip: 'tułów', belly: 'brzuch', pattern: 'wzór', saddle: 'siodło', spines: 'kolce', legF: 'noga przednia',
   neck: 'szyja', neckDecor: 'ozdoba szyi', mane: 'grzywa', collar: 'obroża', ear: 'ucho', earIn: 'ucho', horns: 'rogi', tuft: 'czub',
   head: 'głowa', snout: 'pysk', wingNear: 'skrzydło', nose: 'nos', mouth: 'usta', teeth: 'zęby', whiskers: 'wąsy', eye: 'oko',
-  pupil: 'źrenica', glint: 'odblask', brow: 'brew', bones: 'kości', web: 'łuk pod brzuchem', throat: 'podbródek',
+  pupil: 'źrenica', glint: 'odblask', brow: 'brew', bones: 'kości',
 };

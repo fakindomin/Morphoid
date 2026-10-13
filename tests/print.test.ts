@@ -39,15 +39,22 @@ describe('element contract: 2D <-> 3D <-> print', () => {
 
 const errorsOf = (r: PrintReport) => r.issues.filter((i) => i.severity === 'error').map((i) => i.message);
 
-describe('support-free audit (Bambu P1S profile)', () => {
-  it('the default Morphoid prints whole, with no issues at all', () => {
+describe('print audit (Bambu P1S profile)', () => {
+  it('the default Morphoid prints whole, needing supports only under the belly', () => {
     const { rig, paths } = geometry(defaultGenome());
     const rep = analyzePrint(paths, rig, planWhole());
-    expect(rep.issues.filter((i) => i.severity !== 'info').map((i) => i.message)).toEqual([]);
-    expect(rep.level).toBe('green');
+    expect(errorsOf(rep)).toEqual([]);
+    expect(rep.level).toBe('blue'); // round body => slicer supports, no problems
+    expect(rep.issues.every((i) => i.severity === 'support' || i.severity === 'info')).toBe(true);
   });
 
-  it('100 random Morphoids print whole without errors', { timeout: 60000 }, () => {
+  it('with supports avoided the round belly is reported as a real problem', () => {
+    const { rig, paths } = geometry(defaultGenome());
+    const rep = analyzePrint(paths, rig, { ...planWhole(), supports: 'avoid' });
+    expect(rep.issues.some((i) => i.part.includes('brzuch') && (i.severity === 'warn' || i.severity === 'error'))).toBe(true);
+  });
+
+  it('100 random Morphoids print whole (supports allowed) without errors', { timeout: 60000 }, () => {
     const rnd = mulberry32(31);
     for (let i = 0; i < 100; i++) {
       const g = randomGenome(rnd);
@@ -82,7 +89,7 @@ describe('support-free audit (Bambu P1S profile)', () => {
     const g = defaultGenome();
     g.legs!.length = 0;
     const { rig, paths } = geometry(g);
-    const wide = analyzePrint(paths, rig, { ...planWhole(), maxBridge: 1 });
-    expect(wide.issues.some((i) => i.code === 'BRIDGE')).toBe(true);
+    const wide = analyzePrint(paths, rig, { ...planWhole(), maxBridge: 1, supports: 'avoid' });
+    expect(wide.issues.some((i) => i.code === 'BRIDGE' || i.code === 'OVERHANG')).toBe(true);
   });
 });

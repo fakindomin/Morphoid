@@ -5,7 +5,8 @@ import { fittedPlan, usePrintReport } from '../printReport';
 import { studio, useStudioState } from '../studio';
 
 const LEVEL_TEXT = {
-  green: 'Gotowe do druku',
+  green: 'Bez podpór',
+  blue: 'Z podporami',
   yellow: 'Drukuje się, ale z uwagami',
   red: 'Wymaga zmian',
 } as const;
@@ -85,6 +86,11 @@ export function PrintPanel() {
         })}
       </ul>
 
+      <div className="control-label">Podpory</div>
+      <div className="segment">
+        <button type="button" className={`seg-pill${plan.supports === 'allowed' ? ' active' : ''}`} onClick={() => studio.setSupports('allowed')}>Dozwolone</button>
+        <button type="button" className={`seg-pill${plan.supports === 'avoid' ? ' active' : ''}`} onClick={() => studio.setSupports('avoid')}>Unikaj</button>
+      </div>
       <div className="control-label">Najdłuższy most bez podpór</div>
       <div className="segment">
         {BRIDGES.map((b) => (

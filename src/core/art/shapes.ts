@@ -18,7 +18,7 @@ export type SlotKind =
 
 export const SLOTS = [
   ['shadow', 'shadow'], ['wingFar', 'accentFar'], ['tail', 'skin'], ['legBFar', 'skinFar'], ['legFFar', 'skinFar'],
-  ['legB', 'skin'], ['web', 'skin'], ['throat', 'skin'], ['torso', 'skin'], ['torsoClip', 'clip'], ['belly', 'belly'], ['pattern', 'pattern'],
+  ['legB', 'skin'], ['torso', 'skin'], ['torsoClip', 'clip'], ['belly', 'belly'], ['pattern', 'pattern'],
   ['saddle', 'accent'], ['spines', 'accent'], ['legF', 'skin'], ['neck', 'skin'], ['neckDecor', 'skinFar'],
   ['mane', 'accent'], ['collar', 'accent'], ['ear', 'skin'], ['earIn', 'accentSoft'], ['horns', 'accent'], ['tuft', 'accent'],
   ['head', 'skin'], ['snout', 'skin'], ['wingNear', 'accent'], ['nose', 'ink'],
@@ -46,28 +46,6 @@ function leg(top: XY, foot: XY, w: number, type: number, soleL: number): Path {
     path.L(heel, fy).Q(heel - 1.5, fy + fh * 0.6, fx - hw * 0.9, fy + fh);
   }
   return path.Z();
-}
-
-/** Torso silhouette: elliptical, lower corners cut by 45 degree chamfers down to a flat belly (support-free). */
-function hull(cx: number, cy: number, bodyL: number, bodyG: number): Path {
-  const h = D.hullGeometry(bodyL, bodyG);
-  const { rx, ry, theta, px, py, xc } = h;
-  const p = new Path().M(cx + rx, cy);
-  for (let i = 1; i <= 24; i++) {                       // back + top: tip -> over the top -> far tip
-    const a = (Math.PI * i) / 24;
-    p.L(cx + rx * Math.cos(a), cy + ry * Math.sin(a));
-  }
-  const steps = 6;                                      // lower far side, ellipse down to the 45 deg point
-  for (let i = 1; i <= steps; i++) {
-    const a = Math.PI + (theta * i) / steps;
-    p.L(cx + rx * Math.cos(a), cy + ry * Math.sin(a));
-  }
-  p.L(cx - xc, cy - ry).L(cx + xc, cy - ry).L(cx + px, cy + py);
-  for (let i = steps - 1; i >= 1; i--) {                // near side, back up to the tip
-    const a = -(theta * i) / steps;
-    p.L(cx + rx * Math.cos(a), cy + ry * Math.sin(a));
-  }
-  return p.Z();
 }
 
 const TIP = 1.4; // flat tip width of every pointed part (> PRINT_RULES.minFeature)
@@ -125,7 +103,6 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
   const legW = Math.max(6.5, n.bodyG * 0.5);
   const foot = g.legs!.foot!;
   const tRx = n.bodyL / 2 + 2.5, tRy = n.bodyG / 2 + 1.5;
-  const maxBridge = PRINT_RULES.maxBridge;
 
   // ---- shadow on the bed ------------------------------------------------------
   const sx = (p(pose, 'footFL')[0] + p(pose, 'footBL')[0]) / 2;
@@ -138,23 +115,10 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
   put('legBFar', leg([hipB[0] + 3.2, hipB[1]], [fB[0] + 3.2, fB[1]], legW, foot, n.soleL));
   put('legFFar', leg([shF[0] + 3.2, shF[1]], [fF[0] + 3.2, fF[1]], legW, foot, n.soleL));
 
-  // ---- torso (flat belly + 45 deg chamfers) and the belly arch between the legs ----
-  put('torso', hull(torso[0], torso[1], n.bodyL, n.bodyG));
-  put('torsoClip', hull(torso[0], torso[1], n.bodyL, n.bodyG));
-  put('belly', ellipse(torso[0] - 0.5, torso[1] - tRy * 0.38, tRx * 0.62, tRy * 0.44));
-
-  const innerB = hipB[0] + legW / 2, innerF = shF[0] - legW / 2;
-  const gap = innerF - innerB;
-  const bottomY = torso[1] - tRy;
-  if (gap > 1 && bottomY > 0.5) {
-    // Pointed arch under the belly: walls rise at 45 deg, the flat ceiling (= the belly) is never wider than maxBridge.
-    const hb = Math.min(gap / 2, bottomY + maxBridge / 2);
-    const hc = Math.min(bottomY, hb);
-    const ht = hb - hc;
-    const xm = (innerB + innerF) / 2;
-    put('web', new Path().M(innerB, 0).L(xm - hb, 0).L(xm - ht, hc).L(xm + ht, hc).L(xm + hb, 0).L(innerF, 0)
-      .L(innerF, torso[1]).L(innerB, torso[1]).Z());
-  }
+  // ---- torso: a plain round ellipsoid; shape is never bent to avoid supports ---------
+  put('torso', ellipse(torso[0], torso[1], tRx, tRy));
+  put('torsoClip', ellipse(torso[0], torso[1], tRx, tRy));
+  put('belly', ellipse(torso[0] - 0.5, torso[1] - tRy * 0.38, tRx * 0.7, tRy * 0.48));
 
   const pattern = g.coat!.pattern!;
   if (pattern > 0) {
@@ -186,11 +150,9 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
   }
 
   // ---- neck ---------------------------------------------------------------------
-  const w0 = n.bodyG * 0.72;
   const dir: XY = [head[0] - neckBase[0], head[1] - neckBase[1]];
   const dl = Math.hypot(dir[0], dir[1]) || 1;
   const up: XY = [-dir[1] / dl, dir[0] / dl];
-  const q0: XY = [neckBase[0] - (up[0] * w0) / 2, neckBase[1] - (up[1] * w0) / 2]; // front/lower side of the neck
   put('neck', tube(neckBase, head, n.bodyG * 0.72, R * 1.15));
   const neckType = g.head!.neck!;
   const at = (t: number, off: number): XY => [neckBase[0] + dir[0] * t + up[0] * off, neckBase[1] + dir[1] * t + up[1] * off];
@@ -218,11 +180,7 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
   const snoutType = g.snout!.type!;
   const topB: XY = [head[0] + hs.rx * 0.5, head[1] + hs.ry * 0.5];
   const botB: XY = [head[0] + hs.rx * 0.45, head[1] - hs.ry * 0.78];
-  // The muzzle may not reach further than a 45 degree chin line can be carried by the neck.
-  const minTip = head[0] + hs.rx * 0.95;
-  const chinY = muzzle[1] - 0.5 - 4.2;
-  const maxTip = q0[0] - q0[1] + chinY + 0.5;
-  const tipX = Math.max(minTip, Math.min(muzzle[0], maxTip));
+  const tipX = Math.max(muzzle[0], head[0] + hs.rx * 0.95);
   const tip: XY = [tipX, muzzle[1] - 0.5];
   if (snoutType === 0) {
     put('snout', new Path().M(topB[0], topB[1]).Q(tipX + 1, tip[1] + 3, tipX, tip[1] - 1.5).Q(tipX - 0.5, tip[1] - 4, botB[0], botB[1]).Z());
@@ -233,21 +191,6 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
       .L(tipX - 3.5, tip[1] - 4).L(botB[0], botB[1]).Z());
   }
   if (snoutType !== 2) put('nose', ellipse(tipX - 1.1, tip[1] + 0.7, 1.5, 1.2));
-
-  // Chin/throat wedge: the muzzle underside runs 45 deg down-back from the chin until it meets the
-  // FRONT edge of the neck; the triangle in between is filled so nothing hangs in the air.
-  const chin: XY = [tipX - 0.5, tip[1] - 4.2];
-  const dn: XY = [dir[0] / dl, dir[1] / dl];
-  const den = dn[0] - dn[1];
-  if (Math.abs(den) > 1e-6) {
-    const u = ((chin[0] - chin[1]) - (q0[0] - q0[1])) / den;
-    const s = chin[0] - q0[0] - u * dn[0];
-    if (s > 0.2) {
-      const uc = Math.max(0, Math.min(dl, u));
-      const hit: XY = [q0[0] + dn[0] * uc, q0[1] + dn[1] * uc];
-      put('throat', polygon([chin, hit, head]));
-    }
-  }
 
   // ---- ears (behind the head so their base is hidden) -----------------------------
   const er = p(pose, 'earRoot');

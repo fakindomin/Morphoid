@@ -23,7 +23,7 @@ interface Props {
   frozen: boolean;
   onSocket: (socket: SocketId, screen: { x: number; y: number }) => void;
   /** print problems to point at (rig mm) */
-  markers?: { at: [number, number]; severity: 'info' | 'warn' | 'error'; text: string }[];
+  markers?: { at: [number, number]; severity: 'info' | 'support' | 'warn' | 'error'; text: string }[];
 }
 
 export function Canvas2D({ showBones, breathing, frozen, onSocket, markers = [] }: Props) {

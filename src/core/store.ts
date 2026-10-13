@@ -57,6 +57,7 @@ export function createStudioStore(initial: MorphotypeGenome = defaultGenome()) {
       emit();
     },
     setSeparate(group: PartGroup, separate: boolean): void { state = { ...state, plan: toggleGroup(state.plan, group, separate) }; emit(); },
+    setSupports(mode: 'allowed' | 'avoid'): void { state = { ...state, plan: { ...state.plan, supports: mode } }; emit(); },
     setBridge(mm: number): void { state = { ...state, plan: { ...state.plan, maxBridge: mm } }; emit(); },
 
     undo(): void {

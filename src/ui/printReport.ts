@@ -15,7 +15,7 @@ export function restGeometry(g: MorphotypeGenome): { rig: Rig; paths: SlotPaths 
 const cache = new Map<string, PrintReport>();
 
 export function reportFor(g: MorphotypeGenome, plan: PrintPlan): PrintReport {
-  const key = `${serialize(g)}|${plan.printer}|${plan.maxBridge}|${[...plan.separate].sort().join(',')}`;
+  const key = `${serialize(g)}|${plan.printer}|${plan.maxBridge}|${plan.supports}|${[...plan.separate].sort().join(',')}`;
   const hit = cache.get(key);
   if (hit) return hit;
   const { rig, paths } = restGeometry(g);

@@ -23,13 +23,13 @@ export interface GroupDef {
 }
 
 export const GROUPS: readonly GroupDef[] = [
-  { id: 'head', label: 'Głowa z szyją', slots: ['head', 'snout', 'throat', 'neck', 'neckDecor', 'collar'], orientation: 'upright' },
+  { id: 'head', label: 'Głowa z szyją', slots: ['head', 'snout', 'neck', 'neckDecor', 'collar'], orientation: 'upright' },
   { id: 'ears', label: 'Uszy', slots: ['ear', 'earIn'], orientation: 'flat', host: 'head' },
   { id: 'horns', label: 'Rogi', slots: ['horns'], orientation: 'flat', host: 'head' },
   { id: 'crest', label: 'Grzywa, czub, kolce', slots: ['tuft', 'mane', 'spines'], orientation: 'flat' },
   { id: 'wings', label: 'Skrzydła', slots: ['wingNear', 'wingFar'], orientation: 'flat' },
   { id: 'tail', label: 'Ogon', slots: ['tail'], orientation: 'flat' },
-  { id: 'legs', label: 'Nogi z łukiem', slots: ['legB', 'legF', 'legBFar', 'legFFar', 'web'], orientation: 'upright' },
+  { id: 'legs', label: 'Nogi', slots: ['legB', 'legF', 'legBFar', 'legFFar'], orientation: 'upright' },
   { id: 'whiskers', label: 'Wąsy', slots: ['whiskers'], orientation: 'flat', forced: true },
 ];
 
@@ -52,6 +52,11 @@ export interface PrintPlan {
   printer: string;
   /** user-tunable bridge limit (mm); defaults to the printer's */
   maxBridge: number;
+  /**
+   * 'allowed': overhangs/bridges are fine, the slicer adds supports (we only tell where);
+   * 'avoid'  : report every overhang/bridge beyond the limits as a problem.
+   */
+  supports: 'allowed' | 'avoid';
   /** groups printed as separate parts (peg + socket). Forced groups are always separate. */
   separate: PartGroup[];
 }
@@ -59,10 +64,10 @@ export interface PrintPlan {
 export const FORCED: readonly PartGroup[] = GROUPS.filter((g) => g.forced).map((g) => g.id);
 
 export function planWhole(printer = 'p1s'): PrintPlan {
-  return { printer, maxBridge: PRINTERS[printer]!.maxBridge, separate: [...FORCED] };
+  return { printer, maxBridge: PRINTERS[printer]!.maxBridge, supports: 'allowed', separate: [...FORCED] };
 }
 export function planModular(printer = 'p1s'): PrintPlan {
-  return { printer, maxBridge: PRINTERS[printer]!.maxBridge, separate: GROUPS.map((g) => g.id) };
+  return { printer, maxBridge: PRINTERS[printer]!.maxBridge, supports: 'allowed', separate: GROUPS.map((g) => g.id) };
 }
 export function isSeparate(plan: PrintPlan, g: PartGroup): boolean {
   return plan.separate.includes(g) || FORCED.includes(g);

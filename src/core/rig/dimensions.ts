@@ -40,18 +40,3 @@ export const FOOT_SOLE: readonly FootSole[] = [
   { length: 10, width: 9 }, // hoof
 ];
 export const MIN_SOLE_AREA_MM2 = 60;
-
-/**
- * Torso silhouette geometry (shared by the rig, the 2D art and the 3D bake):
- * an ellipse (rx, ry) whose lower corners are cut by 45 degree chamfers down to a flat belly.
- * The chamfers are the tangents at the point where the ellipse itself becomes 45 degrees steep,
- * so every part of the underside is support-free except the flat belly (carried by the legs / arch).
- */
-export function hullGeometry(bodyLength: number, bodyGirth: number): {
-  rx: number; ry: number; theta: number; px: number; py: number; xc: number;
-} {
-  const rx = bodyLength / 2 + 2.5, ry = bodyGirth / 2 + 1.5;
-  const theta = Math.atan2(ry, rx);              // tan(theta) = ry / rx  <=> slope 45 deg
-  const px = rx * Math.cos(theta), py = -ry * Math.sin(theta);
-  return { rx, ry, theta, px, py, xc: Math.max(0, px - (ry + py)) };
-}

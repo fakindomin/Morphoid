@@ -16,17 +16,23 @@ Nie dodajemy niczego do rysunku bez wpisu w katalogu. Pilnują tego testy (`test
 |---|---|
 | Najcieńszy wyrostek | 1,2 mm (ostrza kończą się płaskim czubkiem ≥ 1,4 mm) |
 | Płytki (skrzydła, uszy), grubość Z | 1,6 mm |
-| Nawis | ≤ 45° od pionu |
+| Nawis | ≤ 45° od pionu = druk bez podpór (przy dozwolonych podporach tylko informacja) |
 | Most (dwustronnie podparty) | domyślnie 12 mm dla P1S, do wyboru 8 / 12 / 20 |
 | Płaska podeszwa stopy | ≥ 60 mm² |
 | Rowki (usta, brwi, wzory) | szer. ≥ 0,8 mm, głęb. ≤ 0,5 mm |
 | Reliefy (oczy, nos) | wysokość ≥ 0,8 mm |
 | Czop montażowy | 3×3×5 lub 5×5×8 mm, luz 0,2 mm na stronę, korzeń ≥ czop + 0,8 mm |
 
+## Podpory: kształt nigdy nie jest wypaczany
+**Kształt figurki wynika z projektu, nie z ograniczeń druku.** Tułów jest okrągły, a podpory to ustawienie planu druku:
+- **Dozwolone (domyślnie):** nawisy i mosty nie są błędem, slicer (Bambu Studio) doda podpory. Audyt tylko wskazuje, gdzie będą potrzebne (poziom niebieski „Z podporami").
+- **Unikaj:** każdy nawis ponad 45° i most dłuższy niż limit jest zgłaszany jako uwaga lub błąd, a panel podpowiada „Wydrukuj osobno".
+Niezależnie od podpór obowiązują twarde limity fizyczne: minimalna grubość wyrostków, brak elementów „wiszących w powietrzu", mieszczenie się na stole i czop o wystarczającym przekroju.
+
 ## Dwa sposoby druku (plan druku, poza DNA)
 Morphotyp zawiera tylko fenotyp. **Sposób druku to osobny wybór użytkownika** (`PrintPlan`, zapisywany lokalnie):
 - **Całość:** jedna bryła, wszystko zrośnięte. Audyt sprawdza nawisy i mosty całej sylwetki.
-- **Moduły:** każda grupa (głowa z szyją, uszy, rogi, grzywa/kolce, skrzydła, ogon, nogi z łukiem) osobno z czopem. Grupy zbyt drobne na czop zostają przy korpusie (`fitPlan`).
+- **Moduły:** każda grupa (głowa z szyją, uszy, rogi, grzywa/kolce, skrzydła, ogon, nogi) osobno z czopem. Grupy zbyt drobne na czop zostają przy korpusie (`fitPlan`).
 - **Własny:** dowolna kombinacja przełączników „Razem/Osobno" przy każdej grupie.
 - **Wąsy są zawsze osobną płaską częścią** (z płytką-korzeniem), bo wystawałyby poziomo.
 
