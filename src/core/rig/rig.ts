@@ -46,7 +46,11 @@ export interface Rig {
   dims: {
     bodyLength: number; bodyGirth: number; bodyWidth: number;
     legLength: number; neckLength: number; tailLength: number;
+    /** leg width in the side view = its thickness across the body = the sole's width on the bed */
+    legWidth: number;
     soleLength: number; soleWidth: number;
+    /** build variant (gene J): 0 normal, 1 stick, 2 muscular, 3 round, 4 skeletal */
+    build: number;
   };
   bounds: { min: [number, number, number]; max: [number, number, number] };
   /** Rule violations; empty for a printable pose. */
@@ -93,13 +97,15 @@ export function solveRig(genome: MorphotypeGenome): Rig {
 }
 
 function build(g: MorphotypeGenome, code: string): Rig {
-  const L = D.BODY_LENGTH[g.body!.length!]!;
-  const G = D.BODY_GIRTH[g.body!.girth!]!;
-  const W = D.snap(G * D.BODY_WIDTH_RATIO[g.body!.shape!]!);
-  const legLen = D.LEG_LENGTH[g.legs!.length!]!;
+  const build = g.build?.type ?? 0, B = D.BUILD[build]!;
+  const L = D.snap(D.BODY_LENGTH[g.body!.length!]! * B.length);
+  const G = D.snap(D.BODY_GIRTH[g.body!.girth!]! * B.girth);
+  const W = D.snap(D.BODY_GIRTH[g.body!.girth!]! * D.BODY_WIDTH_RATIO[g.body!.shape!]! * B.width);
+  const legLen = D.snap(D.LEG_LENGTH[g.legs!.length!]! * B.leg);
+  const legW = D.snap(B.legW(G));
   const neckLen = D.NECK_LENGTH[g.head!.neckLength!]!;
   const tailLen = g.tail!.type === 0 ? 0 : D.TAIL_LENGTH[g.tail!.length!]!;
-  const sole = D.FOOT_SOLE[g.legs!.foot!]!;
+  const sole = { length: D.snap(D.FOOT_SOLE[g.legs!.foot!]!.length * B.sole), width: legW };
   const legZ = W * 0.32;
   const legX = Math.max(5, L * 0.3);
 
@@ -154,7 +160,7 @@ function build(g: MorphotypeGenome, code: string): Rig {
     code, nodes, order,
     dims: {
       bodyLength: L, bodyGirth: G, bodyWidth: W, legLength: legLen, neckLength: neckLen,
-      tailLength: tailLen, soleLength: sole.length, soleWidth: sole.width,
+      tailLength: tailLen, legWidth: legW, soleLength: sole.length, soleWidth: sole.width, build,
     },
     bounds, issues: [],
   };

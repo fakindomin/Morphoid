@@ -39,7 +39,7 @@ function FieldControl({ tf }: { tf: TileField }) {
   } else {
     const f = field as EnumField;
     control = (
-      <Segmented disabled={tf.planned} value={value} items={f.options.map((o, i) => ({ label: o.label, value: i }))}
+      <Segmented disabled={tf.planned} value={value} items={f.options.flatMap((o, i) => (o.retired && i !== value ? [] : [{ label: o.label, value: i }]))}
         onChange={(v) => {
           const ops: Op[] = [{ kind: 'set', block: tf.block, field: tf.field, value: v }];
           // leaving "Brak" must also give a sensible size (class 2), not the zeroed one

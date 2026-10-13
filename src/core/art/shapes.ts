@@ -33,11 +33,13 @@ const p = (pose: Pose, id: NodeId): XY => pose.pos[id];
 const R = D.HEAD_RADIUS;
 
 /** One leg + rounded foot. Soles are always flat on y = foot y (print rule). */
-function leg(top: XY, foot: XY, w: number, type: number, soleL: number): Path {
+function leg(top: XY, foot: XY, w: number, type: number, soleL: number, bulge = 0): Path {
   const [tx, ty] = top, [fx, fy] = foot;
   const hw = w / 2, fh = type === 2 ? 5 : 2.4;
   const toe = fx + soleL * 0.7, heel = fx - soleL * 0.3;
-  const path = new Path().M(tx - hw, ty).L(tx + hw, ty).L(fx + hw * 0.9, fy + fh);
+  const path = new Path().M(tx - hw, ty).L(tx + hw, ty);
+  // bulge > 0 (muscular build): the upper leg swells forward, like a thigh or a shoulder
+  if (bulge > 0) path.Q(tx + hw * (1 + bulge * 1.6), ty - (ty - fy) * 0.35, fx + hw * 0.9, fy + fh); else path.L(fx + hw * 0.9, fy + fh);
   if (type === 2) { // hoof: boxy
     path.L(fx + hw * 1.2, fy + fh).L(fx + hw * 1.2, fy).L(fx - hw * 1.2, fy).L(fx - hw * 1.2, fy + fh);
   } else if (type === 1) { // claws: ONE simple outline, the claw is a wedge that continues the sole forward on the bed
@@ -103,7 +105,7 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
   const tailMid = p(pose, 'tailMid');
   const tailTip = p(pose, 'tailTip');
   const wingRoot = p(pose, 'wingRoot');
-  const legW = Math.max(6.5, n.bodyG * 0.5);
+  const legW = n.legW;
   const foot = g.legs!.foot!;
   const tRx = n.bodyL / 2 + 2.5, tRy = n.bodyG / 2 + 1.5;
 
@@ -113,19 +115,48 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
 
   // ---- legs (far pair is darker and peeks out behind) -------------------------
   const hipB = p(pose, 'hipB'), shF = p(pose, 'shoulderF'), fB = p(pose, 'footBL'), fF = p(pose, 'footFL');
-  put('legB', leg(hipB, fB, legW, foot, n.soleL));
-  put('legF', leg(shF, fF, legW, foot, n.soleL));
-  put('legBFar', leg([hipB[0] + 3.2, hipB[1]], [fB[0] + 3.2, fB[1]], legW, foot, n.soleL));
-  put('legFFar', leg([shF[0] + 3.2, shF[1]], [fF[0] + 3.2, fF[1]], legW, foot, n.soleL));
+  const muscular = n.build === 2;
+  // muscular build: a thigh / shoulder bulge at the top of each leg (inside the torso's lower half, never overhanging)
+  const limb = (top: XY, f: XY): Path => leg(top, f, legW, foot, n.soleL, muscular ? 0.5 : 0);
+  put('legB', limb(hipB, fB));
+  put('legF', limb(shF, fF));
+  put('legBFar', limb([hipB[0] + 3.2, hipB[1]], [fB[0] + 3.2, fB[1]]));
+  put('legFFar', limb([shF[0] + 3.2, shF[1]], [fF[0] + 3.2, fF[1]]));
 
   // ---- torso: a plain round ellipsoid; shape is never bent to avoid supports ---------
-  put('torso', ellipse(torso[0], torso[1], tRx, tRy));
-  put('torsoClip', ellipse(torso[0], torso[1], tRx, tRy));
+  // muscular build: chest and haunch lobes fused into it (the bake blends them smoothly)
+  // one outline: an ellipse swelling at the shoulders (front, up) and the haunch (back, up), dipping at the waist
+  const bump = (a: number, at: number, h: number, wd: number): number => h * Math.exp(-(((Math.atan2(Math.sin(a - at), Math.cos(a - at))) / wd) ** 2));
+  const trunkPts: XY[] = [];
+  for (let i = 0; i < 72; i++) {
+    const a = (i / 72) * Math.PI * 2;
+    const k = muscular ? 1 + bump(a, 0.55, 0.16, 0.45) + bump(a, Math.PI - 0.6, 0.13, 0.45) - bump(a, Math.PI / 2, 0.07, 0.3) : 1;
+    trunkPts.push([torso[0] + Math.cos(a) * tRx * k, torso[1] + Math.sin(a) * tRy * k]);
+  }
+  /** height of the trunk's top outline at x (for parts that stand on the back) */
+  const trunkTop = (x: number): number => {
+    let top = -Infinity;
+    for (let i = 0; i < trunkPts.length; i++) {
+      const [ax, ay] = trunkPts[i]!, [bx, by] = trunkPts[(i + 1) % trunkPts.length]!;
+      if ((ax - x) * (bx - x) <= 0 && ax !== bx) top = Math.max(top, ay + ((x - ax) / (bx - ax)) * (by - ay));
+    }
+    return top === -Infinity ? torso[1] : top;
+  };
+  const trunk = (): Path => (muscular ? polygon(trunkPts) : ellipse(torso[0], torso[1], tRx, tRy));
+  put('torso', trunk());
+  put('torsoClip', trunk());
   put('belly', ellipse(torso[0] - 0.5, torso[1] - tRy * 0.38, tRx * 0.7, tRy * 0.48));
 
   const pattern = g.coat!.pattern!;
+  const pt = new Path();
+  if (n.build === 4) { // skeletal build: ribs painted on the flank (c3), whatever the coat pattern
+    for (let i = 0; i < 5; i++) {
+      const x = torso[0] + tRx * (0.32 - i * 0.17), top = torso[1] + tRy * 0.55, bot = torso[1] - tRy * (0.45 - Math.abs(i - 2) * 0.05);
+      pt.append(taper([x + 1.5, top], [x - 1.6, (top + bot) / 2], [x + 1.2, bot], (t) => 2.2 - t * 0.8, 8));
+    }
+    pt.append(tube([torso[0] - tRx * 0.45, torso[1] + tRy * 0.58], [torso[0] + tRx * 0.45, torso[1] + tRy * 0.58], 1.8, 1.8));
+  }
   if (pattern > 0) {
-    const pt = new Path();
     if (pattern === 1) {
       for (let i = 0; i < 6; i++) {
         const x = torso[0] + (i - 2.5) * (n.bodyL / 6.2);
@@ -135,8 +166,8 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
       const pts: [number, number, number][] = [[-0.55, 0.35, 2], [-0.2, 0.55, 1.6], [0.2, 0.3, 2.2], [0.5, 0.5, 1.7], [-0.4, -0.1, 1.5], [0, -0.05, 2], [0.4, -0.2, 1.6]];
       for (const [fx, fy, r] of pts) pt.append(ellipse(torso[0] + fx * n.bodyL * 0.9, torso[1] + fy * n.bodyG, r, r * 0.85));
     }
-    put('pattern', pt);
   }
+  if (!pt.empty) put('pattern', pt);
   const acc = g.accessory!.type!;
   if (acc === 2) put('saddle', ellipse(torso[0] - n.bodyL * 0.02, torso[1] + tRy * 0.62, n.bodyL * 0.2, tRy * 0.3));
 
@@ -260,8 +291,7 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
       const x0 = neckBase[0], x1 = tailBase[0];
       for (let i = 0; i < 6; i++) {
         const x = x0 + ((x1 - x0) * (i + 0.5)) / 6;
-        const k = Math.max(0, 1 - ((x - torso[0]) / tRx) ** 2);
-        const y = torso[1] + tRy * Math.sqrt(k) - 0.8;
+        const y = trunkTop(x) - 0.8;
         s.append(spike(x, y, -2.4, 2.4, x - 0.6, y + c));
       }
       put('spines', s);

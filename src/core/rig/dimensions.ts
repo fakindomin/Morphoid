@@ -32,6 +32,19 @@ export const HEAD_RADIUS = 9.5;
 /** Body width (Z) as a fraction of its girth, per body shape. */
 export const BODY_WIDTH_RATIO = [0.9, 0.7, 1.15] as const;
 
+/**
+ * Build (gene J): one setting that rescales the trunk and limbs of the whole creature. `legW` is the leg's width in
+ * the side view and its thickness across the body, so it is also the width of the sole on the bed.
+ */
+export interface Build { girth: number; length: number; width: number; leg: number; legW: (girth: number) => number; sole: number }
+export const BUILD: readonly Build[] = [
+  { girth: 1, length: 1, width: 1, leg: 1, legW: (G) => Math.max(6.5, G * 0.5), sole: 1 },          // normal
+  { girth: 0.62, length: 1.05, width: 0.75, leg: 1.45, legW: () => 4.4, sole: 1.4 },               // stick: thin, long legs, longer soles
+  { girth: 1.1, length: 1, width: 1.15, leg: 1, legW: (G) => Math.max(8, G * 0.62), sole: 1.1 },    // muscular
+  { girth: 1.5, length: 0.78, width: 1.25, leg: 0.6, legW: (G) => Math.max(7, G * 0.42), sole: 1 }, // round
+  { girth: 0.7, length: 1.05, width: 0.8, leg: 1.3, legW: () => 4.8, sole: 1.3 },                  // skeletal
+];
+
 /** Flat soles are mandatory: a foot with too little contact will not stick. */
 export interface FootSole { length: number; width: number }
 export const FOOT_SOLE: readonly FootSole[] = [

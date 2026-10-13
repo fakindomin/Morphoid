@@ -74,7 +74,7 @@ export const SPEC_3D: Record<SlotId, Spec | null> = {
 export function ctxFor(rig: Rig): Ctx {
   const W = rig.dims.bodyWidth, G = rig.dims.bodyGirth;
   const headW = Math.max(8, W * 0.9);
-  return { W, G, legW: Math.max(6.5, G * 0.5), legZ: W * 0.32, headW, snoutW: headW * 0.62, neckT: Math.max(6, W * 0.7) };
+  return { W, G, legW: rig.dims.legWidth, legZ: W * 0.32, headW, snoutW: headW * 0.62, neckT: Math.max(6, W * 0.7) };
 }
 
 export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig): Part3D[] {

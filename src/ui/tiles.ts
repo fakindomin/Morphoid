@@ -25,6 +25,7 @@ export const TILES: TileDef[] = [
     { block: 'body', field: 'shape', label: 'Kształt tułowia' },
     { block: 'body', field: 'length', label: 'Długość korpusu' },
     { block: 'body', field: 'girth', label: 'Pękatość tułowia' },
+    { block: 'build', field: 'type', label: 'Budowa ciała' },
   ] },
   { id: 'wings', title: '5. Skrzydła', fields: [
     { block: 'wings', field: 'type', label: 'Typ skrzydeł' },

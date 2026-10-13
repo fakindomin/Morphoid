@@ -131,6 +131,25 @@ describe('solid quality: no holes, no gaps, no floating bits (every element, var
   });
 });
 
+describe('build (gene J): every build bakes and splits cleanly', () => {
+  it('each build, at the smallest and largest body and legs, is ONE watertight shell whole, and every modular piece is watertight', { timeout: 240000 }, () => {
+    const bad: string[] = [];
+    for (let build = 0; build < 5; build++) for (const st of [0, 5]) for (const crest of [0, 3]) {
+      const g = defaultGenome();
+      g.build!.type = build; g.body!.length = st; g.body!.girth = st; g.legs!.length = st; g.crest!.type = crest; g.crest!.scale = 2;
+      const label = `build ${build} size ${st + 1} crest ${crest}`;
+      const x = bake(g, planWhole(), 'draft').pieces.find((p) => p.id === 'body')!.validation;
+      if (!x.watertight || x.shells !== 1 || x.genus !== 0) bad.push(`${label} whole: shells ${x.shells}, holes ${x.genus}`);
+      for (const p of bake(g, planModular(), 'draft').pieces) {
+        const v = p.validation;
+        // a piece may hold several copies (both ears, four legs); the body must stay one shell
+        if (!v.watertight || (p.id === 'body' && v.shells !== 1)) bad.push(`${label} ${p.id}: watertight ${v.watertight}, shells ${v.shells}`);
+      }
+    }
+    expect(bad).toEqual([]);
+  });
+});
+
 describe('joints: pegs, sockets and tabs are real geometry', () => {
   it('modular parts are mostly seated on a peg or tab; the rest is marked for glue, and nothing loses its joint silently', () => {
     const rnd = mulberry32(31);

@@ -9,7 +9,7 @@ import { dimensions as D, idleOffsets, type NodeId, type Rig } from '../rig';
 export type PosMap = Record<NodeId, [number, number]>;
 
 export interface Nums {
-  bodyL: number; bodyG: number; earS: number; hornS: number; wingS: number;
+  bodyL: number; bodyG: number; legW: number; build: number; earS: number; hornS: number; wingS: number;
   crestS: number; tailLen: number; soleL: number;
 }
 export interface Pose { pos: PosMap; n: Nums }
@@ -35,7 +35,7 @@ export function targetPose(
   return {
     pos,
     n: {
-      bodyL: rig.dims.bodyLength, bodyG: rig.dims.bodyGirth,
+      bodyL: rig.dims.bodyLength, bodyG: rig.dims.bodyGirth, legW: rig.dims.legWidth, build: rig.dims.build,
       earS: typeSize(g, 'ears', D.EAR_SIZE, 'scale'), hornS: typeSize(g, 'horns', D.HORN_SPAN, 'span'),
       wingS: typeSize(g, 'wings', D.WING_SPAN, 'scale'), crestS: typeSize(g, 'crest', D.CREST_SIZE, 'scale'),
       tailLen: rig.dims.tailLength, soleL: rig.dims.soleLength,

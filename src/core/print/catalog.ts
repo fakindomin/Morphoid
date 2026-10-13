@@ -31,7 +31,7 @@ export interface PartSpec {
 }
 
 export const PARTS: readonly PartSpec[] = [
-  { id: 'torso', blocks: ['body'], slots: ['torso'], repr3D: 'ellipsoid', modular: false, note: 'elipsoida L x W x G, baza modelu' },
+  { id: 'torso', blocks: ['body', 'build'], slots: ['torso'], repr3D: 'ellipsoid', modular: false, note: 'elipsoida L x W x G, baza modelu' },
   { id: 'legs', blocks: ['legs'], slots: ['legB', 'legF', 'legBFar', 'legFFar'], repr3D: 'sweep', modular: false,
     note: '4 nogi (druga para = lustro w Z), płaska podeszwa na Y=0, pazury jako klin leżący na stole' },
   { id: 'neck', blocks: ['head'], slots: ['neck', 'neckDecor'], repr3D: 'sweep', modular: false, note: 'stożek ścięty; grzebień/pancerz jako grzbiety o wysokości 0,8 mm' },

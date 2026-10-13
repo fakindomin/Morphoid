@@ -14,7 +14,7 @@ export const SIZE_CLASSES = 3; // N
 
 export type BlockId =
   | 'body' | 'legs' | 'head' | 'snout' | 'ears' | 'horns' | 'wings'
-  | 'tail' | 'crest' | 'face' | 'coat' | 'accessory' | 'palette';
+  | 'tail' | 'crest' | 'face' | 'coat' | 'accessory' | 'palette' | 'build';
 
 export interface EnumOption { id: string; label: string; retired?: boolean }
 export interface EnumField {
@@ -104,6 +104,9 @@ export const BLOCKS: readonly BlockDef[] = [
     { kind: 'enum', name: 'index', def: 0,
       options: Array.from({ length: 16 }, (_, i) => ({ id: `p${i}`, label: `Triada ${i + 1}` })) },
   ] },
+  { id: 'build', letter: 'J', label: 'Budowa', fields: [
+    e('type', [['normal', 'Normalna'], ['stick', 'Patyk'], ['muscular', 'Umięśniona'], ['round', 'Kulista'], ['skeletal', 'Szkieletowa']]),
+  ] },
 ] as const;
 
 /**
@@ -147,6 +150,7 @@ export const GENES: readonly GeneDef[] = [
   gene('A', 'Dodatek na ciało', 'accessory', 'type'),
   gene('G', 'Dodatek na głowę', null),
   gene('P', 'Paleta', 'palette', 'index'),
+  gene('J', 'Budowa', 'build', 'type'),
 ];
 
 export const PREFIX = 'MPH2';

@@ -41,7 +41,7 @@ export function applyOp(g: MorphotypeGenome, op: Op): MorphotypeGenome {
 const SIZE_LABELS = ['1: Mały', '2: Średni', '3: Duży'];
 
 const FIELD_LABELS: Record<string, string> = {
-  shape: 'KSZTAŁT', count: 'LICZBA NÓG', foot: 'STOPA', skull: 'CZASZKA', neck: 'FASADA SZYI',
+  shape: 'KSZTAŁT', foot: 'STOPA', skull: 'CZASZKA', neck: 'FASADA SZYI',
   type: 'RODZAJ', eyes: 'OCZY', teeth: 'ZĘBY', whiskers: 'WĄSY', expression: 'MINA',
   texture: 'FAKTURA', pattern: 'WZÓR', index: 'PALETA',
 };
@@ -66,7 +66,7 @@ function blockNode(block: BlockId, icon?: string): MenuNode {
   const first = enums[0];
   if (first && first.kind === 'enum' && enums.length === 1 && steps.length === 1) {
     const step = steps[0]!;
-    node.children = first.options.map((o, i) => {
+    node.children = first.options.flatMap((o, i) => (o.retired ? [] : [{ o, i }])).map(({ o, i }) => {
       const set: Op = { kind: 'set', block, field: first.name, value: i };
       if (o.id === 'none') {
         return { id: `${block}.${o.id}`, label: o.label.toUpperCase(), op: set };
@@ -80,9 +80,9 @@ function blockNode(block: BlockId, icon?: string): MenuNode {
     if (f.kind === 'step') return { id, label: f.label.toUpperCase(), children: sizeLeaves(id, f.name) };
     return {
       id, label: FIELD_LABELS[f.name] ?? f.name.toUpperCase(),
-      children: f.options.map((o, i) => ({
+      children: f.options.flatMap((o, i) => (o.retired ? [] : [{
         id: `${id}.${o.id}`, label: o.label.toUpperCase(), op: { kind: 'set', block, field: f.name, value: i } as Op,
-      })),
+      }])),
     };
   });
   return node;

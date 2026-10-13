@@ -63,6 +63,16 @@ describe('print audit (Bambu P1S profile)', () => {
     }
   });
 
+  it('every build prints whole without errors (40 random creatures each)', { timeout: 60000 }, () => {
+    const rnd = mulberry32(33);
+    for (let build = 0; build < 5; build++) for (let i = 0; i < 40; i++) {
+      const g = randomGenome(rnd); g.build!.type = build;
+      const { rig, paths } = geometry(g);
+      expect(rig.issues, rig.code).toEqual([]);
+      expect(errorsOf(analyzePrint(paths, rig, planWhole())), rig.code).toEqual([]);
+    }
+  });
+
   it('100 random Morphoids print as modular parts without errors (too-small parts are fused back)', { timeout: 60000 }, () => {
     const rnd = mulberry32(32);
     for (let i = 0; i < 100; i++) {
