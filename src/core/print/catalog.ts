@@ -31,7 +31,7 @@ export interface PartSpec {
 }
 
 export const PARTS: readonly PartSpec[] = [
-  { id: 'torso', blocks: ['body', 'build'], slots: ['torso'], repr3D: 'ellipsoid', modular: false, note: 'elipsoida L x W x G, baza modelu' },
+  { id: 'torso', blocks: ['body', 'build', 'plan'], slots: ['torso'], repr3D: 'ellipsoid', modular: false, note: 'elipsoida L x W x G, baza modelu' },
   { id: 'legs', blocks: ['legs'], slots: ['legB', 'legF', 'legBFar', 'legFFar'], repr3D: 'sweep', modular: false,
     note: '4 nogi (druga para = lustro w Z), płaska podeszwa na Y=0, pazury jako klin leżący na stole' },
   { id: 'neck', blocks: ['head'], slots: ['neck', 'neckDecor'], repr3D: 'sweep', modular: false, note: 'stożek ścięty; grzebień/pancerz jako grzbiety o wysokości 0,8 mm' },
@@ -45,6 +45,7 @@ export const PARTS: readonly PartSpec[] = [
   { id: 'eyes', blocks: ['face'], slots: ['eye', 'pupil'], repr3D: 'dome', modular: false, note: 'oko = kopułka >= 0,8 mm, źrenica = kolor/zagłębienie 0,4 mm' },
   { id: 'mouth', blocks: ['face'], slots: ['mouth', 'brow'], repr3D: 'groove', modular: false, note: 'rowek 0,8 x 0,5 mm' },
   { id: 'teeth', blocks: ['face'], slots: ['teeth'], repr3D: 'dome', modular: false, note: 'płaski relief na boku pyska (wysokość 0,8 mm), nic nie zwisa poza obrys' },
+  { id: 'stand', blocks: ['stand'], slots: ['stand'], repr3D: 'flat-part', modular: true, note: 'płyta 4 mm pod stopami, drukowana osobno; czopy wchodzą w stopy' },
   { id: 'whiskers', blocks: ['face'], slots: ['whiskers'], repr3D: 'flat-part', modular: true, note: 'płaska nakładka 1,6 mm drukowana osobno, czop w kufie' },
   { id: 'pattern', blocks: ['coat'], slots: ['pattern'], repr3D: 'groove', modular: false, note: 'płytkie zagłębienie 0,4 mm = granica koloru' },
   { id: 'collar', blocks: ['accessory'], slots: ['collar'], repr3D: 'ridge', modular: false, note: 'pierścień wokół szyi, wysokość 1,2 mm' },
@@ -61,7 +62,7 @@ export const PRINT_SOLID_SLOTS: readonly SlotId[] = [
 ];
 
 export const SLOT_NAME_PL: Record<SlotId, string> = {
-  shadow: 'cień', wingFar: 'skrzydło', tail: 'ogon', legBFar: 'noga tylna', legFFar: 'noga przednia', legB: 'noga tylna',
+  shadow: 'cień', stand: 'podstawka', wingFar: 'skrzydło', tail: 'ogon', legBFar: 'noga tylna', legFFar: 'noga przednia', legB: 'noga tylna',
   torso: 'brzuch/tułów', torsoClip: 'tułów', belly: 'brzuch', pattern: 'wzór', saddle: 'siodło', spines: 'kolce', legF: 'noga przednia',
   neck: 'szyja', neckDecor: 'ozdoba szyi', mane: 'grzywa', collar: 'obroża', ear: 'ucho', earIn: 'ucho', horns: 'rogi', tuft: 'czub',
   head: 'głowa', snout: 'pysk', wingNear: 'skrzydło', nose: 'nos', mouth: 'usta', teeth: 'zęby', whiskers: 'wąsy', eye: 'oko',

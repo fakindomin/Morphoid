@@ -51,6 +51,10 @@ export interface Rig {
     soleLength: number; soleWidth: number;
     /** build variant (gene J): 0 normal, 1 stick, 2 muscular, 3 round, 4 skeletal */
     build: number;
+    /** body plan (gene Y): 0 quadruped, 1 biped */
+    plan: number;
+    /** torso tilt (rad, nose up) */
+    tilt: number;
   };
   bounds: { min: [number, number, number]; max: [number, number, number] };
   /** Rule violations; empty for a printable pose. */
@@ -98,14 +102,16 @@ export function solveRig(genome: MorphotypeGenome): Rig {
 
 function build(g: MorphotypeGenome, code: string): Rig {
   const build = g.build?.type ?? 0, B = D.BUILD[build]!;
+  const plan = g.plan?.type ?? 0, biped = plan === 1;
+  const tilt = biped ? D.BIPED.tilt : 0;
   const L = D.snap(D.BODY_LENGTH[g.body!.length!]! * B.length);
   const G = D.snap(D.BODY_GIRTH[g.body!.girth!]! * B.girth);
   const W = D.snap(D.BODY_GIRTH[g.body!.girth!]! * D.BODY_WIDTH_RATIO[g.body!.shape!]! * B.width);
-  const legLen = D.snap(D.LEG_LENGTH[g.legs!.length!]! * B.leg);
+  const legLen = D.snap(D.LEG_LENGTH[g.legs!.length!]! * B.leg * (biped ? D.BIPED.leg : 1));
   const legW = D.snap(B.legW(G));
   const neckLen = D.NECK_LENGTH[g.head!.neckLength!]!;
   const tailLen = g.tail!.type === 0 ? 0 : D.TAIL_LENGTH[g.tail!.length!]!;
-  const sole = { length: D.snap(D.FOOT_SOLE[g.legs!.foot!]!.length * B.sole), width: legW };
+  const sole = { length: D.snap(D.FOOT_SOLE[g.legs!.foot!]!.length * B.sole * (biped ? D.BIPED.sole : 1)), width: legW };
   const legZ = W * 0.32;
   const legX = Math.max(5, L * 0.3);
 
@@ -114,9 +120,9 @@ function build(g: MorphotypeGenome, code: string): Rig {
   const local: Record<NodeId, [number, number, number]> = {
     torso: [0, 0, 0],
     shoulderF: [legX, -G * 0.35, 0],
-    hipB: [-legX, -G * 0.35, 0],
-    footFL: [0, -legLen, legZ],
-    footFR: [0, -legLen, -legZ],
+    hipB: [biped ? L * D.BIPED.hipX : -legX, -G * 0.35, 0],
+    footFL: [0, biped ? 0 : -legLen, legZ], // a biped has no front legs: the unused feet stay at the shoulder
+    footFR: [0, biped ? 0 : -legLen, -legZ],
     footBL: [0, -legLen, legZ],
     footBR: [0, -legLen, -legZ],
     neckBase: [L * 0.36, G * 0.25, 0],
@@ -130,10 +136,15 @@ function build(g: MorphotypeGenome, code: string): Rig {
     tailMid: [tailLen * 0.5, 0, 0], // along the tail's rotated frame
     tailTip: [tailLen * 0.5, 0, 0],
   };
+  // a tilted torso carries its children along; neck, tail and legs turn back by the tilt so their world angles (and
+  // so their print rules: a level head, a tail rising >= 45 deg, vertical legs) stay what they are on a quadruped
   const rot: Partial<Record<NodeId, number>> = {
-    neckBase: NECK_ANGLE,
+    torso: tilt,
+    shoulderF: -tilt,
+    hipB: -tilt,
+    neckBase: NECK_ANGLE - tilt,
     head: -NECK_ANGLE, // head level again
-    tailBase: Math.PI - TAIL_RISE, // pointing backwards and up
+    tailBase: Math.PI - TAIL_RISE - tilt, // pointing backwards and up
     tailMid: -TAIL_CURL,           // facing backwards, so a negative turn = steeper
   };
 
@@ -142,7 +153,8 @@ function build(g: MorphotypeGenome, code: string): Rig {
   for (const s of SPECS) {
     nodes[s.id] = {
       id: s.id, parent: s.parent, local: local[s.id], rotZ: rot[s.id] ?? 0,
-      x: 0, y: 0, z: 0, worldRotZ: 0, contact: !!s.contact,
+      // a biped stands on its hind feet only
+      x: 0, y: 0, z: 0, worldRotZ: 0, contact: !!s.contact && !(biped && (s.id === 'footFL' || s.id === 'footFR')),
     };
     order.push(s.id);
   }
@@ -160,7 +172,7 @@ function build(g: MorphotypeGenome, code: string): Rig {
     code, nodes, order,
     dims: {
       bodyLength: L, bodyGirth: G, bodyWidth: W, legLength: legLen, neckLength: neckLen,
-      tailLength: tailLen, legWidth: legW, soleLength: sole.length, soleWidth: sole.width, build,
+      tailLength: tailLen, legWidth: legW, soleLength: sole.length, soleWidth: sole.width, build, plan, tilt,
     },
     bounds, issues: [],
   };

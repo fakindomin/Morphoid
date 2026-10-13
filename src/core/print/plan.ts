@@ -5,7 +5,7 @@
  */
 import type { SlotId } from '../art/shapes';
 
-export type PartGroup = 'head' | 'ears' | 'horns' | 'crest' | 'wings' | 'tail' | 'legs' | 'whiskers';
+export type PartGroup = 'head' | 'ears' | 'horns' | 'crest' | 'wings' | 'tail' | 'legs' | 'whiskers' | 'stand';
 
 export interface GroupDef {
   id: PartGroup;
@@ -32,6 +32,8 @@ export const GROUPS: readonly GroupDef[] = [
   { id: 'legs', label: 'Nogi', slots: ['legB', 'legF', 'legBFar', 'legFFar'], orientation: 'upright' },
   // whiskers lie in the horizontal plane (they stick out sideways), so they print flat as they are: 'upright'
   { id: 'whiskers', label: 'Wąsy', slots: ['whiskers'], orientation: 'upright', forced: true },
+  // the stand is always printed on its own; pegs on it go up into the feet
+  { id: 'stand', label: 'Podstawka', slots: ['stand'], orientation: 'upright', forced: true },
 ];
 
 export const groupOfSlot = (slot: SlotId): GroupDef | undefined => GROUPS.find((g) => g.slots.includes(slot));

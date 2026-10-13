@@ -9,7 +9,7 @@
 import type { MorphotypeGenome } from '../genome';
 import type { Rig } from '../rig';
 import { groupOfSlot, type PartGroup } from '../print/plan';
-import { WHISKER_FAN, WHISKER_PAD, WHISKER_W, whiskerLength, type SlotId, type SlotPaths } from './shapes';
+import { STAND_MARGIN_MM, STAND_MM, WHISKER_FAN, WHISKER_PAD, WHISKER_W, whiskerLength, type SlotId, type SlotPaths } from './shapes';
 import type { XY } from './path';
 import { edgesOf, sdPolys, type Edge } from '../bake/field';
 
@@ -73,6 +73,7 @@ export const SPEC_3D: Record<SlotId, Spec | null> = {
   brow: { color: 'ink', mirror: true, z: (c) => c.headW / 2 - 0.1, t: () => 0.5, bevel: () => 0.1 },
   mouth: { color: 'ink', mirror: true, z: (c) => c.snoutW / 2 - 0.1, t: () => 0.5, bevel: () => 0.1 },
   teeth: { color: 'white', mirror: true, z: (c) => c.snoutW / 2 - 0.4, t: () => 1.6, bevel: () => 0.1 },
+  stand: { color: 'c2', mirror: false, z: centre, t: () => STAND_MM, bevel: (t) => round(0.3)(t) }, // top-view plate, see standTop
   whiskers: { color: 'c1dark', mirror: true, z: () => 0, t: () => 1.6, bevel: (t) => flat(t) }, // top-view plate, see whiskerTop
 };
 
@@ -101,7 +102,27 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig): P
   const head = out.find((p) => p.slot === 'head');
   if (head) for (const p of out) if (p.slot === 'ear') p.polys = seatOn(p, head);
   for (const p of out) if (p.slot === 'whiskers') whiskerTop(p, g, ctx);
+  for (const p of out) if (p.slot === 'stand') standTop(p, g, rig);
   return out;
+}
+
+/** The stand seen from above: an oval (or an uneven stone) under every foot, its top on the bed plane y = 0. */
+function standTop(p: Part3D, g: MorphotypeGenome, rig: Rig): void {
+  let x0 = Infinity, x1 = -Infinity;
+  for (const poly of p.polys) for (const [x] of poly) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); }
+  const cx = (x0 + x1) / 2, rx = (x1 - x0) / 2;
+  const rz = rig.dims.bodyWidth * 0.32 + rig.dims.legWidth / 2 + STAND_MARGIN_MM;
+  const stone = g.stand!.type === 2;
+  const ring: XY[] = [];
+  for (let i = 0; i < 36; i++) {
+    const a = (i / 36) * Math.PI * 2;
+    // a stone: a few low lobes, the same for the same creature (no randomness)
+    const k = stone ? 1 + 0.07 * Math.sin(3 * a + 0.7) + 0.05 * Math.sin(5 * a + 2.1) : 1;
+    ring.push([cx + Math.cos(a) * rx * k, Math.sin(a) * rz * k]);
+  }
+  p.polys = [ring];
+  p.plane = 'xz';
+  p.z = -STAND_MM / 2;
 }
 
 /**

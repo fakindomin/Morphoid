@@ -14,7 +14,7 @@ export const SIZE_CLASSES = 3; // N
 
 export type BlockId =
   | 'body' | 'legs' | 'head' | 'snout' | 'ears' | 'horns' | 'wings'
-  | 'tail' | 'crest' | 'face' | 'coat' | 'accessory' | 'palette' | 'build';
+  | 'tail' | 'crest' | 'face' | 'coat' | 'accessory' | 'palette' | 'build' | 'plan' | 'stand';
 
 export interface EnumOption { id: string; label: string; retired?: boolean }
 export interface EnumField {
@@ -107,6 +107,12 @@ export const BLOCKS: readonly BlockDef[] = [
   { id: 'build', letter: 'J', label: 'Budowa', fields: [
     e('type', [['normal', 'Normalna'], ['stick', 'Patyk'], ['muscular', 'Umięśniona'], ['round', 'Kulista'], ['skeletal', 'Szkieletowa']]),
   ] },
+  { id: 'plan', letter: 'Y', label: 'Plan ciała', fields: [
+    e('type', [['quadruped', 'Czworonóg'], ['biped', 'Dwunóg / ptak']]),
+  ] },
+  { id: 'stand', letter: 'Q', label: 'Podstawka', noneMeansEmpty: true, fields: [
+    e('type', [['none', 'Brak'], ['round', 'Okrągła'], ['stone', 'Kamień']]),
+  ] },
 ] as const;
 
 /**
@@ -151,6 +157,8 @@ export const GENES: readonly GeneDef[] = [
   gene('G', 'Dodatek na głowę', null),
   gene('P', 'Paleta', 'palette', 'index'),
   gene('J', 'Budowa', 'build', 'type'),
+  gene('Y', 'Plan ciała', 'plan', 'type'),
+  gene('Q', 'Podstawka', 'stand', 'type'),
 ];
 
 export const PREFIX = 'MPH2';

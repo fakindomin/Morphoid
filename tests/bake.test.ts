@@ -150,6 +150,27 @@ describe('build (gene J): every build bakes and splits cleanly', () => {
   });
 });
 
+describe('body plan (gene Y) and stand (gene Q)', () => {
+  it('a biped bakes into one shell; its stand is a separate watertight plate pegged into the feet', { timeout: 120000 }, () => {
+    const bad: string[] = [];
+    for (const build of [0, 1, 3]) for (const stand of [0, 1, 2]) for (const plan of [planWhole(), planModular()]) {
+      const g = defaultGenome(); g.plan!.type = 1; g.build!.type = build; g.stand!.type = stand;
+      const r = bake(g, plan, 'draft');
+      const label = `build ${build} stand ${stand} ${r.pieces.length > 2 ? 'modular' : 'whole'}`;
+      const body = r.pieces.find((p) => p.id === 'body')!.validation;
+      if (!body.watertight || body.shells !== 1 || body.genus !== 0) bad.push(`${label} body: shells ${body.shells}, holes ${body.genus}`);
+      const st = r.pieces.find((p) => p.id === 'stand');
+      if (!stand) { if (st) bad.push(`${label}: stand without the gene`); continue; }
+      if (!st) { bad.push(`${label}: no stand`); continue; }
+      if (!st.validation.watertight || st.validation.shells !== 1 || st.validation.genus !== 0) bad.push(`${label} stand: shells ${st.validation.shells}, holes ${st.validation.genus}`);
+      // feet of a normal or round build carry a real peg; stick feet (4.4 mm) are too thin and may fall back to a tab or glue
+      if (build !== 1 && !st.joints.every((j) => j.peg !== null && j.peg !== 'tab')) bad.push(`${label}: stand joints ${st.joints.map((j) => j.peg).join(',')}`);
+      if (!st.joints.length) bad.push(`${label}: stand touches no foot`);
+    }
+    expect(bad).toEqual([]);
+  });
+});
+
 describe('joints: pegs, sockets and tabs are real geometry', () => {
   it('modular parts are mostly seated on a peg or tab; the rest is marked for glue, and nothing loses its joint silently', () => {
     const rnd = mulberry32(31);
@@ -162,7 +183,7 @@ describe('joints: pegs, sockets and tabs are real geometry', () => {
         parts++;
         if (!p.joints.length) bad.push(`${p.id} has no joint`);
         if (!p.joints.some((j) => j.peg !== null)) glued++;
-        for (const j of p.joints) if (!['body', 'head'].includes(j.hostId)) bad.push(`${p.id} mounts on ${j.hostId}`);
+        for (const j of p.joints) if (!(p.id === 'stand' ? ['body', 'legs'] : ['body', 'head']).includes(j.hostId)) bad.push(`${p.id} mounts on ${j.hostId}`);
       }
     }
     expect(bad).toEqual([]);

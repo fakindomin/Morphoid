@@ -172,7 +172,9 @@ export function bake(
   const order = ['body', ...GROUPS.map((g) => g.id)].filter((id) => byPiece.has(id));
   const labelOf = (id: string): string => (id === 'body' ? (byPiece.size === 1 ? 'Całość' : 'Korpus') : GROUPS.find((x) => x.id === id)!.label);
   // a part plugs into the body, and into a separately printed head where it touches the head (ears, horns, a tuft)
-  const hostsOf = (id: string): string[] => id === 'body' ? [] : id === 'head' || !byPiece.has('head') ? ['body'] : ['body', 'head'];
+  const hostsOf = (id: string): string[] => id === 'body' ? []
+    : id === 'stand' ? [byPiece.has('legs') ? 'legs' : 'body'] // the stand carries the feet
+    : id === 'head' || !byPiece.has('head') ? ['body'] : ['body', 'head'];
   const margin = (id: string): number => (id === 'body' ? 3 : JOIN_MARGIN_MM);
   const weights = order.map((id) => { const d = gridDims(byPiece.get(id)!, h, margin(id)); return d.nx * d.ny * d.nz; });
   const totalW = weights.reduce((a, b) => a + b, 0) || 1;

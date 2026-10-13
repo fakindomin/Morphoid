@@ -26,6 +26,7 @@ export const TILES: TileDef[] = [
     { block: 'body', field: 'length', label: 'Długość korpusu' },
     { block: 'body', field: 'girth', label: 'Pękatość tułowia' },
     { block: 'build', field: 'type', label: 'Budowa ciała' },
+    { block: 'plan', field: 'type', label: 'Plan ciała' },
   ] },
   { id: 'wings', title: '5. Skrzydła', fields: [
     { block: 'wings', field: 'type', label: 'Typ skrzydeł' },
@@ -34,6 +35,7 @@ export const TILES: TileDef[] = [
   { id: 'legs', title: '6. Nogi & Stopy', fields: [
     { block: 'legs', field: 'foot', label: 'Kształt stóp (płaska baza Y=0)' },
     { block: 'legs', field: 'length', label: 'Wysokość nóg' },
+    { block: 'stand', field: 'type', label: 'Podstawka (osobny wydruk)' },
   ] },
   { id: 'tail', title: '7. Ogon', fields: [
     { block: 'tail', field: 'type', label: 'Kształt ogona' },

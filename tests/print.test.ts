@@ -73,6 +73,24 @@ describe('print audit (Bambu P1S profile)', () => {
     }
   });
 
+  it('a biped that would tip over gets a warning, and a stand fixes it', () => {
+    const rnd = mulberry32(6);
+    let tipped = 0;
+    for (let i = 0; i < 200; i++) {
+      const g = randomGenome(rnd); g.plan!.type = 1; g.stand!.type = 0;
+      const { rig, paths } = geometry(g);
+      if (!analyzePrint(paths, rig, planWhole()).issues.some((x) => x.code === 'BALANCE')) continue;
+      tipped++;
+      g.stand!.type = 1;
+      const after = geometry(g);
+      expect(analyzePrint(after.paths, after.rig, planWhole()).issues.filter((x) => x.code === 'BALANCE'), after.rig.code).toEqual([]);
+    }
+    expect(tipped).toBeGreaterThan(0);
+    // a quadruped stands on its own
+    const { rig, paths } = geometry(defaultGenome());
+    expect(analyzePrint(paths, rig, planWhole()).issues.filter((x) => x.code === 'BALANCE')).toEqual([]);
+  });
+
   it('100 random Morphoids print as modular parts without errors (too-small parts are fused back)', { timeout: 60000 }, () => {
     const rnd = mulberry32(32);
     for (let i = 0; i < 100; i++) {

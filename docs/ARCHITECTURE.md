@@ -23,7 +23,7 @@ MPH2:B01.33:L01.3:N01.3:H01:S02.3:E01.3:R00.0:W00.0:T01.3:U00:C00.0:O02:M01:Z00:
 
 - Gen = litera części + **stały numer wariantu** (2 znaki hex) + cyfry rozmiaru 1–6 (tułów ma dwie: długość i pękatość; 0, gdy części nie ma).
 - Numer wariantu to pozycja opcji w schemacie: pole z opcją „Brak” na początku (i paleta) liczy od 00, pozostałe od 01. Dlatego opcje **tylko się dopisuje**. Wariantu się nie usuwa, tylko oznacza `retired` (znika z menu i losowania, stare kody dalej go rysują).
-- Litery (kolejność w kodzie): B tułów, L nogi, N szyja, H czaszka, S pysk, E uszy, R rogi, W skrzydła, T ogon, U końcówka ogona, C grzywa/czub/kolce, O oczy, M mina, Z zęby, V wąsy, F faktura, D deseń, A dodatek na ciało, G dodatek na głowę, P paleta, J budowa. Nowa część = nowa litera na końcu; w starszych kodach brakujący gen ma wartość domyślną.
+- Litery (kolejność w kodzie): B tułów, L nogi, N szyja, H czaszka, S pysk, E uszy, R rogi, W skrzydła, T ogon, U końcówka ogona, C grzywa/czub/kolce, O oczy, M mina, Z zęby, V wąsy, F faktura, D deseń, A dodatek na ciało, G dodatek na głowę, P paleta, J budowa, Y plan ciała, Q podstawka. Nowa część = nowa litera na końcu; w starszych kodach brakujący gen ma wartość domyślną.
 - `#CC` to CRC-8 (wielomian 0x07) z tekstu przed `#`. Suma jest „miękka”: `parse` zwraca `checksumOk`, a kod bez sumy też się wczyta.
 - `parse(tekst, baza)` toleruje wielkość liter, spacje i tekst dookoła. Gen z nieznanym numerem trafia do `badGenes`, a ta część zachowuje wartość z `baza` (w studiu: obecny stwór), więc ręczna edycja zmienia tylko to, co nazywa.
 - Stare kody `MPH` + 26 hex (format v1, 13 bajtów, CRC-4) czyta `genome/v1.ts` z zamrożonym układem bitów. Pole „liczba nóg” zostało usunięte.
@@ -31,6 +31,16 @@ MPH2:B01.33:L01.3:N01.3:H01:S02.3:E01.3:R00.0:W00.0:T01.3:U00:C00.0:O02:M01:Z00:
 ### Budowa (gen J)
 
 Jedna wartość przeskalowuje tułów i kończyny całego stwora (`dimensions.ts`, `BUILD`): 01 normalna, 02 patyk (chudy tułów, nogi 4,4 mm, dłuższe nogi i podeszwy), 03 umięśniona (garby barku i zadu w jednym obrysie, grubsze nogi z wybrzuszeniem uda), 04 kulista (wysoki, krótki tułów, krótkie nogi), 05 szkieletowa (jak patyk, żebra malowane kolorem c3). Szerokość nogi jest też szerokością podeszwy, więc walidacja podeszwy liczy `soleLength × legWidth`.
+
+### Plan ciała (gen Y) i podstawka (gen Q)
+
+- 01 czworonóg, 02 dwunóg/ptak. Dwunóg stoi na tylnych nogach pod środkiem tułowia, tułów jest pochylony nosem w górę (`BIPED.tilt`), a szyja, ogon i nogi obracają się z powrotem o ten kąt, więc ich reguły druku (głowa poziomo, ogon ≥ 45°, nogi pionowo) się nie zmieniają. Nogi są dłuższe, a podeszwy 1,5× dłuższe. Przednie stopy nie są punktami styku.
+- Podstawka (00 brak, 01 okrągła, 02 kamień) to płyta 4 mm pod stopami, zawsze drukowana osobno (grupa `stand`). Czopy idą z podstawki w górę, w stopy. Przy nogach drukowanych osobno podstawka łączy się z nogami.
+- Audyt druku ostrzega (`BALANCE`), gdy środek ciężkości (pole z boku × grubość części) wypada poza podeszwy albo podstawkę (`print/balance.ts`). Dotyczy to głównie dwunogów.
+
+### Części poziome
+
+Część może leżeć w płaszczyźnie poziomej (`plane: 'xz'`): obrys w (x, z), wyciągnięcie wzdłuż y. Tak są zrobione wąsy (sterczą na boki z boku pyska) i podstawka. Pole SDF, malowanie, bake i podgląd 3D obsługują oba rodzaje. Elementy z samych płyt poziomych drukują się tak, jak leżą, a ich spód jest przycinany do płaskiej ściany.
 
 ### Rejestr wariantów
 

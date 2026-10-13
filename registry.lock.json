@@ -120,5 +120,14 @@
     "03": "muscular",
     "04": "round",
     "05": "skeletal"
+  },
+  "Y": {
+    "01": "quadruped",
+    "02": "biped"
+  },
+  "Q": {
+    "00": "none",
+    "01": "round",
+    "02": "stone"
   }
 }

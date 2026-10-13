@@ -7,11 +7,11 @@ import {
 describe('Morphotyp codec (DNA v2)', () => {
   it('writes the default creature as the spec example, every gene always present, fixed length', () => {
     const code = serialize(defaultGenome());
-    expect(code.split('#')[0]).toBe('MPH2:B01.33:L01.3:N01.3:H01:S02.3:E01.3:R00.0:W00.0:T01.3:U00:C00.0:O02:M01:Z00:V00:F01:D00:A00:G00:P00:J01');
+    expect(code.split('#')[0]).toBe('MPH2:B01.33:L01.3:N01.3:H01:S02.3:E01.3:R00.0:W00.0:T01.3:U00:C00.0:O02:M01:Z00:V00:F01:D00:A00:G00:P00:J01:Y01:Q00');
     expect(code).toMatch(/#[0-9A-F]{2}$/);
     const rnd = mulberry32(3);
     for (let i = 0; i < 50; i++) expect(serialize(randomGenome(rnd))).toHaveLength(code.length);
-    expect(GENES.map((g) => g.letter).join('')).toBe('BLNHSERWTUCOMZVFDAGPJ');
+    expect(GENES.map((g) => g.letter).join('')).toBe('BLNHSERWTUCOMZVFDAGPJYQ');
   });
 
   it('round-trips 2000 random genomes losslessly with a valid checksum', () => {

@@ -10,12 +10,12 @@ import { groupOfSlot, pieceOf, type PartGroup, type PrintPlan, type PrintReport 
 /** How far each separately printed piece slides away in the exploded view (mm at 100%). z is multiplied by the piece's side. */
 const OFFSET: Record<PartGroup, [number, number, number]> = {
   head: [16, 14, 0], ears: [0, 10, 16], horns: [0, 14, 16], crest: [0, 16, 0], wings: [0, 16, 28],
-  tail: [-22, 10, 0], legs: [0, 0, 26], whiskers: [16, 0, 16],
+  tail: [-22, 10, 0], legs: [0, 0, 26], whiskers: [16, 0, 16], stand: [0, -12, 0],
 };
 /** Rig nodes where a peg joins the piece to the body. */
 const ROOTS: Record<PartGroup, NodeId[]> = {
   head: ['neckBase'], ears: ['earRoot'], horns: ['hornRoot'], crest: ['neckBase'], wings: ['wingRoot'],
-  tail: ['tailBase'], legs: ['hipB', 'shoulderF'], whiskers: ['muzzle'],
+  tail: ['tailBase'], legs: ['hipB', 'shoulderF'], whiskers: ['muzzle'], stand: ['footBL'],
 };
 
 const mix = (a: string, b: string, t: number): THREE.Color => new THREE.Color(a).lerp(new THREE.Color(b), t);

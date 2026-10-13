@@ -9,6 +9,7 @@
  *   SLIT      a gap narrower than ~0.9 mm inside the shape (cannot be printed, it fuses or leaves a hairline void)
  *   PEG       a separate part too small to carry a mounting peg
  *   SOLE      too little flat area under the feet
+ *   BALANCE   the finished figurine would tip over: its centre of mass is not above the soles (or the stand)
  * Severity: error = will not print as planned; warn = prints with care / minor supports.
  */
 import type { Rig } from '../rig';
@@ -16,8 +17,9 @@ import type { SlotId, SlotPaths } from '../art/shapes';
 import { PRINT_SOLID_SLOTS, SLOT_NAME_PL } from './catalog';
 import { GROUPS, PRINTERS, groupOfSlot, isSeparate, type GroupDef, type PartGroup, type PrintPlan } from './plan';
 import { PRINT_RULES as R } from './rules';
+import { balanceOf } from './balance';
 
-export type PrintIssueCode = 'OVERHANG' | 'BRIDGE' | 'FLOATING' | 'THIN' | 'SLIT' | 'PEG' | 'SOLE' | 'BED';
+export type PrintIssueCode = 'OVERHANG' | 'BRIDGE' | 'FLOATING' | 'THIN' | 'SLIT' | 'PEG' | 'SOLE' | 'BED' | 'BALANCE';
 export type Severity = 'info' | 'support' | 'warn' | 'error';
 
 export interface PrintIssue {
@@ -172,6 +174,13 @@ export function analyzePrint(paths: SlotPaths, rig: Rig, plan: PrintPlan): Print
   const legsFused = !sep('legs');
   if (legsFused && rig.dims.soleLength * rig.dims.soleWidth < R.minSoleArea) {
     issues.push({ code: 'SOLE', severity: 'error', piece: 'body', part: 'stopy', slot: null, fix: null, at: [0, 0], size: 0, message: 'Stopy: zbyt mała płaska podeszwa' });
+  }
+  // ---- will it stand? ------------------------------------------------------------------
+  const bal = balanceOf(paths, rig);
+  if (bal.outside > 0) {
+    const where = bal.com > bal.support[1] ? 'do przodu' : 'do tyłu';
+    issues.push({ code: 'BALANCE', severity: 'warn', piece: 'body', part: 'stopy', slot: null, fix: null, at: [bal.com, 0], size: bal.outside,
+      message: `Figurka przewróci się ${where}: środek ciężkości jest ${bal.outside.toFixed(1).replace('.', ',')} mm poza ${paths.stand.empty ? 'stopami' : 'podstawką'}. Dodaj podstawkę albo zmień proporcje.` });
   }
   const errors = issues.some((i) => i.severity === 'error');
   const warns = issues.some((i) => i.severity === 'warn');

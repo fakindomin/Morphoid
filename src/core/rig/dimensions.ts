@@ -45,6 +45,12 @@ export const BUILD: readonly Build[] = [
   { girth: 0.7, length: 1.05, width: 0.8, leg: 1.3, legW: () => 4.8, sole: 1.3 },                  // skeletal
 ];
 
+/**
+ * Body plan (gene Y). A biped stands on its hind legs under the middle of a torso tilted nose-up; its legs are longer
+ * and its soles longer (toes forward, a spur back), since two feet must carry it.
+ */
+export const BIPED = { tilt: 0.32, hipX: 0.06, leg: 1.35, sole: 1.5 } as const;
+
 /** Flat soles are mandatory: a foot with too little contact will not stick. */
 export interface FootSole { length: number; width: number }
 export const FOOT_SOLE: readonly FootSole[] = [

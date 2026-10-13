@@ -17,7 +17,7 @@ describe('2D artwork', () => {
         expect(shapes[id], `${rig.code}:${id}`).not.toMatch(/NaN|Infinity/);
       }
       expect(shapes.torso.length).toBeGreaterThan(10);
-      expect(shapes.legF.length).toBeGreaterThan(10);
+      if (rig.dims.plan === 0) expect(shapes.legF.length).toBeGreaterThan(10); // bipeds have no front legs
     }
   });
 
@@ -26,7 +26,7 @@ describe('2D artwork', () => {
     const rig = solveRig(g);
     for (let t = 0; t < 20; t += 0.7) {
       const pose = targetPose(rig, g, t, true, { x: 2, y: 2 });
-      for (const id of ['footFL', 'footFR', 'footBL', 'footBR'] as const) expect(pose.pos[id][1]).toBeCloseTo(0, 9);
+      for (const id of ['footFL', 'footFR', 'footBL', 'footBR'] as const) if (rig.nodes[id].contact) expect(pose.pos[id][1]).toBeCloseTo(0, 9);
     }
   });
 });

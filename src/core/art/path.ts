@@ -58,6 +58,22 @@ export class Path {
     return polys;
   }
 
+  /** Copy turned by `ang` rad (counter-clockwise) about (cx, cy). */
+  rotated(cx: number, cy: number, ang: number): Path {
+    if (!ang) return this;
+    const c = Math.cos(ang), s = Math.sin(ang);
+    const p = new Path();
+    p.c = this.c.map(([op, ...n]) => {
+      const out: number[] = [];
+      for (let i = 0; i < n.length; i += 2) {
+        const x = n[i]! - cx, y = n[i + 1]! - cy;
+        out.push(cx + x * c - y * s, cy + x * s + y * c);
+      }
+      return [op, ...out] as Cmd;
+    });
+    return p;
+  }
+
   /** Copy shifted by (dx, dy) mm. */
   translated(dx: number, dy: number): Path {
     const p = new Path();

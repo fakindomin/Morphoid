@@ -17,7 +17,7 @@ export type SlotKind =
   | 'white' | 'ink' | 'glint' | 'groove' | 'bone' | 'clip';
 
 export const SLOTS = [
-  ['shadow', 'shadow'], ['wingFar', 'accentFar'], ['tail', 'skin'], ['legBFar', 'skinFar'], ['legFFar', 'skinFar'],
+  ['shadow', 'shadow'], ['stand', 'accent'], ['wingFar', 'accentFar'], ['tail', 'skin'], ['legBFar', 'skinFar'], ['legFFar', 'skinFar'],
   ['legB', 'skin'], ['throat', 'skin'], ['torso', 'skin'], ['torsoClip', 'clip'], ['belly', 'belly'], ['pattern', 'pattern'],
   ['saddle', 'accent'], ['spines', 'accent'], ['legF', 'skin'], ['neck', 'skin'], ['neckDecor', 'skinFar'],
   ['mane', 'accent'], ['collar', 'accent'], ['ear', 'skin'], ['earIn', 'accentSoft'], ['horns', 'accent'], ['tuft', 'accent'],
@@ -81,6 +81,15 @@ function earPaths(type: number, e: number, ex: number, ey: number): { outer: Pat
   };
 }
 
+/** Stand: plate thickness (mm) and how far it reaches beyond the feet. */
+export const STAND_MM = 4;
+export const STAND_MARGIN_MM = 6;
+/** x range of the stand: every foot on the bed, toe to heel, plus the margin. */
+export function standSpan(pose: Pose, n: Pose['n']): [number, number] {
+  const feet = (n.plan === 1 ? ['footBL'] : ['footBL', 'footFL']).map((id) => pose.pos[id as NodeId][0]);
+  return [Math.min(...feet) - n.soleL * 0.3 - STAND_MARGIN_MM, Math.max(...feet) + n.soleL * 0.7 + 3.4 + STAND_MARGIN_MM];
+}
+
 /** Whiskers: fan angles (rad from straight sideways; + = forward), pad half sizes (along x, across z), strand width. */
 export const WHISKER_FAN = [-0.42, 0, 0.42] as const;
 export const WHISKER_PAD = [3.4, 2.6] as const;
@@ -117,8 +126,19 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
   const foot = g.legs!.foot!;
   const tRx = n.bodyL / 2 + 2.5, tRy = n.bodyG / 2 + 1.5;
 
+  // ---- stand (gene Q): a separate plate under the feet, seen from the side ---------------
+  const standType = g.stand?.type ?? 0;
+  if (standType > 0) {
+    const [x0, x1] = standSpan(pose, n);
+    const sp = new Path();
+    if (standType === 2) { // stone: an uneven top edge
+      sp.M(x0, -STAND_MM).L(x1, -STAND_MM).L(x1 + 0.6, -STAND_MM * 0.45).L(x1 - 1.5, 0).L((x0 + x1) / 2 + 3, 0.4).L(x0 + 2, 0).L(x0 - 0.6, -STAND_MM * 0.5).Z();
+    } else sp.append(polygon([[x0, -STAND_MM], [x1, -STAND_MM], [x1, 0], [x0, 0]]));
+    put('stand', sp);
+  }
+
   // ---- shadow on the bed ------------------------------------------------------
-  const sx = (p(pose, 'footFL')[0] + p(pose, 'footBL')[0]) / 2;
+  const sx = n.plan === 1 ? p(pose, 'footBL')[0] : (p(pose, 'footFL')[0] + p(pose, 'footBL')[0]) / 2;
   put('shadow', ellipse(sx, 0, n.bodyL * 0.78, 3.4));
 
   // ---- legs (far pair is darker and peeks out behind) -------------------------
@@ -127,9 +147,11 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
   // muscular build: a thigh / shoulder bulge at the top of each leg (inside the torso's lower half, never overhanging)
   const limb = (top: XY, f: XY): Path => leg(top, f, legW, foot, n.soleL, muscular ? 0.5 : 0);
   put('legB', limb(hipB, fB));
-  put('legF', limb(shF, fF));
   put('legBFar', limb([hipB[0] + 3.2, hipB[1]], [fB[0] + 3.2, fB[1]]));
-  put('legFFar', limb([shF[0] + 3.2, shF[1]], [fF[0] + 3.2, fF[1]]));
+  if (n.plan !== 1) { // a biped has no front legs
+    put('legF', limb(shF, fF));
+    put('legFFar', limb([shF[0] + 3.2, shF[1]], [fF[0] + 3.2, fF[1]]));
+  }
 
   // ---- torso: a plain round ellipsoid; shape is never bent to avoid supports ---------
   // muscular build: chest and haunch lobes fused into it (the bake blends them smoothly)
@@ -139,7 +161,8 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
   for (let i = 0; i < 72; i++) {
     const a = (i / 72) * Math.PI * 2;
     const k = muscular ? 1 + bump(a, 0.55, 0.16, 0.45) + bump(a, Math.PI - 0.6, 0.13, 0.45) - bump(a, Math.PI / 2, 0.07, 0.3) : 1;
-    trunkPts.push([torso[0] + Math.cos(a) * tRx * k, torso[1] + Math.sin(a) * tRy * k]);
+    const lx = Math.cos(a) * tRx * k, ly = Math.sin(a) * tRy * k; // torso frame, then tilted (biped: nose up)
+    trunkPts.push([torso[0] + lx * Math.cos(n.tilt) - ly * Math.sin(n.tilt), torso[1] + lx * Math.sin(n.tilt) + ly * Math.cos(n.tilt)]);
   }
   /** height of the trunk's top outline at x (for parts that stand on the back) */
   const trunkTop = (x: number): number => {
@@ -150,10 +173,12 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
     }
     return top === -Infinity ? torso[1] : top;
   };
-  const trunk = (): Path => (muscular ? polygon(trunkPts) : ellipse(torso[0], torso[1], tRx, tRy));
+  const trunk = (): Path => (muscular ? polygon(trunkPts) : ellipse(torso[0], torso[1], tRx, tRy, n.tilt));
+  /** a shape drawn in the torso's own (untilted) frame, turned with the torso */
+  const tilted = (path: Path): Path => path.rotated(torso[0], torso[1], n.tilt);
   put('torso', trunk());
   put('torsoClip', trunk());
-  put('belly', ellipse(torso[0] - 0.5, torso[1] - tRy * 0.38, tRx * 0.7, tRy * 0.48));
+  put('belly', tilted(ellipse(torso[0] - 0.5, torso[1] - tRy * 0.38, tRx * 0.7, tRy * 0.48)));
 
   const pattern = g.coat!.pattern!;
   const pt = new Path();
@@ -175,9 +200,9 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
       for (const [fx, fy, r] of pts) pt.append(ellipse(torso[0] + fx * n.bodyL * 0.9, torso[1] + fy * n.bodyG, r, r * 0.85));
     }
   }
-  if (!pt.empty) put('pattern', pt);
+  if (!pt.empty) put('pattern', tilted(pt));
   const acc = g.accessory!.type!;
-  if (acc === 2) put('saddle', ellipse(torso[0] - n.bodyL * 0.02, torso[1] + tRy * 0.62, n.bodyL * 0.2, tRy * 0.3));
+  if (acc === 2) put('saddle', tilted(ellipse(torso[0] - n.bodyL * 0.02, torso[1] + tRy * 0.62, n.bodyL * 0.2, tRy * 0.3)));
 
   // ---- tail: leaves the rump backwards and up (>= 45 deg), tip is never thinner than TIP ----
   const tailType = g.tail!.type!;
