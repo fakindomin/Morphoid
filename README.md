@@ -2,7 +2,7 @@
 
 Parametric FDM collectible generator. Pipeline: **genome (Morphotyp) → rig → 2D / 3D → bake → STL/3MF**.
 
-Status: Stage 0 (core) + Stage 1 (2D editor) done. Stage 2 (Three.js viewport) is next.
+Status: Stage 0 (core), 1 (2D editor), print audit/plan and Stage 2 (Three.js viewport) done. Stage 3 (SDF bake engine) is next.
 
 ```
 npm install

@@ -48,10 +48,11 @@ Genom 13 bajtów + CRC-4, rig z kotwicą Y=0, reguła N→2N, automat menu koło
 **Etap 1b – Kontrola druku (ZROBIONE)**
 Kontrakt elementu 2D↔3D↔druk (`docs/ELEMENT_CONTRACT.md`), audyt sylwetki bez podpór, profil Bambu Lab P1S, plan druku (Całość / Moduły / własny) poza DNA, panel „Kontrola druku" z akcjami i znacznikami na rysunku, testy egzekwujące zasadę (34 testy). Podpory są ustawieniem (domyślnie dozwolone), więc tułów jest okrągły i kształt nie jest wypaczany pod druk. Aplikacja ostrzega po zmianie, która zwiększa potrzebę podpór (komunikat z propozycją rozbicia lub cofnięcia). Elementy zaprojektowane pod druk: klin podbródka, ogon unoszony pod kątem, skrzydła w „piłę", płaskie zęby, wąsy jako osobna część z płytką na czop.
 
-**Etap 2 – Viewport 3D (1–2 tyg.)**
+**Etap 2 – Viewport 3D (ZROBIONE)**
 - Three.js z tym samym `Rig`. Na początek prymitywy (elipsoidy/kapsuły) na węzłach, bez SDF.
 - Suwaki skokowe 6-pozycyjne i przełączanie klasy w 2D przy przekroczeniu progu.
 - *Kryterium:* suwak 3D zmienia rysunek 2D i odwrotnie (spójność obu kierunków).
+- *Zrealizowane:* Three.js na tym samym rigu i tych samych konturach w mm (wyciągnięcie w osi Z z zaokrągleniem, części parzyste lustrzane, wzór ciała malowany na tułowiu). `core/art/spec3d.ts` to tabela 3D dla każdego slotu 2D, a `tests/art3d.test.ts` wymusza pełne pokrycie (to on wykrył brak ogona). Widok rozłożony pokazuje części drukowane osobno i czopy, mały podgląd 3D jest w trybie 2D, widok na stole P1S. To jest podgląd z wyciągniętych sylwetek, a nie końcowa bryła: gładka, szczelna bryła powstanie w silniku bake (Etap 3).
 
 **Etap 3 – Bake Engine (3–5 tyg., główne ryzyko)**
 - SDF: kapsuły/elipsoidy po kościach plus `smin`. Najpierw tułów + głowa + 4 łapy ze stopą płaską na Y=0.

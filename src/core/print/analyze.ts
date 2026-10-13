@@ -119,6 +119,18 @@ function hostOf(slot: SlotId, g: GroupDef | undefined): PartGroup | undefined {
   return g?.host;
 }
 
+const FACE_RELIEF: readonly SlotId[] = ['eye', 'pupil', 'brow', 'mouth', 'teeth', 'nose'];
+
+/** Which printed piece a slot belongs to under a plan: its own group, its host, or the body. */
+export function pieceOf(slot: SlotId, plan: PrintPlan): PartGroup | 'body' {
+  const g = groupOfSlot(slot);
+  if (g && isSeparate(plan, g.id)) return g.id;
+  const host = hostOf(slot, g);
+  if (host && isSeparate(plan, host)) return host;
+  if (FACE_RELIEF.includes(slot) && isSeparate(plan, 'head')) return 'head';
+  return 'body';
+}
+
 interface PieceSpec { id: string; label: string; kind: 'body' | 'part'; orientation: 'upright' | 'flat'; slots: SlotId[]; clipY?: number }
 
 export function analyzePrint(paths: SlotPaths, rig: Rig, plan: PrintPlan): PrintReport {

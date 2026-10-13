@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { solveRig, type SocketId } from '../core';
 import { Canvas2D } from './components/Canvas2D';
+import { Viewport3D } from './components/Viewport3D';
 import { Header, type Theme } from './components/Header';
 import { LeftColumn } from './components/LeftColumn';
 import { RadialMenu, useRadial } from './components/RadialMenu';
@@ -24,6 +25,7 @@ export function App() {
   const [view, setView] = useState<ViewMode>('2d');
   const [showBones, setShowBones] = useState(false);
   const [breathing, setBreathing] = useState(true);
+  const [explode, setExplode] = useState(0);
   const radial = useRadial();
   const { genome, plan } = useStudioState();
   const rig = solveRig(genome);
@@ -62,19 +64,14 @@ export function App() {
         <LeftColumn activeSocket={radial.state.open ? radial.state.socket : null} />
         <section className="blueprint">
           {notice && <SupportNotice key={notice.key} notice={notice} previousPlan={prevPlan.current} dismiss={dismiss} />}
-          <div className="hud-tag">{view === '2d' ? 'WIDOK Z BOKU · kliknij pomarańczowy punkt, aby zmienić część' : '3D STUDIO · PODGLĄD (ETAP 2)'}</div>
+          <div className="hud-tag">{view === '2d' ? 'WIDOK Z BOKU · kliknij pomarańczowy punkt, aby zmienić część' : '3D STUDIO · obracaj myszą, kółko = zbliżenie'}</div>
           {view === '2d' ? (
             <Canvas2D showBones={showBones} breathing={breathing} frozen={radial.state.open} onSocket={onSocket} markers={markers} />
           ) : (
-            <div className="placeholder3d">
-              <div className="cube" aria-hidden />
-              <h2>Podgląd 3D pojawi się w Etapie 2</h2>
-              <p>Three.js wczyta ten sam rig. Suwaki skokowe po prawej już działają: zmiana kroku przełącza klasę rysunku w widoku 2D.</p>
-              <code>{size.length.toFixed(0)} × {size.width.toFixed(0)} × {size.height.toFixed(0)} mm</code>
-            </div>
+            <Viewport3D variant="main" explode={explode} />
           )}
         </section>
-        <RightColumn view={view} showBones={showBones} setShowBones={setShowBones} breathing={breathing} setBreathing={setBreathing} />
+        <RightColumn explode={explode} setExplode={setExplode} view={view} showBones={showBones} setShowBones={setShowBones} breathing={breathing} setBreathing={setBreathing} />
       </main>
       <footer className="statusbar">
         <span className={rig.issues.length ? 'bad' : 'ok'}>

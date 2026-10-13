@@ -6,7 +6,8 @@ Nie dodajemy niczego do rysunku bez wpisu w katalogu. Pilnują tego testy (`test
 ## Jak dodać nowy element (lista kontrolna)
 1. Dodaj wariant w `genome/schema.ts` (nigdy nie zmieniaj kolejności istniejących).
 2. Narysuj go w `core/art/shapes.ts` jako **kontur w mm**. Ten kontur jest jednocześnie profilem do druku.
-3. Dodaj slot do `SLOTS` oraz wpis w `core/print/catalog.ts` (`PARTS`): reprezentacja 3D, czy można go drukować osobno, uwagi.
+3. Dodaj wpis w `core/art/spec3d.ts` (`SPEC_3D`): kolor, grubość, położenie w Z, czy parzysty. `null` tylko dla czystego cieniowania lub lustra innego slotu. Test pokrycia 3D pada, gdy go brakuje.
+3a. Dodaj slot do `SLOTS` oraz wpis w `core/print/catalog.ts` (`PARTS`): reprezentacja 3D, czy można go drukować osobno, uwagi.
    Jeśli to czysty efekt wizualny (cień, odblask), wpisz go do `RENDER_ONLY_SLOTS`. Nie może sugerować geometrii.
 4. Jeśli element jest bryłą, dopisz jego slot do `PRINT_SOLID_SLOTS` i (jeśli da się go odłączyć) do grupy w `core/print/plan.ts`.
 5. `npm test` (kontrakt + audyt losowych stworków) oraz `npm run audit -- 200 whole` / `modular`.

@@ -3,6 +3,7 @@ import { STEPS, blockDef, stepToClass } from '../../core';
 import { newSeed, storage, studio, useStudioState } from '../studio';
 import { TILES } from '../tiles';
 import { PrintPanel } from './PrintPanel';
+import { Viewport3D } from './Viewport3D';
 
 export type ViewMode = '2d' | '3d';
 const SAVE_KEY = 'morphoid.saved';
@@ -30,11 +31,12 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
 
 interface Props {
   view: ViewMode;
+  explode: number; setExplode: (v: number) => void;
   showBones: boolean; setShowBones: (v: boolean) => void;
   breathing: boolean; setBreathing: (v: boolean) => void;
 }
 
-function Tools2D({ showBones, setShowBones, breathing, setBreathing }: Omit<Props, 'view'>) {
+function Tools2D({ showBones, setShowBones, breathing, setBreathing }: Omit<Props, 'view' | 'explode' | 'setExplode'>) {
   const [input, setInput] = useState('');
   const [msg, setMsg] = useState<{ text: string; warn: boolean } | null>(null);
   const { past, future } = useStudioState();
@@ -88,6 +90,11 @@ function Tools2D({ showBones, setShowBones, breathing, setBreathing }: Omit<Prop
       </section>
 
       <section className="tile">
+        <header className="tile-header"><span className="tile-title">⚲ Podgląd 3D na żywo</span></header>
+        <Viewport3D variant="mini" />
+      </section>
+
+      <section className="tile">
         <header className="tile-header"><span className="tile-title">🛠 Widok szkicu</span></header>
         <div className="control-label">Kości riga:</div>
         <Toggle on={showBones} onChange={setShowBones} />
@@ -98,12 +105,17 @@ function Tools2D({ showBones, setShowBones, breathing, setBreathing }: Omit<Prop
   );
 }
 
-function Steps3D() {
+function Steps3D({ explode, setExplode }: { explode: number; setExplode: (v: number) => void }) {
   const { genome } = useStudioState();
   const stepFields = TILES.flatMap((t) => t.fields).filter((tf) =>
     blockDef(tf.block).fields.find((f) => f.name === tf.field)?.kind === 'step');
   return (
     <>
+      <section className="tile">
+        <header className="tile-header"><span className="tile-title">🔧 Widok rozłożony</span><span className="tile-status">{Math.round(explode * 100)}%</span></header>
+        <p className="hint">Rozsuwa części drukowane osobno (wybierz je w panelu „Kontrola druku") i pokazuje czopy montażowe.</p>
+        <input type="range" min={0} max={100} value={Math.round(explode * 100)} onChange={(e) => setExplode(Number(e.target.value) / 100)} aria-label="Rozsunięcie części" />
+      </section>
       <section className="tile">
         <header className="tile-header"><span className="tile-title">⚙ Suwaki skokowe 2N</span><span className="tile-status">6 pozycji</span></header>
         <p className="hint">Każdy skok = sztywna, bezpieczna wartość pod dyszę 0,4 mm. Przekroczenie progu przełącza klasę rysunku 2D (1–3).</p>
@@ -132,7 +144,7 @@ export function RightColumn(props: Props) {
   return (
     <aside className="column right">
       <PrintPanel />
-      {props.view === '2d' ? <Tools2D {...props} /> : <Steps3D />}
+      {props.view === '2d' ? <Tools2D {...props} /> : <Steps3D explode={props.explode} setExplode={props.setExplode} />}
     </aside>
   );
 }
