@@ -18,7 +18,7 @@ export type SlotKind =
 
 export const SLOTS = [
   ['shadow', 'shadow'], ['stand', 'accent'], ['arms', 'skin'], ['wingFar', 'accentFar'], ['tail', 'skin'], ['legBFar', 'skinFar'], ['legFFar', 'skinFar'],
-  ['legB', 'skin'], ['throat', 'skin'], ['torso', 'skin'], ['torsoClip', 'clip'], ['belly', 'belly'], ['pattern', 'pattern'],
+  ['legB', 'skin'], ['torso', 'skin'], ['torsoClip', 'clip'], ['belly', 'belly'], ['pattern', 'pattern'],
   ['saddle', 'accent'], ['spines', 'accent'], ['finD', 'accent'], ['legF', 'skin'], ['finP', 'accent'], ['neck', 'skin'], ['neckDecor', 'skinFar'],
   ['mane', 'accent'], ['collar', 'accent'], ['ear', 'skin'], ['earIn', 'accentSoft'], ['horns', 'accent'], ['antennae', 'accent'], ['tuft', 'accent'],
   ['head', 'skin'], ['snout', 'skin'], ['wingNear', 'accent'], ['nose', 'ink'],
@@ -304,14 +304,15 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
   if (acc === 2) put('saddle', tilted(ellipse(torso[0] - n.bodyL * 0.02, torso[1] + tRy * 0.62, n.bodyL * 0.2, tRy * 0.3)));
 
   // ---- fish: fins. A forked tail fin whose lower edge lies on the bed, a dorsal fin raked back, a pectoral fin
-  // down to the bed behind the head. Every free underside slopes >= 45 deg.
+  // swept back behind the head. Every free underside slopes >= 45 deg.
   const tailType = g.tail!.type!;
   if (n.plan === D.PLAN.fish) {
     const top = (x: number): number => trunkTop(x);
     const h = n.bodyG * 0.55, xf = torso[0] + tRx * 0.1, xb = torso[0] - tRx * 0.3;
     put('finD', polygon([[xf, top(xf) - 1], [xb - h * 0.3, top(xb) + h], [xb - h * 0.3 + TIP, top(xb) + h], [xb, top(xb) - 1]]));
-    const px = torso[0] + tRx * 0.45, py = torso[1] - tRy * 0.15, d = py * 0.7;
-    put('finP', polygon([[px + 2, py + 1.5], [px - d, 0], [px - d + 2 * TIP, 0], [px + 3, py - 2]]));
+    // pectoral fin: swept back and down from the flank, its tip clear of the bed (a fin, not a prop)
+    const px = torso[0] + tRx * 0.45, py = torso[1] - tRy * 0.15, d = Math.min(6, tRy * 0.5), ty = Math.max(1.5, py - d);
+    put('finP', polygon([[px + 2, py + 1.5], [px - d * 1.2, ty], [px - d * 1.2 + 2 * TIP, ty], [px + 3, py - 2]]));
   }
   if (n.plan === D.PLAN.fish && tailType > 0 && n.tailLen > 0.5) {
     const [x0, y0] = tailBase, len = n.tailLen;
@@ -382,21 +383,6 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
   }
   if (snoutType !== 2) put('nose', ellipse(tipX - 1.1, tip[1] + 0.7, 1.5, 1.2));
 
-  // Chin/throat wedge: the muzzle underside runs 45 deg down-back from the chin to the FRONT edge of the
-  // neck. Muzzles that reach further than this wedge can carry simply need supports (the app says so).
-  const w0 = n.bodyG * 0.72;
-  const q0: XY = [neckBase[0] - (up[0] * w0) / 2, neckBase[1] - (up[1] * w0) / 2];
-  const chin: XY = [tipX - 0.5, tip[1] - 4.2];
-  const dn: XY = [dir[0] / dl, dir[1] / dl];
-  const den = dn[0] - dn[1];
-  if (Math.abs(den) > 1e-6) {
-    const u = ((chin[0] - chin[1]) - (q0[0] - q0[1])) / den;
-    const s = chin[0] - q0[0] - u * dn[0];
-    if (s > 0.2) {
-      const uc = Math.max(0, Math.min(dl, u));
-      put('throat', polygon([chin, [q0[0] + dn[0] * uc, q0[1] + dn[1] * uc], head]));
-    }
-  }
 
   // ---- ears (behind the head so their base is hidden) -----------------------------
   const er = p(pose, 'earRoot');

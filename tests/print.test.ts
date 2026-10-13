@@ -148,10 +148,12 @@ describe('design policy: elements are support-free by default, deviations are de
     }
   });
 
-  it('the default-size muzzle needs no supports, a long muzzle does (so the app can warn)', () => {
+  it('the muzzle has no built-in prop under it: its overhang is reported (slicer supports) and grows with its reach', () => {
+    // the model never carries artificial support geometry (user rule): the app tells where supports go instead
     for (const type of [0, 1, 2]) {
-      expect(area(withField('snout', type, 'reach', 2)) - base, `snout ${type} default`).toBeLessThanOrEqual(25);
-      expect(area(withField('snout', type, 'reach', 5)) - base, `snout ${type} longest`).toBeGreaterThan(100);
+      const short = area(withField('snout', type, 'reach', 0)), long = area(withField('snout', type, 'reach', 5));
+      expect(long, `snout ${type}`).toBeGreaterThan(short);
+      expect(long - base, `snout ${type} longest`).toBeGreaterThan(100);
     }
   });
 

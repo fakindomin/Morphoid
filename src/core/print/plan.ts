@@ -23,7 +23,7 @@ export interface GroupDef {
 }
 
 export const GROUPS: readonly GroupDef[] = [
-  { id: 'head', label: 'Głowa z szyją', slots: ['head', 'snout', 'throat', 'neck', 'neckDecor', 'collar', 'stalks'], orientation: 'upright' },
+  { id: 'head', label: 'Głowa z szyją', slots: ['head', 'snout', 'neck', 'neckDecor', 'collar', 'stalks'], orientation: 'upright' },
   { id: 'ears', label: 'Uszy', slots: ['ear', 'earIn'], orientation: 'flat', host: 'head' },
   { id: 'horns', label: 'Rogi i czułki', slots: ['horns', 'antennae'], orientation: 'flat', host: 'head' },
   { id: 'crest', label: 'Grzywa, czub, kolce', slots: ['tuft', 'mane', 'spines'], orientation: 'flat' },
