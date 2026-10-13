@@ -6,6 +6,7 @@
  *   BRIDGE    unsupported span anchored on both sides longer than the plan's limit
  *   FLOATING  material that never reaches the bed or the rest of the piece
  *   THIN      material thinner than minFeature that is more than a sharp tip
+ *   SLIT      a gap narrower than ~0.9 mm inside the shape (cannot be printed, it fuses or leaves a hairline void)
  *   PEG       a separate part too small to carry a mounting peg
  *   SOLE      too little flat area under the feet
  * Severity: error = will not print as planned; warn = prints with care / minor supports.
@@ -16,7 +17,7 @@ import { PRINT_SOLID_SLOTS, SLOT_NAME_PL } from './catalog';
 import { GROUPS, PRINTERS, groupOfSlot, isSeparate, type GroupDef, type PartGroup, type PrintPlan } from './plan';
 import { PRINT_RULES as R } from './rules';
 
-export type PrintIssueCode = 'OVERHANG' | 'BRIDGE' | 'FLOATING' | 'THIN' | 'PEG' | 'SOLE' | 'BED';
+export type PrintIssueCode = 'OVERHANG' | 'BRIDGE' | 'FLOATING' | 'THIN' | 'SLIT' | 'PEG' | 'SOLE' | 'BED';
 export type Severity = 'info' | 'support' | 'warn' | 'error';
 
 export interface PrintIssue {
@@ -307,6 +308,50 @@ export function analyzePrint(paths: SlotPaths, rig: Rig, plan: PrintPlan): Print
       }
       const area = count * CELL * CELL;
       if (area > R.tipTolerance) report('THIN', 'error', Math.round(sx / count), Math.round(sy / count), area, (p) => `${p}: zbyt cienki fragment (< ${R.minFeature} mm, ${area.toFixed(0)} mm²)`);
+    }
+
+    // slits: closing the shape with a 3 x 3 element fills every gap narrower than ~0.9 mm; what it adds is a slit
+    {
+      const dil = new Uint8Array(w * h), closed = new Uint8Array(w * h);
+      for (let j = 1; j < h - 1; j++) for (let i = 1; i < w - 1; i++) {
+        let any = 0;
+        for (let dj = -1; dj <= 1 && !any; dj++) for (let di = -1; di <= 1; di++) if (grid.occ[(j + dj) * w + i + di]) { any = 1; break; }
+        dil[j * w + i] = any;
+      }
+      for (let j = 2; j < h - 2; j++) for (let i = 2; i < w - 2; i++) {
+        let all = 1;
+        for (let dj = -1; dj <= 1 && all; dj++) for (let di = -1; di <= 1; di++) if (!dil[(j + dj) * w + i + di]) { all = 0; break; }
+        closed[j * w + i] = all;
+      }
+      const seenS = new Uint8Array(w * h), st: number[] = [];
+      for (let q = 0; q < w * h; q++) {
+        if (!closed[q] || grid.occ[q] || seenS[q]) continue;
+        let count = 0, sx = 0, sy = 0;
+        st.push(q); seenS[q] = 1;
+        while (st.length) {
+          const c = st.pop()!; const cj = (c / w) | 0, ci = c - cj * w;
+          count++; sx += ci; sy += cj;
+          for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+            const ni = ci + di, nj = cj + dj, n = nj * w + ni;
+            if (ni < 0 || nj < 0 || ni >= w || nj >= h) continue;
+            if (closed[n] && !grid.occ[n] && !seenS[n]) { seenS[n] = 1; st.push(n); }
+          }
+        }
+        const area = count * CELL * CELL;
+        if (area > 1.0) {
+          const ci = Math.round(sx / count), cj = Math.round(sy / count);
+          let owner = 0;
+          for (let r = 1; r <= 4 && !owner; r++) for (let dj = -r; dj <= r && !owner; dj++) for (let di = -r; di <= r; di++) {
+            const ni = ci + di, nj = cj + dj;
+            if (ni >= 0 && nj >= 0 && ni < w && nj < h && grid.occ[nj * w + ni]) { owner = grid.owner[nj * w + ni]!; break; }
+          }
+          const slot = owner > 0 ? solids[owner - 1]!.id : null;
+          const part = slot ? SLOT_NAME_PL[slot] : s.label.toLowerCase();
+          const key = `SLIT:${part}`;
+          const prev = worst.get(key);
+          if (!prev || area > prev.size) worst.set(key, { code: 'SLIT', severity: 'info', piece: s.id, part, slot, fix: null, at: at(ci, cj), size: area, message: `${part}: wąska szczelina (${area.toFixed(1)} mm², węższa niż 0,9 mm) zostanie zlana przy przygotowaniu bryły` });
+        }
+      }
     }
 
     // mounting peg for separate parts

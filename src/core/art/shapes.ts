@@ -40,13 +40,16 @@ function leg(top: XY, foot: XY, w: number, type: number, soleL: number): Path {
   const path = new Path().M(tx - hw, ty).L(tx + hw, ty).L(fx + hw * 0.9, fy + fh);
   if (type === 2) { // hoof: boxy
     path.L(fx + hw * 1.2, fy + fh).L(fx + hw * 1.2, fy).L(fx - hw * 1.2, fy).L(fx - hw * 1.2, fy + fh);
+  } else if (type === 1) { // claws: ONE simple outline, the claw is a wedge that continues the sole forward on the bed
+    path.L(toe, fy + fh * 0.7).L(toe + 3.4, fy + 1.4).L(toe + 3.4, fy).L(heel, fy).Q(heel - 1.5, fy + fh * 0.6, fx - hw * 0.9, fy + fh);
   } else {
-    path.Q(toe + 0.5, fy + fh, toe, fy + 0.2);
-    if (type === 1) path.L(toe, fy + 2.2).L(toe + 3.2, fy + 1.4).L(toe + 3.2, fy).L(toe, fy); // claw = wedge lying on the bed (>= 1.4 mm tip)
-    path.L(heel, fy).Q(heel - 1.5, fy + fh * 0.6, fx - hw * 0.9, fy + fh);
+    path.Q(toe + 0.5, fy + fh, toe, fy + 0.2).L(heel, fy).Q(heel - 1.5, fy + fh * 0.6, fx - hw * 0.9, fy + fh);
   }
   return path.Z();
 }
+
+/** Bat-wing finger tips (t1, t2) and the scallop notch (n1) as fractions of the wing size. */
+export const BAT = { t1: [-0.4, 0.55] as [number, number], n1: [-0.2, 0.45] as [number, number], t2: [-0.8, 0.8] as [number, number] };
 
 const TIP = 1.4; // flat tip width of every pointed part (> PRINT_RULES.minFeature)
 
@@ -270,8 +273,9 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
   if (n.wingS > 0.5 && wingType > 0) {
     const s = n.wingS, [x, y] = wingRoot;
     const A: XY = [x + 3, y - 1.5];
+    // bat: three fingers with WIDE scallops (a notch narrower than ~1 mm cannot be printed); every lower edge rises ~45 deg
     const w = wingType === 2
-      ? polygon([A, [x - 0.4 * s, y + 0.55 * s], [x - 0.3 * s, y + 0.3 * s], [x - 0.75 * s, y + 0.78 * s],
+      ? polygon([A, [x + BAT.t1[0] * s, y + BAT.t1[1] * s], [x + BAT.n1[0] * s, y + BAT.n1[1] * s], [x + BAT.t2[0] * s, y + BAT.t2[1] * s],
         [x - 0.3 * s, y + 1.05 * s], [x + 0.05 * s, y + 0.95 * s]])
       : polygon([A, [x - 0.62 * s, y + 0.78 * s], [x - 0.35 * s, y + 1.05 * s], [x + 0.05 * s, y + 0.95 * s]]);
     put('wingNear', w);

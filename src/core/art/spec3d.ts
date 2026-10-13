@@ -62,11 +62,11 @@ export const SPEC_3D: Record<SlotId, Spec | null> = {
   wingNear: { color: 'c2', mirror: true, z: (c) => c.W * 0.34, t: () => 1.6, bevel: (t) => flat(t) },
   saddle: { color: 'c2', mirror: false, z: centre, t: (c) => c.W * 0.96, bevel: (t) => round(0.45)(t) },
   collar: { color: 'c2', mirror: false, z: centre, t: (c) => c.neckT + 1.6, bevel: (t) => round(0.3)(t) },
-  eye: { color: 'white', mirror: true, z: (c) => c.headW / 2 + 0.1, t: () => 1.5, bevel: (t) => round(0.4)(t) },
+  eye: { color: 'white', mirror: true, z: (c) => c.headW / 2 - 0.35, t: () => 2.3, bevel: (t) => round(0.35)(t) }, // sits 1.5 mm in, stands 0.8 mm proud
   pupil: { color: 'ink', mirror: true, z: (c) => c.headW / 2 + 0.8, t: () => 0.4, bevel: () => 0.08 },
   brow: { color: 'ink', mirror: true, z: (c) => c.headW / 2 - 0.1, t: () => 0.5, bevel: () => 0.1 },
   mouth: { color: 'ink', mirror: true, z: (c) => c.snoutW / 2 - 0.1, t: () => 0.5, bevel: () => 0.1 },
-  teeth: { color: 'white', mirror: true, z: (c) => c.snoutW / 2, t: () => 0.8, bevel: () => 0.1 },
+  teeth: { color: 'white', mirror: true, z: (c) => c.snoutW / 2 - 0.4, t: () => 1.6, bevel: () => 0.1 },
   whiskers: { color: 'c1dark', mirror: true, z: (c) => c.snoutW / 2 + 0.7, t: () => 1.6, bevel: (t) => flat(t) },
 };
 

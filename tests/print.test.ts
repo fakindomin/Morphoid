@@ -134,3 +134,26 @@ describe('design policy: elements are support-free by default, deviations are de
     expect(split.supportArea).toBeLessThan(whole.supportArea);
   });
 });
+
+describe('no slits: every element, variant and size has clean outlines', () => {
+  it('no real slit (> 2.5 mm2) narrower than 0.9 mm in any outline (hairline V roots are closed by the bake)', { timeout: 120000 }, () => {
+    const cases: ['ears' | 'horns' | 'wings' | 'crest' | 'tail' | 'snout', number, string][] = [
+      ['ears', 3, 'scale'], ['horns', 4, 'span'], ['wings', 2, 'scale'], ['crest', 3, 'scale'], ['tail', 3, 'length'], ['snout', 2, 'reach'],
+    ];
+    const slits: string[] = [];
+    for (const [block, variants, stepField] of cases) {
+      for (let v = block === 'snout' ? 0 : 1; v <= variants; v++) for (let s = 0; s < 6; s++) {
+        const g = defaultGenome();
+        g[block]!.type = v; g[block]![stepField] = s;
+        const { rig, paths } = geometry(g);
+        for (const i of analyzePrint(paths, rig, planWhole()).issues) if (i.code === 'SLIT' && i.size > 2.5) slits.push(`${block} variant ${v} size ${s + 1}: ${i.message}`);
+      }
+    }
+    for (let foot = 0; foot < 3; foot++) {
+      const g = defaultGenome(); g.legs!.foot = foot;
+      const { rig, paths } = geometry(g);
+      for (const i of analyzePrint(paths, rig, planWhole()).issues) if (i.code === 'SLIT' && i.size > 2.5) slits.push(`foot ${foot}: ${i.message}`);
+    }
+    expect(slits).toEqual([]);
+  });
+});

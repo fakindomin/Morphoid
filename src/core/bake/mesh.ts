@@ -10,8 +10,10 @@ export interface MeshValidation {
   degenerate: number;
   /** cm^3, positive when the normals point outwards */
   volume: number;
-  /** disconnected shells (a monolith should be 1 per fused body) */
+  /** disconnected shells (a monolith should be 1 per fused body; an extra shell = floating piece or hidden cavity) */
   shells: number;
+  /** total genus = number of through-holes (handles) over all shells; 0 for a solid without tunnels */
+  genus: number;
   bbox: { min: [number, number, number]; max: [number, number, number] };
   /** vertices on bad edges (capped), used to repair the field locally */
   badVertices: number[];
@@ -57,10 +59,14 @@ export function validateMesh(m: Mesh): MeshValidation {
     if (dup || !has(q * nv + p)) { bad++; if (badVertices.length < 4000) badVertices.push(p, q); }
   }
   const roots = new Set<number>();
-  for (let v = 0; v < nv; v++) if (used[v]) roots.add(find(v));
+  let usedVertices = 0;
+  for (let v = 0; v < nv; v++) if (used[v]) { roots.add(find(v)); usedVertices++; }
+  // closed manifold: E = 3F/2, so chi = V - F/2 and genus = shells - chi/2
+  const faces = ne / 3;
+  const genus = Math.round(roots.size - (usedVertices - faces / 2) / 2);
   return {
     triangles: nt, vertices: nv, watertight: bad === 0 && nt > 0, badEdges: bad, degenerate,
-    volume: vol6 / 6 / 1000, shells: roots.size, bbox: { min, max }, badVertices,
+    volume: vol6 / 6 / 1000, shells: roots.size, genus, bbox: { min, max }, badVertices,
   };
 }
 

@@ -8,6 +8,7 @@ import { targetPose } from '../art/pose';
 import { buildPaths, type SlotId } from '../art/shapes';
 import { buildParts3D, type Part3D } from '../art/spec3d';
 import { GROUPS, isSeparate, pieceOf, type PartGroup, type PrintPlan } from '../print';
+import { closeSmallHoles, restore } from './close';
 import { addPart, clipBelow, gridDims, makeGrid } from './field';
 import { flipMesh, validateMesh, type MeshValidation } from './mesh';
 import { makeManifoldField, surfaceNets, type Grid3, type Mesh } from './surfacenets';
@@ -24,8 +25,8 @@ export const MIN_SOLID_MM = 0.8;
  * voxel thin). The validator finds those cells; we flip the sign of the weakest corner (a change
  * of less than a voxel) and mesh again, until every edge is shared by exactly two triangles.
  */
-export function meshWithRepair(
-  grid: Grid3, maxIter = 12, phase?: (name: 'topology' | 'mesh' | 'validate') => void,
+function meshLoop(
+  grid: Grid3, maxIter: number, phase?: (name: 'topology' | 'mesh' | 'validate') => void,
 ): { mesh: Mesh; validation: MeshValidation; repairs: number } {
   phase?.('topology');
   let repairs = makeManifoldField(grid);
@@ -35,7 +36,11 @@ export function meshWithRepair(
     phase?.('validate');
     let validation = validateMesh(mesh);
     if (validation.volume < 0) { mesh = flipMesh(mesh); validation = validateMesh(mesh); }
-    if (validation.watertight || iter >= maxIter || !mesh.cells) return { mesh, validation, repairs };
+    if (validation.watertight || iter >= maxIter || !mesh.cells) {
+      const clean = despeckle(mesh);
+      if (clean.removed) return { mesh: clean.mesh, validation: validateMesh(clean.mesh), repairs: repairs + clean.removed };
+      return { mesh, validation, repairs };
+    }
     const cx = grid.nx - 1, cy = grid.ny - 1;
     const seen = new Set<number>();
     for (const v of validation.badVertices) {
@@ -55,6 +60,53 @@ export function meshWithRepair(
   }
 }
 
+/** Shells smaller than this (cm^3) are dust left over from thin features, not part of the model. */
+const DUST_CM3 = 0.03;
+
+/** Drop tiny disconnected shells (never the biggest one). Returns the cleaned mesh and how many were removed. */
+export function despeckle(mesh: Mesh): { mesh: Mesh; removed: number } {
+  const P = mesh.positions, I = mesh.indices, nv = P.length / 3;
+  const parent = new Int32Array(nv).map((_, i) => i);
+  const find = (a: number): number => { while (parent[a] !== a) { parent[a] = parent[parent[a]!]!; a = parent[a]!; } return a; };
+  for (let t = 0; t < I.length; t += 3) { const a = find(I[t]!); parent[find(I[t + 1]!)] = a; parent[find(I[t + 2]!)] = a; }
+  const vol = new Map<number, number>();
+  for (let t = 0; t < I.length; t += 3) {
+    const a = I[t]! * 3, b = I[t + 1]! * 3, c = I[t + 2]! * 3;
+    const v = (P[a]! * (P[b + 1]! * P[c + 2]! - P[b + 2]! * P[c + 1]!) - P[a + 1]! * (P[b]! * P[c + 2]! - P[b + 2]! * P[c]!) + P[a + 2]! * (P[b]! * P[c + 1]! - P[b + 1]! * P[c]!)) / 6000;
+    const r = find(I[t]!);
+    vol.set(r, (vol.get(r) ?? 0) + v);
+  }
+  if (vol.size < 2) return { mesh, removed: 0 };
+  let biggest = -1, bigV = 0;
+  for (const [r, v] of vol) if (Math.abs(v) > bigV) { bigV = Math.abs(v); biggest = r; }
+  const drop = new Set<number>();
+  for (const [r, v] of vol) if (r !== biggest && Math.abs(v) < DUST_CM3) drop.add(r);
+  if (!drop.size) return { mesh, removed: 0 };
+  const keep: number[] = [];
+  for (let t = 0; t < I.length; t += 3) if (!drop.has(find(I[t]!))) keep.push(I[t]!, I[t + 1]!, I[t + 2]!);
+  return { mesh: { positions: P, indices: new Uint32Array(keep), ...(mesh.cells ? { cells: mesh.cells } : {}) }, removed: drop.size };
+}
+
+/** Tunnels narrower than twice this (mm) are closed when the solid has through-holes. */
+export const CLOSE_HOLES_MM = 2.0;
+
+export function meshWithRepair(
+  grid: Grid3, maxIter = 12, phase?: (name: 'topology' | 'mesh' | 'validate') => void,
+): { mesh: Mesh; validation: MeshValidation; repairs: number; holesClosed: number } {
+  const first = meshLoop(grid, maxIter, phase);
+  if (first.validation.genus <= 0) return { ...first, holesClosed: 0 };
+  // through-holes: close the tiny ones (hairline tunnels between neighbouring parts); keep the result only if it helps
+  phase?.('topology');
+  const undo = closeSmallHoles(grid, CLOSE_HOLES_MM);
+  if (!undo.index.length) return { ...first, holesClosed: 0 };
+  const second = meshLoop(grid, maxIter, phase);
+  if (second.validation.watertight && second.validation.genus < first.validation.genus) {
+    return { ...second, holesClosed: first.validation.genus - second.validation.genus };
+  }
+  restore(grid, undo);
+  return { ...first, holesClosed: 0 };
+}
+
 export interface BakedPiece {
   id: string;
   label: string;
@@ -63,6 +115,8 @@ export interface BakedPiece {
   mesh: Mesh;
   validation: MeshValidation;
   ms: number;
+  /** through-holes the engine closed (tiny tunnels between neighbouring parts) */
+  holesClosed: number;
 }
 
 export interface BakeResult { pieces: BakedPiece[]; ms: number; quality: BakeQuality }
@@ -118,9 +172,9 @@ export function bake(genome: MorphotypeGenome, plan: PrintPlan, quality: BakeQua
       clipBelow(grid, ymin + 2);
     }
     const start = { topology: PHASES.field, mesh: PHASES.field + PHASES.topology, validate: PHASES.field + PHASES.topology + PHASES.mesh } as const;
-    const { mesh, validation } = meshWithRepair(grid, 12, (name) => report(n, start[name], PHASE_LABEL[name]));
+    const { mesh, validation, holesClosed } = meshWithRepair(grid, 12, (name) => report(n, start[name], PHASE_LABEL[name]));
     const flat = id !== 'body' && GROUPS.find((x: { id: PartGroup }) => x.id === id)?.orientation === 'flat';
-    pieces.push({ id, label: labelOf(id), orientation: flat ? 'flat' : 'upright', mesh, validation, ms: performance.now() - t1 });
+    pieces.push({ id, label: labelOf(id), orientation: flat ? 'flat' : 'upright', mesh, validation, ms: performance.now() - t1, holesClosed });
     doneW += weights[n]!;
   });
   onProgress?.({ frac: 1, label: 'Gotowe', piece: '', index: order.length, count: order.length });

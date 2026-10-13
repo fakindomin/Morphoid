@@ -9,6 +9,14 @@ import type { Grid3 } from './surfacenets';
 
 export const BIG = 6; // mm, "far away" distance written into empty space
 
+/**
+ * Slits between two parts narrower than about 0.9 mm cannot be printed (they fuse or leave a hairline void), so the
+ * field closes them: where the distances to two different parts add up to less than GAP, the point is filled.
+ */
+export const GAP_MM = 1.2;
+/** Closing radius for slits inside one outline (slits narrower than twice this are filled). */
+export const SLIT_CLOSE_MM = 0.5;
+
 /** Polynomial smooth minimum: blends only where the two fields are within k of each other. */
 export const smin = (a: number, b: number, k: number): number => {
   const h = Math.max(k - Math.abs(a - b), 0) / k;
@@ -69,6 +77,28 @@ export function makeGrid(parts: Part3D[], h: number, margin = 3): Grid3 {
   return { ...d, h, data: new Float32Array(d.nx * d.ny * d.nz).fill(BIG) };
 }
 
+/**
+ * Closes slits and hairline notches inside ONE outline (radius rc): a cell is filled when it is
+ * within rc of the shape on every side. A 0.3 mm sliver cannot be printed anyway, and left in the
+ * field it ends up as a tiny through-hole once the topology is repaired.
+ */
+export function closeOutline(d2: Float32Array, w: number, hgt: number, h: number, rc: number): void {
+  const r = Math.max(1, Math.round(rc / h));
+  const disk: [number, number][] = [];
+  for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) if (di * di + dj * dj <= r * r) disk.push([di, dj]);
+  const dil = new Uint8Array(w * hgt);
+  for (let i = 0; i < d2.length; i++) dil[i] = d2[i]! - rc < 0 ? 1 : 0;
+  const fill: number[] = [];
+  for (let j = r; j < hgt - r; j++) for (let i = r; i < w - r; i++) {
+    const idx = j * w + i;
+    if (d2[idx]! <= 0 || !dil[idx]) continue; // only outside cells that dilation covered can be slit cells
+    let all = true;
+    for (const [di, dj] of disk) if (!dil[(j + dj) * w + i + di]) { all = false; break; }
+    if (all) fill.push(idx);
+  }
+  for (const idx of fill) d2[idx] = Math.min(d2[idx]!, -0.2);
+}
+
 /** Fuse a part into the grid with a smooth union. */
 export function addPart(g: Grid3, part: Part3D, k: number): void {
   const { h, nx, ny, nz } = g;
@@ -85,6 +115,7 @@ export function addPart(g: Grid3, part: Part3D, k: number): void {
   const far = k + 2 * h; // beyond this distance the field value is irrelevant (only its sign, which stays positive)
   const d2 = new Float32Array(w2 * (j1 - j0 + 1));
   for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) d2[(j - j0) * w2 + (i - i0)] = sdPolys(edges, part.polys, g.ox + i * h, g.oy + j * h);
+  closeOutline(d2, w2, j1 - j0 + 1, h, SLIT_CLOSE_MM);
   for (let kk = k0; kk <= k1; kk++) {
     const wy = Math.abs(g.oz + kk * h - part.z) - half + r;
     for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
@@ -95,7 +126,10 @@ export function addPart(g: Grid3, part: Part3D, k: number): void {
       const d3 = Math.min(Math.max(wx, wy), 0) + Math.sqrt(px * px + py * py) - r;
       const idx = (kk * ny + j) * nx + i;
       const cur = g.data[idx]!;
-      g.data[idx] = d3 > cur + k ? cur : smin(cur, d3, k);
+      if (d3 > cur + k) continue;
+      let v = smin(cur, d3, k);
+      if (cur > 0 && d3 > 0 && cur + d3 < GAP_MM) v = Math.min(v, Math.min(cur, d3) - (GAP_MM - cur - d3) * 3); // close hairline slits
+      g.data[idx] = v;
     }
   }
 }

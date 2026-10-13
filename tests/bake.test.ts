@@ -96,3 +96,37 @@ describe('print orientation and export', () => {
     expect(bundle.bytes[0]).toBe(0x50); // 'P' of PK
   });
 });
+
+describe('solid quality: no holes, no gaps, no floating bits (every element, variant and size on the default creature)', () => {
+  const cases: ['ears' | 'horns' | 'wings' | 'crest' | 'tail' | 'snout', number, string][] = [
+    ['ears', 3, 'scale'], ['horns', 4, 'span'], ['wings', 2, 'scale'], ['crest', 3, 'scale'], ['tail', 3, 'length'], ['snout', 2, 'reach'],
+  ];
+  it('each variant at each of the 6 sizes bakes to ONE watertight shell without through-holes', { timeout: 240000 }, () => {
+    const bad: string[] = [];
+    for (const [block, variants, stepField] of cases) {
+      for (let v = block === 'snout' ? 0 : 1; v <= variants; v++) for (let s = 0; s < 6; s++) {
+        const g = defaultGenome();
+        g[block]!.type = v; g[block]![stepField] = s;
+        const body = bake(g, planWhole(), 'draft').pieces.find((p) => p.id === 'body')!;
+        const x = body.validation;
+        if (!x.watertight || x.shells !== 1 || x.genus !== 0) bad.push(`${block} variant ${v} size ${s + 1}: watertight ${x.watertight}, shells ${x.shells}, holes ${x.genus}`);
+      }
+    }
+    expect(bad).toEqual([]);
+  });
+
+  it('feet, necks, bodies and heads too', { timeout: 120000 }, () => {
+    const bad: string[] = [];
+    const tryIt = (label: string, mod: (g: ReturnType<typeof defaultGenome>) => void): void => {
+      const g = defaultGenome(); mod(g);
+      const x = bake(g, planWhole(), 'draft').pieces.find((p) => p.id === 'body')!.validation;
+      if (!x.watertight || x.shells !== 1 || x.genus !== 0) bad.push(`${label}: shells ${x.shells}, holes ${x.genus}`);
+    };
+    for (let foot = 0; foot < 3; foot++) for (let l = 0; l < 6; l += 5) tryIt(`foot ${foot} legs ${l}`, (g) => { g.legs!.foot = foot; g.legs!.length = l; });
+    for (let neck = 0; neck < 3; neck++) for (let nl = 0; nl < 6; nl += 5) tryIt(`neck ${neck} len ${nl}`, (g) => { g.head!.neck = neck; g.head!.neckLength = nl; });
+    for (let sh = 0; sh < 3; sh++) for (let bl = 0; bl < 6; bl += 5) for (let bg = 0; bg < 6; bg += 5) tryIt(`body ${sh} L${bl} G${bg}`, (g) => { g.body!.shape = sh; g.body!.length = bl; g.body!.girth = bg; });
+    for (let skull = 0; skull < 3; skull++) tryIt(`skull ${skull}`, (g) => { g.head!.skull = skull; });
+    for (let acc = 1; acc <= 2; acc++) tryIt(`accessory ${acc}`, (g) => { g.accessory!.type = acc; });
+    expect(bad).toEqual([]);
+  });
+});
