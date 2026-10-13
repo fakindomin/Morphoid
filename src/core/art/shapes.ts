@@ -10,7 +10,7 @@ import { dimensions as D, type NodeId, type Rig } from '../rig';
 import { PRINT_RULES } from '../print/rules';
 import { ellipse, Path, polygon, taper, tube, type ToPx, type XY } from './path';
 import type { Pose } from './pose';
-import { insectLimb, legLimb, legSpecOf, limbOutline, octopusLimb, prolegLimb } from './limb';
+import { insectLimb, legLimb, legSpecOf, limbOutline, octopusLimb, prolegLimb, tailLimb, type Limb } from './limb';
 
 /** skin/skinFar = body colour (c1); accent = c2; white/ink/glint = details; clip = not drawn. */
 export type SlotKind =
@@ -39,6 +39,16 @@ const R = D.HEAD_RADIUS;
 export function insectHips(hipB: XY, shF: XY): { legB: { hip: XY; dir: number }[]; legF: { hip: XY; dir: number }[] } {
   const mid: XY = [(hipB[0] + shF[0]) / 2, (hipB[1] + shF[1]) / 2];
   return { legB: [{ hip: hipB, dir: -1 }], legF: [{ hip: shF, dir: 1 }, { hip: mid, dir: 0 }] };
+}
+/** Round tail (wolf, fluffy) as a 3D chain along the rig's tail curve; null for the flat kinds. */
+export function roundTail(g: MorphotypeGenome, bodyG: number, base: XY, mid: XY, tip: XY): Limb | null {
+  const type = g.tail!.type!;
+  if (type !== 1 && type !== 2) return null;
+  const ctrl: XY = [2 * mid[0] - (base[0] + tip[0]) / 2, 2 * mid[1] - (base[1] + tip[1]) / 2];
+  const w0 = bodyG * 0.46;
+  const width = type === 1 ? (t: number) => Math.max(1.8, w0 * (1 - t * 0.9))
+    : (t: number) => Math.max(1.8, w0 * (1 - t) + bodyG * 0.62 * Math.sin(Math.PI * Math.min(0.98, t * 0.95 + 0.04))); // round, so slimmer than the old flat outline
+  return tailLimb(base, ctrl, tip, width, DIR_TURN.tail[g.tail!.dir ?? 0] ?? 0);
 }
 export const insectLegW = (legW: number): number => Math.max(3.2, legW * 0.6);
 export const insectRise = (bodyG: number): number => Math.max(5, bodyG * 0.45);
@@ -304,13 +314,11 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
         tp.append(taper(tailBase, rot(ctrl), rot(tailTip), (t) => Math.max(1.8, 2.4 + n.bodyG * 0.22 * Math.sin(Math.PI * Math.min(0.92, t))), 14, true));
       }
       put('tail', tp.rotated(tailBase[0], tailBase[1], DIR_TURN.tail[g.tail!.dir ?? 0] ?? 0));
-    } else {
-    const width = tailType === 1 ? (t: number) => Math.max(1.8, w0 * (1 - t * 0.9))
-      : tailType === 2 ? (t: number) => Math.max(1.8, w0 * (1 - t) + n.bodyG * 0.95 * Math.sin(Math.PI * Math.min(0.98, t * 0.95 + 0.04)))
-      : (t: number) => Math.max(1.8, w0 * (1 - t) + n.bodyG * 1.1 * t * t);
-    // (one-sided: widths above are the FULL thickness measured upwards from the spine)
-    put('tail', taper(tailBase, ctrl, tailTip, width, 14, true).rotated(tailBase[0], tailBase[1], DIR_TURN.tail[g.tail!.dir ?? 0] ?? 0)); // lower edge = spine (>= 45 deg)
-    }
+    } else if (tailType === 3) { // fan: a flat fan, widest at the tip
+      const width = (t: number): number => Math.max(1.8, w0 * (1 - t) + n.bodyG * 1.1 * t * t);
+      // (one-sided: widths are the FULL thickness measured upwards from the spine)
+      put('tail', taper(tailBase, ctrl, tailTip, width, 14, true).rotated(tailBase[0], tailBase[1], DIR_TURN.tail[g.tail!.dir ?? 0] ?? 0)); // lower edge = spine (>= 45 deg)
+    } else put('tail', limbOutline(roundTail(g, n.bodyG, tailBase, tailMid, tailTip)!)); // wolf, fluffy: round in 3D
   }
 
   // ---- neck ---------------------------------------------------------------------

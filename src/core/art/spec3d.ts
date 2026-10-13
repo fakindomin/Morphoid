@@ -9,7 +9,7 @@
 import type { MorphotypeGenome } from '../genome';
 import { dimensions as D, type Rig } from '../rig';
 import { groupOfSlot, type PartGroup } from '../print/plan';
-import { EYES, WHISKER_TURN, insectHips, insectLegW, insectRise, prolegXs, STALK_W, STAND_MARGIN_MM, STAND_MM, WHISKER_FAN, WHISKER_PAD, WHISKER_W, whiskerLength, type SlotId, type SlotPaths } from './shapes';
+import { EYES, WHISKER_TURN, insectHips, insectLegW, insectRise, prolegXs, roundTail, STALK_W, STAND_MARGIN_MM, STAND_MM, WHISKER_FAN, WHISKER_PAD, WHISKER_W, whiskerLength, type SlotId, type SlotPaths } from './shapes';
 import type { XY } from './path';
 import { insectLimb, legLimb, legSpecOf, octopusLimb, prolegLimb, type Limb } from './limb';
 import { edgesOf, sdPolys, type Edge } from '../bake/field';
@@ -130,6 +130,10 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig): P
     if (p.slot !== 'legB' && p.slot !== 'legF') continue;
     const n = rig.nodes, hips = insectHips([n.hipB.x, n.hipB.y], [n.shoulderF.x, n.shoulderF.y]);
     p.limb = insectLimb(hips[p.slot], insectLegW(rig.dims.legWidth), insectRise(rig.dims.bodyGirth), rig.dims.bodyWidth, p.z);
+  }
+  if (plan !== D.PLAN.fish) for (const p of out) if (p.slot === 'tail') { // wolf and fluffy tails are round
+    const n = rig.nodes, tl = roundTail(g, rig.dims.bodyGirth, [n.tailBase.x, n.tailBase.y], [n.tailMid.x, n.tailMid.y], [n.tailTip.x, n.tailTip.y]);
+    if (tl) p.limb = tl;
   }
   if (plan === D.PLAN.caterpillar) for (const p of out) if (p.slot === 'legF') p.limb = prolegLimb(prolegXs(rig.nodes.torso.x, rig.dims.bodyLength), p.z);
   return out;

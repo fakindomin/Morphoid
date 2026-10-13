@@ -239,3 +239,24 @@ export function octopusLimb(cx: number, len: number, hub: number, arms: number):
   }
   return { cones, domes: [] };
 }
+
+/**
+ * A round tail along the quadratic spine a -> b (control c): `width(t)` is the full thickness measured up from the spine
+ * (the same profile the flat tail had), so the round tail's lower edge is still the spine (>= 45 deg) and its side view
+ * is the old outline. `turn` rotates it about `a` (direction gene).
+ */
+export function tailLimb(a: XY, c: XY, b: XY, width: (t: number) => number, turn: number, n = 14): Limb {
+  const cs = Math.cos(turn), sn = Math.sin(turn);
+  const rot = ([x, y]: XY): XY => [a[0] + (x - a[0]) * cs - (y - a[1]) * sn, a[1] + (x - a[0]) * sn + (y - a[1]) * cs];
+  const at = (t: number): { p: V3; r: number } => {
+    const u = 1 - t;
+    const x = u * u * a[0] + 2 * u * t * c[0] + t * t * b[0], y = u * u * a[1] + 2 * u * t * c[1] + t * t * b[1];
+    const tx = 2 * u * (c[0] - a[0]) + 2 * t * (b[0] - c[0]), ty = 2 * u * (c[1] - a[1]) + 2 * t * (b[1] - c[1]);
+    const l = Math.hypot(tx, ty) || 1, r = Math.max(LIMB_MIN_R * 0.6, width(t) / 2);
+    const [px, py] = rot([x + (ty / l) * r, y - (tx / l) * r]); // the centre sits r to the right of the spine
+    return { p: [px, py, 0], r };
+  };
+  const cones: Cone[] = [];
+  for (let i = 0; i < n; i++) { const p = at(i / n), q = at((i + 1) / n); cones.push({ a: p.p, b: q.p, ra: p.r, rb: q.r }); }
+  return { cones, domes: [] };
+}
