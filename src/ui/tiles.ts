@@ -11,13 +11,16 @@ export const TILES: TileDef[] = [
     { block: 'snout', field: 'reach', label: 'Wysunięcie pyska' },
     { block: 'ears', field: 'type', label: 'Kształt uszu' },
     { block: 'ears', field: 'scale', label: 'Wielkość uszu' },
+    { block: 'ears', field: 'dir', label: 'Kierunek uszu' },
     { block: 'face', field: 'eyes', label: 'Oczy' },
   ] },
   { id: 'horns', title: '2. Rogi i czułki', fields: [
     { block: 'horns', field: 'type', label: 'Kształt rogów' },
     { block: 'horns', field: 'span', label: 'Wielkość rogów' },
+    { block: 'horns', field: 'dir', label: 'Kierunek rogów' },
     { block: 'antennae', field: 'type', label: 'Czułki' },
     { block: 'antennae', field: 'length', label: 'Długość czułków' },
+    { block: 'antennae', field: 'dir', label: 'Kierunek czułków' },
   ] },
   { id: 'neck', title: '3. Szyja', fields: [
     { block: 'head', field: 'neck', label: 'Fasada szyi' },
@@ -42,14 +45,16 @@ export const TILES: TileDef[] = [
   { id: 'tail', title: '7. Ogon', fields: [
     { block: 'tail', field: 'type', label: 'Kształt ogona' },
     { block: 'tail', field: 'length', label: 'Wielkość ogona' },
+    { block: 'tail', field: 'dir', label: 'Kierunek ogona' },
   ] },
   { id: 'crest', title: '8. Czub / Grzywa / Kolce', fields: [
     { block: 'crest', field: 'type', label: 'Rodzaj wyrostków' },
     { block: 'crest', field: 'scale', label: 'Skala wyrostków' },
   ] },
-  { id: 'face', title: '9. Detale twarzy', fields: [
+  { id: 'face', title: '9. Detale pyska', fields: [
     { block: 'face', field: 'teeth', label: 'Zęby' },
     { block: 'face', field: 'whiskers', label: 'Wąsy' },
+    { block: 'face', field: 'whiskerDir', label: 'Kierunek wąsów' },
     { block: 'face', field: 'expression', label: 'Mina' },
   ] },
   { id: 'coat', title: '10. Pokrycie i wzór', fields: [

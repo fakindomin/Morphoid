@@ -70,10 +70,12 @@ export const BLOCKS: readonly BlockDef[] = [
   { id: 'ears', letter: 'E', label: 'Uszy', noneMeansEmpty: true, fields: [
     e('type', [['none', 'Brak'], ['wolf', 'Wilcze'], ['bear', 'Misiowe'], ['rabbit', 'Zajęcze']], 1),
     s('scale', 'Skala'),
+    e('dir', [['up', 'Do góry'], ['back', 'Położone do tyłu'], ['forward', 'Do przodu']]),
   ] },
   { id: 'horns', letter: 'O', label: 'Rogi / Poroże', noneMeansEmpty: true, fields: [
     e('type', [['none', 'Brak'], ['devil', 'Diabelskie'], ['ram', 'Baranie'], ['spikes', 'Kolce'], ['antlers', 'Poroże']]),
     s('span', 'Rozpiętość'),
+    e('dir', [['up', 'Do góry'], ['forward', 'Do przodu'], ['back', 'Do tyłu']]),
   ] },
   { id: 'wings', letter: 'W', label: 'Skrzydła', noneMeansEmpty: true, fields: [
     e('type', [['none', 'Brak'], ['feather', 'Pierzaste'], ['bat', 'Nietoperze']]),
@@ -82,15 +84,17 @@ export const BLOCKS: readonly BlockDef[] = [
   { id: 'tail', letter: 'T', label: 'Ogon', noneMeansEmpty: true, fields: [
     e('type', [['none', 'Brak'], ['wolf', 'Wilczy'], ['fluffy', 'Puszysty'], ['fan', 'Wachlarz'], ['feathers', 'Pióra ptaka']], 1),
     s('length', 'Długość'),
+    e('dir', [['up', 'W górę'], ['back', 'Prosto do tyłu'], ['high', 'Stromo w górę']]),
   ] },
   { id: 'crest', letter: 'C', label: 'Czub / Grzywa / Kolce', noneMeansEmpty: true, fields: [
     e('type', [['none', 'Brak'], ['tuft', 'Czub'], ['mane', 'Grzywa'], ['spines', 'Kolce'], ['crystals', 'Kryształy'], ['plume', 'Pióropusz']]),
     s('scale', 'Skala'),
   ] },
-  { id: 'face', letter: 'D', label: 'Detale twarzy', fields: [
+  { id: 'face', letter: 'D', label: 'Detale pyska', fields: [
     e('eyes', [['small', 'Małe'], ['normal', 'Zwykłe'], ['big', 'Duże'], ['many', 'Wiele małych'], ['stalks', 'Na szypułkach']], 1),
     e('teeth', [['none', 'Brak'], ['fangs', 'Kły'], ['row', 'Rząd']]),
     e('whiskers', [['none', 'Brak'], ['short', 'Krótkie'], ['long', 'Długie']]),
+    e('whiskerDir', [['side', 'Na boki'], ['forward', 'Skośnie do przodu'], ['back', 'Skośnie do tyłu']]),
     e('expression', [['calm', 'Spokojna'], ['grin', 'Uśmiech'], ['angry', 'Zła']]),
   ] },
   { id: 'coat', letter: 'K', label: 'Pokrycie i wzór', fields: [
@@ -116,12 +120,15 @@ export const BLOCKS: readonly BlockDef[] = [
   { id: 'antennae', letter: 'I', label: 'Czułki', noneMeansEmpty: true, fields: [
     e('type', [['none', 'Brak'], ['ball', 'Z kulką'], ['feather', 'Pierzaste']]),
     s('length', 'Długość'),
+    e('dir', [['forward', 'Do przodu'], ['up', 'Prosto w górę'], ['back', 'Do tyłu']]),
   ] },
 ] as const;
 
 /**
  * DNA v2 genes, in code order. A gene is one visible part: a letter, a stable variant number (2 hex digits) and, for
- * parts that have a size, one digit 1-6 per size field (0 when the part is absent). Every gene is always written, so
+ * parts that have a size, one digit 1-6 per size field (0 when the part is absent). A direction (where an element points) is
+ * one more digit after the sizes, 1 = the original direction; a code written before directions existed has no such
+ * digit and reads as the original direction. Every gene is always written, so
  * every code has the same length and two codes compare character by character.
  *
  * Variant numbers: an enum whose first option is "none" uses the option index (00 = none); one without "none" starts
@@ -145,16 +152,16 @@ export const GENES: readonly GeneDef[] = [
   gene('N', 'Szyja', 'head', 'neck', 'neckLength'),
   gene('H', 'Czaszka', 'head', 'skull'),
   gene('S', 'Pysk', 'snout', 'type', 'reach'),
-  gene('E', 'Uszy', 'ears', 'type', 'scale'),
-  gene('R', 'Rogi', 'horns', 'type', 'span'),
+  gene('E', 'Uszy', 'ears', 'type', 'scale', 'dir'),
+  gene('R', 'Rogi', 'horns', 'type', 'span', 'dir'),
   gene('W', 'Skrzydła', 'wings', 'type', 'scale'),
-  gene('T', 'Ogon', 'tail', 'type', 'length'),
+  gene('T', 'Ogon', 'tail', 'type', 'length', 'dir'),
   gene('U', 'Końcówka ogona', null),
   gene('C', 'Grzywa / czub / kolce', 'crest', 'type', 'scale'),
   gene('O', 'Oczy', 'face', 'eyes'),
   gene('M', 'Mina', 'face', 'expression'),
   gene('Z', 'Zęby', 'face', 'teeth'),
-  gene('V', 'Wąsy', 'face', 'whiskers'),
+  gene('V', 'Wąsy', 'face', 'whiskers', 'whiskerDir'),
   gene('F', 'Faktura', 'coat', 'texture'),
   gene('D', 'Deseń', 'coat', 'pattern'),
   gene('A', 'Dodatek na ciało', 'accessory', 'type'),
@@ -163,7 +170,7 @@ export const GENES: readonly GeneDef[] = [
   gene('J', 'Budowa', 'build', 'type'),
   gene('Y', 'Plan ciała', 'plan', 'type'),
   gene('Q', 'Podstawka', 'stand', 'type'),
-  gene('K', 'Czułki', 'antennae', 'type', 'length'),
+  gene('K', 'Czułki', 'antennae', 'type', 'length', 'dir'),
 ];
 
 export const PREFIX = 'MPH2';

@@ -42,7 +42,7 @@ const SIZE_LABELS = ['1: Mały', '2: Średni', '3: Duży'];
 
 const FIELD_LABELS: Record<string, string> = {
   shape: 'KSZTAŁT', foot: 'STOPA', skull: 'CZASZKA', neck: 'FASADA SZYI',
-  type: 'RODZAJ', eyes: 'OCZY', teeth: 'ZĘBY', whiskers: 'WĄSY', expression: 'MINA',
+  type: 'RODZAJ', eyes: 'OCZY', teeth: 'ZĘBY', whiskers: 'WĄSY', whiskerDir: 'KIERUNEK WĄSÓW', expression: 'MINA',
   texture: 'FAKTURA', pattern: 'WZÓR', index: 'PALETA',
 };
 
@@ -54,7 +54,8 @@ const FIELD_LABELS: Record<string, string> = {
  */
 function blockNode(block: BlockId, icon?: string): MenuNode {
   const def = blockDef(block);
-  const enums = def.fields.filter((f) => f.kind === 'enum');
+  // a direction (where an element points) is chosen in the side panel; the ring keeps its quick type -> size path
+  const enums = def.fields.filter((f) => f.kind === 'enum' && f.name !== 'dir');
   const steps = def.fields.filter((f) => f.kind === 'step');
   const sizeLeaves = (idPrefix: string, field: string, pre?: Op): MenuNode[] =>
     Array.from({ length: SIZE_CLASSES }, (_, c) => ({
@@ -75,7 +76,7 @@ function blockNode(block: BlockId, icon?: string): MenuNode {
     });
     return node;
   }
-  node.children = def.fields.map((f): MenuNode => {
+  node.children = def.fields.filter((f) => f.name !== 'dir').map((f): MenuNode => {
     const id = `${block}.${f.name}`;
     if (f.kind === 'step') return { id, label: f.label.toUpperCase(), children: sizeLeaves(id, f.name) };
     return {

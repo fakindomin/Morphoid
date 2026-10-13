@@ -9,7 +9,7 @@
 import type { MorphotypeGenome } from '../genome';
 import { dimensions as D, type Rig } from '../rig';
 import { groupOfSlot, type PartGroup } from '../print/plan';
-import { EYES, octopusArms, STALK_W, STAND_MARGIN_MM, STAND_MM, WHISKER_FAN, WHISKER_PAD, WHISKER_W, whiskerLength, type SlotId, type SlotPaths } from './shapes';
+import { EYES, WHISKER_TURN, octopusArms, STALK_W, STAND_MARGIN_MM, STAND_MM, WHISKER_FAN, WHISKER_PAD, WHISKER_W, whiskerLength, type SlotId, type SlotPaths } from './shapes';
 import type { XY } from './path';
 import { edgesOf, sdPolys, type Edge } from '../bake/field';
 
@@ -149,13 +149,14 @@ function whiskerTop(p: Part3D, g: MorphotypeGenome, ctx: Ctx): void {
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   for (const [x, y] of pad) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
   const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, side = p.side || 1, len = whiskerLength(g.face!.whiskers!);
+  const off = WHISKER_TURN[g.face!.whiskerDir ?? 0] ?? 0;
   const zr = ctx.snoutW / 2 - 0.6; // pad centre: just inside the muzzle side
   const polys: XY[][] = [];
   const ell: XY[] = [];
   for (let i = 0; i < 24; i++) { const a = (i / 24) * Math.PI * 2; ell.push([cx + Math.cos(a) * WHISKER_PAD[0], side * (zr + Math.sin(a) * WHISKER_PAD[1])]); }
   polys.push(side > 0 ? ell : ell.reverse());
   for (const a of WHISKER_FAN) {
-    const ax = cx, az = zr + 0.8, bx = cx + Math.sin(a) * len, bz = zr + 1.2 + Math.cos(a) * len;
+    const ax = cx, az = zr + 0.8, bx = cx + Math.sin(a + off) * len, bz = zr + 1.2 + Math.cos(a + off) * len;
     const l = Math.hypot(bx - ax, bz - az), nx = -(bz - az) / l * (WHISKER_W / 2), nz = (bx - ax) / l * (WHISKER_W / 2);
     const quad: XY[] = [[ax + nx, side * (az + nz)], [bx + nx, side * (bz + nz)], [bx - nx, side * (bz - nz)], [ax - nx, side * (az - nz)]];
     polys.push(side > 0 ? quad : quad.reverse());

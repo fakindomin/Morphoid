@@ -136,6 +136,19 @@ export function octopusArms(cx: number, len: number, hub: number): XY[][] {
 
 /** Whiskers: fan angles (rad from straight sideways; + = forward), pad half sizes (along x, across z), strand width. */
 export const WHISKER_FAN = [-0.42, 0, 0.42] as const;
+/** Whisker direction (gene V, last digit): the whole fan turned in the horizontal plane, + = forward (rad). */
+export const WHISKER_TURN = [0, 0.6, -0.5] as const;
+/**
+ * Direction of an element (last digit of its gene), as a turn about its root in the side view (rad, + = backwards).
+ * Index 0 is the original direction. A turn that tips an element past 45 deg makes it need supports: the print check
+ * says so, as for any other choice.
+ */
+export const DIR_TURN = {
+  ears: [0, 0.75, -0.4],     // up, laid back, forward
+  horns: [0, -0.4, 0.3],     // up, forward, back
+  antennae: [0, 0.42, 0.84], // forward, straight up, back
+  tail: [0, 0.5, -0.22],     // up, straight back (lowered), steeply up; the tail leaves backwards, so + turns it down
+} as const;
 export const WHISKER_PAD = [3.4, 2.6] as const;
 export const WHISKER_W = 1.4;
 export const whiskerLength = (type: number): number => (type === 1 ? 6 : 11);
@@ -316,13 +329,13 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
         const rot = (q: XY): XY => { const dx = (q[0] - tailBase[0]) * k, dy = (q[1] - tailBase[1]) * k; return [tailBase[0] + dx * Math.cos(-ang) - dy * Math.sin(-ang), tailBase[1] + dx * Math.sin(-ang) + dy * Math.cos(-ang)]; };
         tp.append(taper(tailBase, rot(ctrl), rot(tailTip), (t) => Math.max(1.8, 2.4 + n.bodyG * 0.22 * Math.sin(Math.PI * Math.min(0.92, t))), 14, true));
       }
-      put('tail', tp);
+      put('tail', tp.rotated(tailBase[0], tailBase[1], DIR_TURN.tail[g.tail!.dir ?? 0] ?? 0));
     } else {
     const width = tailType === 1 ? (t: number) => Math.max(1.8, w0 * (1 - t * 0.9))
       : tailType === 2 ? (t: number) => Math.max(1.8, w0 * (1 - t) + n.bodyG * 0.95 * Math.sin(Math.PI * Math.min(0.98, t * 0.95 + 0.04)))
       : (t: number) => Math.max(1.8, w0 * (1 - t) + n.bodyG * 1.1 * t * t);
     // (one-sided: widths above are the FULL thickness measured upwards from the spine)
-    put('tail', taper(tailBase, ctrl, tailTip, width, 14, true)); // lower edge = spine (>= 45 deg)
+    put('tail', taper(tailBase, ctrl, tailTip, width, 14, true).rotated(tailBase[0], tailBase[1], DIR_TURN.tail[g.tail!.dir ?? 0] ?? 0)); // lower edge = spine (>= 45 deg)
     }
   }
 
@@ -389,8 +402,9 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
   const er = p(pose, 'earRoot');
   if (n.earS > 0.3) {
     const ep = earPaths(g.ears!.type!, n.earS, er[0], er[1]);
-    put('ear', ep.outer);
-    put('earIn', ep.inner);
+    const turn = DIR_TURN.ears[g.ears!.dir ?? 0] ?? 0; // turned about the ear's root
+    put('ear', ep.outer.rotated(er[0], er[1], turn));
+    put('earIn', ep.inner.rotated(er[0], er[1], turn));
   }
 
   // ---- horns: every segment leans <= 45 deg from vertical, tips >= TIP wide -----------
@@ -409,7 +423,7 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
       horns.append(taper([x - 0.2 * s, y + 0.55 * s], [x + 0.05 * s, y + 0.8 * s], [x + 0.2 * s, y + 1.15 * s], (t) => Math.max(TIP, 2.8 * (1 - t)), 5));
       horns.append(taper([x - 0.3 * s, y + 0.8 * s], [x - 0.45 * s, y + 0.95 * s], [x - 0.65 * s, y + 1.3 * s], (t) => Math.max(TIP, 2.6 * (1 - t)), 5));
     }
-    put('horns', horns);
+    put('horns', horns.rotated(x, y, DIR_TURN.horns[g.horns!.dir ?? 0] ?? 0));
   }
 
   // ---- antennae (gene K): a pair of thin stalks leaning forward <= 25 deg, a ball or a feathery leaf on top ----------
@@ -420,7 +434,7 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
     const ant = taper(a0, [a0[0] + L * 0.1, a0[1] + L * 0.6], a1, () => ANT_W, 10);
     if (antType === 1) ant.append(ellipse(a1[0], a1[1] + 0.6, 2.2, 2.2));
     else ant.append(taper([a0[0] + L * 0.18, a0[1] + L * 0.45], [a0[0] + L * 0.3, a0[1] + L * 0.75], [a1[0] + 0.3, a1[1] + 1.5], (t) => Math.max(TIP, 4.2 * Math.sin(Math.PI * Math.min(0.9, t * 0.9 + 0.1))), 10));
-    put('antennae', ant);
+    put('antennae', ant.rotated(a0[0], a0[1], DIR_TURN.antennae[g.antennae!.dir ?? 0] ?? 0));
   }
 
   const crestType = g.crest!.type!;
@@ -532,7 +546,8 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
     const wk = new Path();
     const [cx, cy] = whiskerRoot(tipX, tip);
     wk.append(ellipse(cx, cy, WHISKER_PAD[0], 1.6));
-    for (const a of WHISKER_FAN) if (Math.abs(a) > 0.01) wk.append(tube([cx, cy], [cx + Math.sin(a) * len, cy + 0.4 * Math.sign(a)], 1.2, 1.2));
+    const off = WHISKER_TURN[face.whiskerDir ?? 0] ?? 0; // a strand pointing straight sideways shows no length here
+    for (const a of WHISKER_FAN) if (Math.abs(Math.sin(a + off)) * len > 3) wk.append(tube([cx, cy + Math.sign(a)], [cx + Math.sin(a + off) * len, cy + Math.sign(a)], 1.2, 1.2)); // strands 1 mm apart fuse into one band
     put('whiskers', wk);
   }
 

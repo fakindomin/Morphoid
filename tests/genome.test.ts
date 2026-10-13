@@ -7,7 +7,7 @@ import {
 describe('Morphotyp codec (DNA v2)', () => {
   it('writes the default creature as the spec example, every gene always present, fixed length', () => {
     const code = serialize(defaultGenome());
-    expect(code.split('#')[0]).toBe('MPH2:B01.33:L01.3:N01.3:H01:S02.3:E01.3:R00.0:W00.0:T01.3:U00:C00.0:O02:M01:Z00:V00:F01:D00:A00:G00:P00:J01:Y01:Q00:K00.0');
+    expect(code.split("#")[0]).toBe("MPH2:B01.33:L01.3:N01.3:H01:S02.3:E01.31:R00.00:W00.0:T01.31:U00:C00.0:O02:M01:Z00:V00.0:F01:D00:A00:G00:P00:J01:Y01:Q00:K00.00");
     expect(code).toMatch(/#[0-9A-F]{2}$/);
     const rnd = mulberry32(3);
     for (let i = 0; i < 50; i++) expect(serialize(randomGenome(rnd))).toHaveLength(code.length);
@@ -31,7 +31,7 @@ describe('Morphotyp codec (DNA v2)', () => {
   it('changing one gene changes only that part; the code length stays', () => {
     const code = serialize(defaultGenome());
     const r = parse(code.split('#')[0]!.replace('R00.0', 'R02.4'));
-    expect(r.ok && r.genome.horns).toEqual({ type: 2, span: 3 });
+    expect(r.ok && r.genome.horns).toEqual({ type: 2, span: 3, dir: 0 });
     expect(r.ok && serialize(r.genome)).toHaveLength(code.length);
     const b = parse(code.split('#')[0]!.replace('B01', 'B03'));
     expect(b.ok && b.genome.body).toEqual({ ...defaultGenome().body, shape: 2 });
@@ -54,10 +54,10 @@ describe('Morphotyp codec (DNA v2)', () => {
 
   it('an unknown variant marks only its gene as bad, the rest of the creature is read', () => {
     const code = serialize(setField(defaultGenome(), 'tail', 'type', 2)).split('#')[0]!;
-    const r = parse(code.replace('B01.33', 'B7F.33').replace('E01.3', 'E01.9'));
+    const r = parse(code.replace('B01.33', 'B7F.33').replace('E01.31', 'E01.91'));
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.badGenes).toEqual(['B7F.33', 'E01.9']);
+    expect(r.badGenes).toEqual(['B7F.33', 'E01.91']);
     expect(r.genome.body).toEqual(defaultGenome().body);
     expect(r.genome.tail!.type).toBe(2);
   });
@@ -82,7 +82,7 @@ describe('Morphotyp codec (DNA v2)', () => {
     const r = parse('MPH-12-88-02-50-28-50-00-50-00-40-00-00-89');
     expect(r).toMatchObject({ ok: true, checksumOk: true });
     if (!r.ok) return;
-    expect(r.genome.horns).toEqual({ type: 2, span: 4 });
+    expect(r.genome.horns).toEqual({ type: 2, span: 4, dir: 0 });
     expect(r.genome.palette!.index).toBe(9);
     expect(r.genome.legs).toEqual(defaultGenome().legs);
     expect(parse('MPH0204030502010406031A080107').ok).toBe(true);
@@ -90,7 +90,7 @@ describe('Morphotyp codec (DNA v2)', () => {
 
   it('canonical form: "none" blocks drop their size => one phenotype, one code', () => {
     const a = setField(setField(defaultGenome(), 'horns', 'span', 5), 'horns', 'type', 0);
-    expect(a.horns).toEqual({ type: 0, span: 0 });
+    expect(a.horns).toEqual({ type: 0, span: 0, dir: 0 });
     expect(genomeEquals(a, defaultGenome())).toBe(true);
   });
 
@@ -147,5 +147,19 @@ describe('creature name', () => {
     expect(s.creature().name).toBe('Burek');
     s.setName('');
     expect(s.creature().name).toBe(drawn);
+  });
+});
+
+describe('element directions (last digit of a gene)', () => {
+  it('a code written before directions reads as the original direction; a direction round-trips', () => {
+    const old = parse('MPH2:E01.3:R02.4:T01.3:V02:K01.3');
+    expect(old.ok && [old.genome.ears.dir, old.genome.horns.dir, old.genome.tail.dir, old.genome.face.whiskerDir, old.genome.antennae.dir]).toEqual([0, 0, 0, 0, 0]);
+    const r = parse('MPH2:E01.32:R02.42:T01.33:V02.2:K01.33');
+    expect(r.ok && [r.genome.ears.dir, r.genome.horns.dir, r.genome.tail.dir, r.genome.face.whiskerDir, r.genome.antennae.dir]).toEqual([1, 1, 2, 1, 2]);
+    if (r.ok) expect(serialize(r.genome)).toContain(':E01.32:');
+  });
+  it('no whiskers means no whisker direction (one phenotype, one code)', () => {
+    const g = setField(setField(defaultGenome(), 'face', 'whiskerDir', 2), 'face', 'whiskers', 0);
+    expect(g.face.whiskerDir).toBe(0);
   });
 });

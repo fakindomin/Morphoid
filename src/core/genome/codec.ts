@@ -55,6 +55,14 @@ export function canonicalize(g: MorphotypeGenome): MorphotypeGenome {
       for (const f of b.fields) blk[f.name] = 0;
     }
   }
+  // a gene whose part is absent writes its size and direction digits as 0: those fields are 0 too (whiskers off)
+  for (const gd of GENES) {
+    if (!gd.variant || gd.variant.block === 'palette') continue;
+    const f = blockDef(gd.variant.block).fields.find((x) => x.name === gd.variant!.field)!;
+    if (f.kind === 'enum' && f.options[0]?.id === 'none' && out[gd.variant.block]![gd.variant.field] === 0) {
+      for (const sz of gd.sizes) out[sz.block]![sz.field] = 0;
+    }
+  }
   return out;
 }
 
@@ -134,8 +142,8 @@ export function describeGene(genome: MorphotypeGenome, gd: GeneDef): string {
   const variant = f.kind === 'enum' ? f.options[v]?.label ?? '?' : String(v + 1);
   const absent = variantId(block, name, v) === 0 && zeroBased(block, f);
   const sizes = absent ? [] : gd.sizes.map((sz) => {
-    const sf = field(sz.block, sz.field);
-    return `${sf.kind === 'step' ? sf.label : sz.field} ${genome[sz.block]![sz.field]! + 1}`;
+    const sf = field(sz.block, sz.field), v2 = genome[sz.block]![sz.field]!;
+    return sf.kind === 'step' ? `${sf.label} ${v2 + 1}` : `Kierunek: ${sf.options[v2]?.label ?? '?'}`;
   });
   return [`${gd.label}: ${variant}`, ...sizes].join(' · ');
 }
@@ -166,7 +174,7 @@ function parseV2(body: string, base?: MorphotypeGenome): ParseResult {
     const digits = m[3] ?? '';
     gd.sizes.forEach((sz, i) => {
       const d = Number(digits[i] ?? NaN);
-      if (d >= 1 && d <= STEPS) g[sz.block]![sz.field] = d - 1;
+      if (d >= 1 && d <= fieldRange(field(sz.block, sz.field))) g[sz.block]![sz.field] = d - 1;
       else if (!(d === 0 || Number.isNaN(d))) badGenes.push(tok);
     });
   }
