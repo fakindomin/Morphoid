@@ -196,7 +196,7 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
 
   // ---- shadow on the bed ------------------------------------------------------
   const sx = n.plan === 1 ? p(pose, 'footBL')[0] : (p(pose, 'footFL')[0] + p(pose, 'footBL')[0]) / 2;
-  put('shadow', ellipse(sx, 0, n.bodyL * 0.78, 3.4));
+  put('shadow', ellipse(sx, 0, n.bodyL * 0.72, 4.6));
 
   // ---- legs (far pair is darker and peeks out behind) -------------------------
   const hipB = p(pose, 'hipB'), shF = p(pose, 'shoulderF'), fB = p(pose, 'footBL'), fF = p(pose, 'footFL');
