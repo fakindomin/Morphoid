@@ -7,7 +7,8 @@
  */
 import { strToU8, zipSync } from 'fflate';
 import type { BakeResult } from './bake';
-import { printMesh, type ExportFile } from './orient';
+import { printMesh, type Creature, type ExportFile } from './orient';
+import { fileBase } from '../genome/name';
 import { FILAMENTS } from './paint';
 
 /** Painted-triangle state for filament 1..4 in the slicers' TriangleSelector encoding. */
@@ -19,7 +20,8 @@ const GAP_MM = 10;
 const num = (v: number): string => String(Math.round(v * 1000) / 1000);
 
 /** One .3mf with every piece of the bake; `colors` are the filament colours c1, c2, c3 (hex), white is the fourth. */
-export function export3mf(result: BakeResult, code: string, colors: readonly [string, string, string]): ExportFile {
+export function export3mf(result: BakeResult, who: Creature, colors: readonly [string, string, string]): ExportFile {
+  const base = fileBase(who.name);
   const swatch = [...colors, '#ffffff'].slice(0, FILAMENTS);
   const objects: string[] = [], items: string[] = [];
   const meshes = result.pieces.map((p) => ({ piece: p, mesh: printMesh(p) }));
@@ -45,15 +47,15 @@ export function export3mf(result: BakeResult, code: string, colors: readonly [st
       t.push(f ? `<triangle v1="${vid(I[i]!)}" v2="${vid(I[i + 1]!)}" v3="${vid(I[i + 2]!)}" p1="${f}" paint_color="${PAINT_CODE[f]}" slic3rpe:mmu_segmentation="${PAINT_CODE[f]}"/>`
         : `<triangle v1="${vid(I[i]!)}" v2="${vid(I[i + 1]!)}" v3="${vid(I[i + 2]!)}"/>`);
     }
-    objects.push(`<object id="${id}" name="${esc(`Morphoid ${code} ${piece.label}`)}" type="model" pid="1" pindex="0"><mesh><vertices>${v.join('')}</vertices><triangles>${t.join('')}</triangles></mesh></object>`);
+    objects.push(`<object id="${id}" name="${esc(`${base} ${piece.label}`)}" type="model" pid="1" pindex="0"><mesh><vertices>${v.join('')}</vertices><triangles>${t.join('')}</triangles></mesh></object>`);
     const [x, y] = place[n]!;
     items.push(`<item objectid="${id}" transform="1 0 0 0 1 0 0 0 1 ${num(x)} ${num(y)} 0" printable="1"/>`);
   });
   const model = `<?xml version="1.0" encoding="UTF-8"?>
 <model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:slic3rpe="http://schemas.slic3r.org/3mf/2017/06">
-<metadata name="Title">${esc(`Morphoid ${code}`)}</metadata>
+<metadata name="Title">${esc(base)}</metadata>
 <metadata name="Application">Morphoid Studio</metadata>
-<metadata name="Description">${esc(`Filamenty: ${swatch.map((c, i) => `${i + 1} = ${FILAMENT_NAME[i]} ${c}`).join(', ')}`)}</metadata>
+<metadata name="Description">${esc(`DNA: ${who.code}. Filamenty: ${swatch.map((c, i) => `${i + 1} = ${FILAMENT_NAME[i]} ${c}`).join(', ')}`)}</metadata>
 <metadata name="slic3rpe:Version3mf">1</metadata>
 <metadata name="slic3rpe:MmPaintingVersion">1</metadata>
 <resources>
@@ -63,11 +65,12 @@ ${objects.join('\n')}
 <build>${items.join('')}</build>
 </model>`;
   const files: Record<string, Uint8Array> = {
-    '[Content_Types].xml': strToU8('<?xml version="1.0" encoding="UTF-8"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/></Types>'),
+    '[Content_Types].xml': strToU8('<?xml version="1.0" encoding="UTF-8"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/><Default Extension="txt" ContentType="text/plain"/></Types>'),
     '_rels/.rels': strToU8('<?xml version="1.0" encoding="UTF-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/3D/3dmodel.model" Id="rel0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>'),
     '3D/3dmodel.model': strToU8(model),
+    'Metadata/dna.txt': strToU8(`${base}\nDNA: ${who.code}\n`),
   };
-  return { name: `morphoid-${code}.3mf`, bytes: zipSync(files, { level: 1 }) };
+  return { name: `${base}.3mf`, bytes: zipSync(files, { level: 1 }) };
 }
 
 /**

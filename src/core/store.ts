@@ -4,7 +4,7 @@
  * wrap this in Zustand/React with `subscribe` + `getState` unchanged.
  */
 import {
-  defaultGenome, mulberry32, mutate, parse, randomGenome, serialize,
+  creatureName, defaultGenome, mulberry32, mutate, parse, randomGenome, serialize,
   type MorphotypeGenome, type ParseResult,
 } from './genome';
 import { applyOp, type Op } from './radial';
@@ -17,12 +17,16 @@ export interface StudioState {
   future: MorphotypeGenome[];
   /** how the user wants to print it - deliberately NOT part of the genome */
   plan: PrintPlan;
+  /** names the user gave, by code (without the checksum); every other creature is named from its code */
+  names: Record<string, string>;
 }
+
+const nameKey = (code: string): string => code.split('#')[0]!;
 
 const HISTORY_LIMIT = 100;
 
 export function createStudioStore(initial: MorphotypeGenome = defaultGenome()) {
-  let state: StudioState = { genome: initial, past: [], future: [], plan: planWhole() };
+  let state: StudioState = { genome: initial, past: [], future: [], plan: planWhole(), names: {} };
   const listeners = new Set<(s: StudioState) => void>();
   const emit = (): void => listeners.forEach((l) => l(state));
 
@@ -39,10 +43,24 @@ export function createStudioStore(initial: MorphotypeGenome = defaultGenome()) {
     subscribe(l: (s: StudioState) => void): () => void { listeners.add(l); return () => listeners.delete(l); },
     code: (): string => serialize(state.genome),
     rig: (): Rig => solveRig(state.genome),
+    /** the name and code the files are exported under */
+    creature(): { name: string; code: string } {
+      const code = serialize(state.genome);
+      return { name: state.names[nameKey(code)] ?? creatureName(code), code };
+    },
+    /** give the current creature a name of one's own; an empty name restores the one drawn from the code */
+    setName(name: string): void {
+      const key = nameKey(serialize(state.genome)), names = { ...state.names };
+      if (name.trim() && name.trim() !== creatureName(key)) names[key] = name.trim().slice(0, 40); else delete names[key];
+      state = { ...state, names };
+      emit();
+    },
+    setNames(names: Record<string, string>): void { state = { ...state, names }; emit(); },
 
     applyOps(ops: readonly Op[]): boolean { return commit(ops.reduce(applyOp, state.genome)); },
-    loadCode(text: string): ParseResult {
-      const r = parse(text);
+    /** `base`: what genes missing from the text keep (hand edits keep the current creature) */
+    loadCode(text: string, base?: MorphotypeGenome): ParseResult {
+      const r = parse(text, base);
       if (r.ok) commit(r.genome);
       return r;
     },

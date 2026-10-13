@@ -71,7 +71,7 @@ export function HeaderBake() {
   if (fresh && job.result) {
     return (
       <span className="bake-chip done">
-        <button type="button" className="chip-main" onClick={() => { const f = exportBundle(job.result!, code); download(f.name, f.bytes); }}>✓ Bryła gotowa · Pobierz</button>
+        <button type="button" className="chip-main" onClick={() => { const f = exportBundle(job.result!, studio.creature()); download(f.name, f.bytes); }}>✓ Bryła gotowa · Pobierz</button>
         <button type="button" className="chip-x" title="Przygotuj ponownie" aria-label="Przygotuj ponownie" onClick={() => bakeStore.start()}>↻</button>
       </span>
     );
@@ -123,7 +123,7 @@ export function BakeToast() {
     <div className={`bake-toast ${ok ? 'ok' : 'bad'}`} role="status" aria-live="polite">
       <b>{ok ? '✓ Bryła gotowa' : '⚠ Bryła z problemami'}</b>
       <span>{sec(job.result.ms)} · {job.result.pieces.length} {job.result.pieces.length === 1 ? 'część' : 'części'} · {ok ? 'wszystko szczelne' : 'sprawdź listę w panelu eksportu'}</span>
-      {ok && <button type="button" className="btn-mini" onClick={() => { const f = exportBundle(job.result!, studio.code()); download(f.name, f.bytes); setOpen(false); }}>Pobierz</button>}
+      {ok && <button type="button" className="btn-mini" onClick={() => { const f = exportBundle(job.result!, studio.creature()); download(f.name, f.bytes); setOpen(false); }}>Pobierz</button>}
       <button type="button" className="btn-mini ghost" onClick={() => setOpen(false)} aria-label="Zamknij">×</button>
     </div>
   );

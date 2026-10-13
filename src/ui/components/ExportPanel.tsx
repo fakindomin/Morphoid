@@ -94,11 +94,11 @@ export function ExportPanel() {
           <div className="hint">Objętość razem {totalVol.toFixed(1)} cm³ · czas {(result.ms / 1000).toFixed(1).replace('.', ',')} s · {allOk ? 'wszystkie bryły szczelne (manifold)' : 'uwaga: nieszczelne bryły'}</div>
           <label className="check"><input type="checkbox" checked={job.showBaked && fresh} disabled={!fresh} onChange={(e) => bakeStore.setShowBaked(e.target.checked)} /> Pokaż bryłę do druku w widoku 3D</label>
           <button type="button" className="btn-tile" disabled={!fresh || !allOk}
-            onClick={() => { const f = exportBundle(result, code); download(f.name, f.bytes); }}>
+            onClick={() => { const f = exportBundle(result, studio.creature()); download(f.name, f.bytes); }}>
             ⬇ Pobierz {result.pieces.length > 1 ? 'ZIP z częściami (STL)' : 'STL'}
           </button>
           <button type="button" className="btn-tile" disabled={!fresh || !allOk} title="Bambu Studio, OrcaSlicer, PrusaSlicer: kolory jako pomalowane obszary, filamenty 1–4 = c1, c2, c3, biały"
-            onClick={() => { const f = export3mf(result, code, PALETTES[genome.palette!.index!]!); download(f.name, f.bytes); }}>
+            onClick={() => { const f = export3mf(result, studio.creature(), PALETTES[genome.palette!.index!]!); download(f.name, f.bytes); }}>
             ⬇ Pobierz 3MF w kolorach (AMS)
           </button>
         </div>

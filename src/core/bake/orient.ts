@@ -7,6 +7,7 @@
 import { strToU8, zipSync } from 'fflate';
 import type { BakedPiece, BakeResult } from './bake';
 import { toBinaryStl } from './mesh';
+import { fileBase, shortHash } from '../genome/name';
 import type { Mesh } from './surfacenets';
 
 const GAP_MM = 4;
@@ -67,20 +68,27 @@ export interface ExportFile { name: string; bytes: Uint8Array }
 
 const slug = (s: string): string => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
-export function exportFiles(result: BakeResult, code: string): ExportFile[] {
-  const only = result.pieces.length === 1;
+/** Who is being exported: files are named after the creature, its DNA code goes inside them. */
+export interface Creature { name: string; code: string }
+
+const ascii = (s: string): string => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l').replace(/Ł/g, 'L').replace(/[^\x20-\x7e]/g, '');
+
+export function exportFiles(result: BakeResult, who: Creature): ExportFile[] {
+  const only = result.pieces.length === 1, base = fileBase(who.name);
   return result.pieces.map((p) => ({
-    name: only ? `morphoid-${code}.stl` : `morphoid-${code}-${slug(p.label)}.stl`,
-    bytes: toBinaryStl(printMesh(p), `Morphoid ${code} ${p.label}`),
+    name: only ? `${base}.stl` : `${base} - ${slug(p.label)}.stl`,
+    // the 80-byte STL header cannot hold the code: name, a short hash of the code and the part
+    bytes: toBinaryStl(printMesh(p), ascii(`${base} #${shortHash(who.code)} ${p.label}`)),
   }));
 }
 
 /** One file to download: the STL itself, or a ZIP when the model is split into parts. */
-export function exportBundle(result: BakeResult, code: string): ExportFile {
-  const files = exportFiles(result, code);
+export function exportBundle(result: BakeResult, who: Creature): ExportFile {
+  const files = exportFiles(result, who);
   if (files.length === 1) return files[0]!;
   const zip: Record<string, Uint8Array> = {};
   for (const f of files) zip[f.name] = f.bytes;
-  zip['README.txt'] = strToU8(`Morphoid ${code}\n${files.length} parts, print each as is (Z up, on the bed).\n`);
-  return { name: `morphoid-${code}-czesci.zip`, bytes: zipSync(zip, { level: 0 }) };
+  zip['dna.txt'] = strToU8(`${fileBase(who.name)}\nDNA: ${who.code}\n`);
+  zip['README.txt'] = strToU8(`${fileBase(who.name)}\n${files.length} parts, print each as is (Z up, on the bed).\n`);
+  return { name: `${fileBase(who.name)}.zip`, bytes: zipSync(zip, { level: 0 }) };
 }

@@ -5,6 +5,7 @@ import { TILES } from '../tiles';
 import { PrintPanel } from './PrintPanel';
 import { Viewport3D } from './Viewport3D';
 import { ExportPanel } from './ExportPanel';
+import { DnaEditor } from './DnaEditor';
 
 export type ViewMode = '2d' | '3d';
 const SAVE_KEY = 'morphoid.saved';
@@ -38,18 +39,9 @@ interface Props {
 }
 
 function Tools2D({ showBones, setShowBones, breathing, setBreathing }: Omit<Props, 'view' | 'explode' | 'setExplode'>) {
-  const [input, setInput] = useState('');
   const [msg, setMsg] = useState<{ text: string; warn: boolean } | null>(null);
   const { past, future } = useStudioState();
 
-  const clone = (): void => {
-    const r = studio.loadCode(input);
-    if (!r.ok) return setMsg({ text: r.message, warn: true });
-    if (!r.checksumOk) setMsg({ text: 'Wczytano, ale suma kontrolna się nie zgadza (literówka lub starszy kod).', warn: true });
-    else if (r.warnings.length) setMsg({ text: r.warnings.join('; '), warn: true });
-    else setMsg({ text: 'Wczytano Morphotyp.', warn: false });
-    setInput('');
-  };
   const save = (): void => { storage.set(SAVE_KEY, studio.code()); setMsg({ text: 'Zapisano w pamięci przeglądarki.', warn: false }); };
   const load = (): void => {
     const saved = storage.get(SAVE_KEY);
@@ -70,16 +62,7 @@ function Tools2D({ showBones, setShowBones, breathing, setBreathing }: Omit<Prop
         </div>
       </section>
 
-      <section className="tile">
-        <header className="tile-header"><span className="tile-title">🧬 Genom DNA (Morphotyp)</span></header>
-        <div className="control-label">Wklej lub sklonuj kod DNA:</div>
-        <div className="dna-input-row">
-          <input className="dna-input" value={input} placeholder="MPH…" spellCheck={false}
-            onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && clone()} />
-          <button type="button" className="btn-tile" onClick={clone}>Klonuj</button>
-        </div>
-        {msg && <div className={`msg${msg.warn ? ' warn' : ''}`} role="status">{msg.text}</div>}
-      </section>
+      <DnaEditor />
 
       <section className="tile">
         <header className="tile-header"><span className="tile-title">💾 Zapis i projekty</span></header>
@@ -88,6 +71,7 @@ function Tools2D({ showBones, setShowBones, breathing, setBreathing }: Omit<Prop
           <button type="button" className="btn-tile" onClick={load}>📂 Wczytaj</button>
         </div>
         <button type="button" className="btn-tile danger" onClick={() => studio.reset()}>🔄 Reset do bazy</button>
+        {msg && <div className={`msg${msg.warn ? ' warn' : ''}`} role="status">{msg.text}</div>}
       </section>
 
       <section className="tile">

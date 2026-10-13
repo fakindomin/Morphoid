@@ -10,7 +10,7 @@ export function Header({ view, setView, theme, setTheme }: {
   view: ViewMode; setView: (v: ViewMode) => void; theme: Theme; setTheme: (t: Theme) => void;
 }) {
   useStudioState(); // re-render on every genome change
-  const code = studio.code();
+  const { name, code } = studio.creature();
   const [copied, setCopied] = useState(false);
   const timer = useRef<number>();
 
@@ -29,10 +29,10 @@ export function Header({ view, setView, theme, setTheme }: {
           <span className="brand-title">MORPHOID<small>Studio</small></span>
         </a>
         <button type="button" className={`dna-pill${copied ? ' copied' : ''}`} onClick={copy}
-          title="Kliknij, aby skopiować Morphotyp" aria-label={`Morphotyp ${code}. Kopiuj`}>
+          title={`Kliknij, aby skopiować kod DNA\n${code}`} aria-label={`Morphoid ${name}. Kopiuj kod DNA`}>
           <span aria-hidden>🧬</span>
-          <span className="dna-code">{code}</span>
-          <span className="dna-badge">{copied ? 'SKOPIOWANO!' : 'KOPIUJ'}</span>
+          <span className="dna-code">Morphoid {name}</span>
+          <span className="dna-badge">{copied ? 'SKOPIOWANO!' : 'KOPIUJ DNA'}</span>
         </button>
       </div>
       <div className="topbar-right">

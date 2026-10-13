@@ -87,12 +87,12 @@ describe('print orientation and export', () => {
   });
 
   it('modular export is a ZIP with one STL per piece, whole export is a single STL', { timeout: 60000 }, () => {
-    const whole = exportBundle(bake(g, planWhole(), 'draft'), 'MPHTEST');
+    const whole = exportBundle(bake(g, planWhole(), 'draft'), { name: 'Brumlik', code: 'MPH2:TEST' });
     const modular = bake(g, planModular(), 'draft');
-    const bundle = exportBundle(modular, 'MPHTEST');
-    expect(exportFiles(modular, 'X')).toHaveLength(modular.pieces.length);
-    expect(bundle.name.endsWith('.zip')).toBe(true);
-    expect(whole.name === 'morphoid-MPHTEST.stl' || whole.name.endsWith('.zip')).toBe(true); // whiskers are forced separate
+    const bundle = exportBundle(modular, { name: 'Brumlik', code: 'MPH2:TEST' });
+    expect(exportFiles(modular, { name: 'X', code: 'MPH2:X' })).toHaveLength(modular.pieces.length);
+    expect(bundle.name).toBe('Morphoid Brumlik.zip');
+    expect(whole.name === 'Morphoid Brumlik.stl' || whole.name.endsWith('.zip')).toBe(true); // whiskers are forced separate
     expect(bundle.bytes[0]).toBe(0x50); // 'P' of PK
   });
 });
@@ -164,11 +164,13 @@ describe('3MF for AMS: painted triangles', () => {
     expect(used('ears')[1]).toBeGreaterThan(0); // inner ear
     for (const p of r.pieces) expect(p.paint.length).toBe(p.mesh.indices.length / 3);
 
-    const f = export3mf(r, 'TEST', ['#e8e2d4', '#c25e4e', '#1c2230']);
-    expect(f.name).toBe('morphoid-TEST.3mf');
+    const f = export3mf(r, { name: 'Żbik', code: 'MPH2:B01.33#00' }, ['#e8e2d4', '#c25e4e', '#1c2230']);
+    expect(f.name).toBe('Morphoid Żbik.3mf');
     const zip = unzipSync(f.bytes);
-    expect(Object.keys(zip).sort()).toEqual(['3D/3dmodel.model', '[Content_Types].xml', '_rels/.rels']);
+    expect(Object.keys(zip).sort()).toEqual(['3D/3dmodel.model', 'Metadata/dna.txt', '[Content_Types].xml', '_rels/.rels']);
+    expect(strFromU8(zip['Metadata/dna.txt']!)).toContain('DNA: MPH2:B01.33#00');
     const xml = strFromU8(zip['3D/3dmodel.model']!);
+    expect(xml).toContain('<metadata name="Title">Morphoid Żbik</metadata>');
     expect(xml.match(/<object /g)!.length).toBe(r.pieces.length);
     expect(xml.match(/<item /g)!.length).toBe(r.pieces.length);
     expect(xml).toContain('paint_color="1C"');

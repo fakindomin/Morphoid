@@ -17,7 +17,7 @@
 
 ## 2. Kluczowe decyzje architektoniczne
 
-1. **Genom jest jedynym mutowalnym stanem.** Kod `MPH…`, rig, podgląd 2D i 3D są pochodnymi (`solveRig` jest czystą funkcją z cache per kod).
+1. **Genom jest jedynym mutowalnym stanem.** Kod DNA (`MPH2:…`), rig, podgląd 2D i 3D są pochodnymi (`solveRig` jest czystą funkcją z cache per kod).
 2. **Jedno źródło geometrii 3D zamiast dwóch silników.** Rezygnuję z osobnych siatek low-poly i silnika SDF. Podgląd i eksport to *ta sama funkcja* SDF, próbkowana grubo (ok. 1 mm voxel, ok. 60³ komórek) lub drobno (0,15–0,2 mm). Zalety: podgląd odpowiada wydrukowi, każdy klocek tworzymy raz, a przestrzeń stanów jest dyskretna, więc wyniki cache'ujemy per klocek.
 3. **Pozycje w mm, nie w pikselach.** Rig pracuje w mm (+X przód, +Y góra, Z lateralnie, Y=0 stół). Rzut 2D to tylko `project2D` (z opcją lustra, bo makieta ma stwora zwróconego w lewo).
 4. **Deterministyczność.** Losowanie i mutacja przyjmują seed (`mulberry32`), więc „Losuj" jest odtwarzalne.

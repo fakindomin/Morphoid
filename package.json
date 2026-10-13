@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "audit": "vite-node scripts/audit.ts"
+    "audit": "vite-node scripts/audit.ts",
+    "lock": "vite-node scripts/lock-registry.ts"
   },
   "devDependencies": {
     "@types/react": "^18.3.31",

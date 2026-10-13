@@ -1,13 +1,10 @@
 /**
- * Morphotyp schema: the single declarative description of the 13-byte genome.
- *
- * Every block is exactly one byte. Fields are packed MSB-first inside the byte;
- * unused low bits are reserved (always 0). Field widths are FIXED forever for a
- * given schema - adding variants is free until a field's capacity (2^bits) is
- * reached, which keeps old codes valid.
+ * Morphotyp schema: the blocks and fields a creature is made of, and the genes (DNA v2) that write them down.
  *
  * Two field kinds:
- *  - 'enum': a discrete variant (index into `options`).
+ *  - 'enum': a discrete variant (index into `options`). Options are only ever APPENDED: an option's position fixes
+ *            its stable variant number in the code (see GENES), so reordering or removing one would change old codes.
+ *            A variant that should no longer be offered is `retired` (hidden from menus and dice, still drawn).
  *  - 'step': one of STEPS (=2N=6) rigid 3D positions. The 2D size class (N=3)
  *            is derived: class = floor(step / 2).
  */
@@ -19,19 +16,18 @@ export type BlockId =
   | 'body' | 'legs' | 'head' | 'snout' | 'ears' | 'horns' | 'wings'
   | 'tail' | 'crest' | 'face' | 'coat' | 'accessory' | 'palette';
 
+export interface EnumOption { id: string; label: string; retired?: boolean }
 export interface EnumField {
   kind: 'enum';
   name: string;
-  bits: number;
-  /** Stable ids; index = stored value. Order MUST NOT change once released. */
-  options: readonly { id: string; label: string }[];
+  /** Stable ids; index = stored value. Order MUST NOT change once released (append only). */
+  options: readonly EnumOption[];
   /** Value used by defaultGenome(). */
   def: number;
 }
 export interface StepField {
   kind: 'step';
   name: string;
-  bits: number;
   label: string;
 }
 export type Field = EnumField | StepField;
@@ -49,78 +45,111 @@ export interface BlockDef {
   noneMeansEmpty?: boolean;
 }
 
-const e = (name: string, bits: number, opts: [string, string][], def = 0): EnumField => {
-  if (opts.length > 2 ** bits) throw new Error(`enum ${name}: ${opts.length} options > 2^${bits}`);
-  return { kind: 'enum', name, bits, def, options: opts.map(([id, label]) => ({ id, label })) };
-};
-const s = (name: string, label: string): StepField => ({ kind: 'step', name, bits: 3, label });
+const e = (name: string, opts: [string, string][], def = 0): EnumField =>
+  ({ kind: 'enum', name, def, options: opts.map(([id, label]) => ({ id, label })) });
+const s = (name: string, label: string): StepField => ({ kind: 'step', name, label });
 
 export const BLOCKS: readonly BlockDef[] = [
   { id: 'body', letter: 'B', label: 'Tułów', fields: [
-    e('shape', 2, [['barrel', 'Beczka'], ['lean', 'Smukły'], ['bulky', 'Masywny']]),
+    e('shape', [['barrel', 'Beczka'], ['lean', 'Smukły'], ['bulky', 'Masywny']]),
     s('length', 'Długość'), s('girth', 'Pękatość'),
   ] },
   { id: 'legs', letter: 'L', label: 'Nogi', fields: [
-    e('count', 1, [['four', '4 nogi'], ['two', '2 nogi']]),
-    e('foot', 2, [['paw', 'Łapa'], ['claws', 'Pazury'], ['hoof', 'Kopyto']]),
+    e('foot', [['paw', 'Łapa'], ['claws', 'Pazury'], ['hoof', 'Kopyto']]),
     s('length', 'Wysokość'),
   ] },
   { id: 'head', letter: 'H', label: 'Głowa i szyja', fields: [
-    e('skull', 3, [['round', 'Okrągła'], ['wedge', 'Klin'], ['flat', 'Płaska']]),
-    e('neck', 2, [['smooth', 'Gładka'], ['crested', 'Grzebień'], ['armored', 'Pancerz']]),
+    e('skull', [['round', 'Okrągła'], ['wedge', 'Klin'], ['flat', 'Płaska']]),
+    e('neck', [['smooth', 'Gładka'], ['crested', 'Grzebień'], ['armored', 'Pancerz']]),
     s('neckLength', 'Długość szyi'),
   ] },
   { id: 'snout', letter: 'S', label: 'Pysk', fields: [
-    e('type', 2, [['pug', 'Krótki'], ['wolf', 'Wilczy'], ['beak', 'Dziób']], 1),
+    e('type', [['pug', 'Krótki'], ['wolf', 'Wilczy'], ['beak', 'Dziób']], 1),
     s('reach', 'Wysunięcie'),
   ] },
   { id: 'ears', letter: 'E', label: 'Uszy', noneMeansEmpty: true, fields: [
-    e('type', 3, [['none', 'Brak'], ['wolf', 'Wilcze'], ['bear', 'Misiowe'], ['rabbit', 'Zajęcze']], 1),
+    e('type', [['none', 'Brak'], ['wolf', 'Wilcze'], ['bear', 'Misiowe'], ['rabbit', 'Zajęcze']], 1),
     s('scale', 'Skala'),
   ] },
   { id: 'horns', letter: 'O', label: 'Rogi / Poroże', noneMeansEmpty: true, fields: [
-    e('type', 3, [['none', 'Brak'], ['devil', 'Diabelskie'], ['ram', 'Baranie'], ['spikes', 'Kolce'], ['antlers', 'Poroże']]),
+    e('type', [['none', 'Brak'], ['devil', 'Diabelskie'], ['ram', 'Baranie'], ['spikes', 'Kolce'], ['antlers', 'Poroże']]),
     s('span', 'Rozpiętość'),
   ] },
   { id: 'wings', letter: 'W', label: 'Skrzydła', noneMeansEmpty: true, fields: [
-    e('type', 2, [['none', 'Brak'], ['feather', 'Pierzaste'], ['bat', 'Nietoperze']]),
+    e('type', [['none', 'Brak'], ['feather', 'Pierzaste'], ['bat', 'Nietoperze']]),
     s('scale', 'Wielkość'),
   ] },
   { id: 'tail', letter: 'T', label: 'Ogon', noneMeansEmpty: true, fields: [
-    e('type', 2, [['none', 'Brak'], ['wolf', 'Wilczy'], ['fluffy', 'Puszysty'], ['fan', 'Wachlarz']], 1),
+    e('type', [['none', 'Brak'], ['wolf', 'Wilczy'], ['fluffy', 'Puszysty'], ['fan', 'Wachlarz']], 1),
     s('length', 'Długość'),
   ] },
   { id: 'crest', letter: 'C', label: 'Czub / Grzywa / Kolce', noneMeansEmpty: true, fields: [
-    e('type', 3, [['none', 'Brak'], ['tuft', 'Czub'], ['mane', 'Grzywa'], ['spines', 'Kolce']]),
+    e('type', [['none', 'Brak'], ['tuft', 'Czub'], ['mane', 'Grzywa'], ['spines', 'Kolce']]),
     s('scale', 'Skala'),
   ] },
   { id: 'face', letter: 'D', label: 'Detale twarzy', fields: [
-    e('eyes', 2, [['small', 'Małe'], ['normal', 'Zwykłe'], ['big', 'Duże']], 1),
-    e('teeth', 2, [['none', 'Brak'], ['fangs', 'Kły'], ['row', 'Rząd']]),
-    e('whiskers', 2, [['none', 'Brak'], ['short', 'Krótkie'], ['long', 'Długie']]),
-    e('expression', 2, [['calm', 'Spokojna'], ['grin', 'Uśmiech'], ['angry', 'Zła']]),
+    e('eyes', [['small', 'Małe'], ['normal', 'Zwykłe'], ['big', 'Duże']], 1),
+    e('teeth', [['none', 'Brak'], ['fangs', 'Kły'], ['row', 'Rząd']]),
+    e('whiskers', [['none', 'Brak'], ['short', 'Krótkie'], ['long', 'Długie']]),
+    e('expression', [['calm', 'Spokojna'], ['grin', 'Uśmiech'], ['angry', 'Zła']]),
   ] },
   { id: 'coat', letter: 'K', label: 'Pokrycie i wzór', fields: [
-    e('texture', 3, [['smooth', 'Gładkie'], ['fur', 'Futro'], ['scales', 'Łuski'], ['armor', 'Pancerz']]),
-    e('pattern', 3, [['none', 'Brak'], ['stripes', 'Pręgi'], ['spots', 'Cętki']]),
+    e('texture', [['smooth', 'Gładkie'], ['fur', 'Futro'], ['scales', 'Łuski'], ['armor', 'Pancerz']]),
+    e('pattern', [['none', 'Brak'], ['stripes', 'Pręgi'], ['spots', 'Cętki']]),
   ] },
   { id: 'accessory', letter: 'X', label: 'Dodatki', noneMeansEmpty: true, fields: [
-    e('type', 4, [['none', 'Brak'], ['collar', 'Obroża'], ['saddle', 'Siodło']]),
+    e('type', [['none', 'Brak'], ['collar', 'Obroża'], ['saddle', 'Siodło']]),
   ] },
-  // Palette: low nibble = index of 1 of 16 color triads. High nibble is the
-  // CRC-4 checksum and is handled by the codec, NOT listed as a field here.
   { id: 'palette', letter: 'P', label: 'Paleta barw', fields: [
-    { kind: 'enum', name: 'index', bits: 4, def: 0,
+    { kind: 'enum', name: 'index', def: 0,
       options: Array.from({ length: 16 }, (_, i) => ({ id: `p${i}`, label: `Triada ${i + 1}` })) },
   ] },
 ] as const;
 
-export const BLOCK_COUNT = BLOCKS.length; // 13
-export const PREFIX = 'MPH';
-export const HEX_LENGTH = BLOCK_COUNT * 2; // 26
-export const CODE_LENGTH = PREFIX.length + HEX_LENGTH; // 29
+/**
+ * DNA v2 genes, in code order. A gene is one visible part: a letter, a stable variant number (2 hex digits) and, for
+ * parts that have a size, one digit 1-6 per size field (0 when the part is absent). Every gene is always written, so
+ * every code has the same length and two codes compare character by character.
+ *
+ * Variant numbers: an enum whose first option is "none" uses the option index (00 = none); one without "none" starts
+ * at 01 (00 never appears). The palette is numbered from 00. New genes are only appended (a code without them reads
+ * them as 00); new variants are only appended to a field's options.
+ */
+export interface GeneDef {
+  letter: string;
+  label: string;
+  /** where the variant lives; null = a part that has no variants yet (always 00) */
+  variant: { block: BlockId; field: string } | null;
+  /** step fields written as size digits, in order */
+  sizes: readonly { block: BlockId; field: string }[];
+}
+const gene = (letter: string, label: string, block: BlockId | null, field = 'type', ...sizes: string[]): GeneDef => ({
+  letter, label, variant: block ? { block, field } : null, sizes: sizes.map((f) => ({ block: block!, field: f })),
+});
+export const GENES: readonly GeneDef[] = [
+  gene('B', 'Tułów', 'body', 'shape', 'length', 'girth'),
+  gene('L', 'Nogi', 'legs', 'foot', 'length'),
+  gene('N', 'Szyja', 'head', 'neck', 'neckLength'),
+  gene('H', 'Czaszka', 'head', 'skull'),
+  gene('S', 'Pysk', 'snout', 'type', 'reach'),
+  gene('E', 'Uszy', 'ears', 'type', 'scale'),
+  gene('R', 'Rogi', 'horns', 'type', 'span'),
+  gene('W', 'Skrzydła', 'wings', 'type', 'scale'),
+  gene('T', 'Ogon', 'tail', 'type', 'length'),
+  gene('U', 'Końcówka ogona', null),
+  gene('C', 'Grzywa / czub / kolce', 'crest', 'type', 'scale'),
+  gene('O', 'Oczy', 'face', 'eyes'),
+  gene('M', 'Mina', 'face', 'expression'),
+  gene('Z', 'Zęby', 'face', 'teeth'),
+  gene('V', 'Wąsy', 'face', 'whiskers'),
+  gene('F', 'Faktura', 'coat', 'texture'),
+  gene('D', 'Deseń', 'coat', 'pattern'),
+  gene('A', 'Dodatek na ciało', 'accessory', 'type'),
+  gene('G', 'Dodatek na głowę', null),
+  gene('P', 'Paleta', 'palette', 'index'),
+];
 
-if (BLOCK_COUNT !== 13) throw new Error('Morphotyp must have exactly 13 blocks');
+export const PREFIX = 'MPH2';
 
 export const blockDef = (id: BlockId): BlockDef => {
   const b = BLOCKS.find((x) => x.id === id);

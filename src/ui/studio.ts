@@ -18,9 +18,11 @@ export const studio = createStudioStore(initial);
 // Keep ?code= in sync so any URL is a shareable Morphotyp.
 studio.subscribe(() => {
   try {
-    const url = new URL(location.href);
-    url.searchParams.set('code', studio.code());
-    history.replaceState(null, '', url);
+    // keep the colons readable in the link; only '#' must be escaped
+    const params = new URLSearchParams(location.search);
+    params.delete('code');
+    const rest = params.toString();
+    history.replaceState(null, '', `${location.pathname}?code=${studio.code().replace('#', '%23')}${rest ? '&' + rest : ''}${location.hash}`);
   } catch { /* ignore */ }
 });
 
@@ -45,4 +47,15 @@ try {
 let lastPlan = studio.getState().plan;
 studio.subscribe((s) => {
   if (s.plan !== lastPlan) { lastPlan = s.plan; storage.set(PLAN_KEY, JSON.stringify(s.plan)); }
+});
+
+// Names the user gave their creatures: local only, never in the DNA.
+const NAMES_KEY = 'morphoid.names';
+try {
+  const raw = storage.get(NAMES_KEY);
+  if (raw) { const names = JSON.parse(raw); if (names && typeof names === 'object') studio.setNames(names as Record<string, string>); }
+} catch { /* ignore a corrupted value */ }
+let lastNames = studio.getState().names;
+studio.subscribe((s) => {
+  if (s.names !== lastNames) { lastNames = s.names; storage.set(NAMES_KEY, JSON.stringify(s.names)); }
 });

@@ -2,42 +2,41 @@
 
 ```
 src/core
-├─ genome/   schema.ts  deklaratywny opis 13 bloków (bity, warianty)
-│            codec.ts   serialize / parse / CRC-4 / N→2N / losowanie
+├─ genome/   schema.ts  bloki i pola stwora, tabela genów DNA v2
+│            codec.ts   serialize / parse / CRC-8 / N→2N / losowanie
+│            v1.ts      czytnik starych kodów MPH + 26 hex
+│            name.ts    imię stwora z kodu, nazwy plików
+├─ catalog/  registry.ts  numery wariantów + kontrola registry.lock.json
 ├─ rig/      dimensions.ts  tabele krok → mm (PLACEHOLDERY do strojenia)
 │            rig.ts         solveRig: FK + kotwica Y=0 + walidacja
 ├─ radial/   menu.ts    drzewo z schematu, layout pierścienia, automat stanów
 └─ store.ts  genom + historia undo/redo, pochodne: kod, rig
 ```
 
-## Morphotyp (29 znaków)
+## DNA v2 (geny)
 
-`MPH` + 13 bajtów. **Jeden blok = jeden bajt**, pola pakowane od najstarszego bitu, wolne bity zarezerwowane (0).
+Kod to lista genów rozdzielonych dwukropkami, zawsze w tej samej kolejności i zawsze wszystkie, więc każdy kod ma tę samą długość i dwa kody porównuje się znak po znaku:
 
-| # | Blok | Pola (bity) |
-|---|---|---|
-| 1 B | Tułów | kształt(2) długość-krok(3) pękatość-krok(3) |
-| 2 L | Nogi | liczba(1) stopa(2) wysokość-krok(3) |
-| 3 H | Głowa/szyja | czaszka(3) fasada szyi(2) długość szyi-krok(3) |
-| 4 S | Pysk | typ(2) wysunięcie-krok(3) |
-| 5 E | Uszy | typ(3) skala-krok(3) |
-| 6 O | Rogi | typ(3) rozpiętość-krok(3) |
-| 7 W | Skrzydła | typ(2) wielkość-krok(3) |
-| 8 T | Ogon | typ(2) długość-krok(3) |
-| 9 C | Czub/grzywa | typ(3) skala-krok(3) |
-| 10 D | Detale twarzy | oczy(2) zęby(2) wąsy(2) mina(2) |
-| 11 K | Pokrycie | faktura(3) wzór(3) |
-| 12 X | Dodatki | typ(4) |
-| 13 P | Paleta | **[CRC-4][paleta:4]** |
+```
+MPH2:B01.33:L01.3:N01.3:H01:S02.3:E01.3:R00.0:W00.0:T01.3:U00:C00.0:O02:M01:Z00:V00:F01:D00:A00:G00:P00#CC
+```
 
-Decyzje wynikające z Twojej specyfikacji:
+- Gen = litera części + **stały numer wariantu** (2 znaki hex) + cyfry rozmiaru 1–6 (tułów ma dwie: długość i pękatość; 0, gdy części nie ma).
+- Numer wariantu to pozycja opcji w schemacie: pole z opcją „Brak” na początku (i paleta) liczy od 00, pozostałe od 01. Dlatego opcje **tylko się dopisuje**. Wariantu się nie usuwa, tylko oznacza `retired` (znika z menu i losowania, stare kody dalej go rysują).
+- Litery: B tułów, L nogi, N szyja, H czaszka, S pysk, E uszy, R rogi, W skrzydła, T ogon, U końcówka ogona, C grzywa/czub/kolce, O oczy, M mina, Z zęby, V wąsy, F faktura, D deseń, A dodatek na ciało, G dodatek na głowę, P paleta. Nowa część = nowa litera na końcu; w starszych kodach brakujący gen ma wartość domyślną.
+- `#CC` to CRC-8 (wielomian 0x07) z tekstu przed `#`. Suma jest „miękka”: `parse` zwraca `checksumOk`, a kod bez sumy też się wczyta.
+- `parse(tekst, baza)` toleruje wielkość liter, spacje i tekst dookoła. Gen z nieznanym numerem trafia do `badGenes`, a ta część zachowuje wartość z `baza` (w studiu: obecny stwór), więc ręczna edycja zmienia tylko to, co nazywa.
+- Stare kody `MPH` + 26 hex (format v1, 13 bajtów, CRC-4) czyta `genome/v1.ts` z zamrożonym układem bitów. Pole „liczba nóg” zostało usunięte.
 
-- **Suma kontrolna to górny półbajt bloku P** (paleta potrzebuje tylko 4 bitów z 8). Dzięki temu format nadal ma równo 13 bajtów i 29 znaków. CRC-4/ITU wykrywa każdy błąd pojedynczej cyfry HEX (test sprawdza wszystkie 25 pozycji × 15 podmian).
-- **Suma kontrolna jest „miękka":** `parse` zwraca `checksumOk`. Przykładowy kod `MPH0204030502010406031A080107` ma górny półbajt 0, więc się wczyta, ale UI powinno pokazać ostrzeżenie. Kody generowane przez aplikację zawsze mają poprawną sumę.
-- **Postać kanoniczna:** typ „Brak" zeruje pozostałe pola bloku, więc jeden fenotyp = jeden kod.
-- **Brak bajtu wersji** (13 bloków wyczerpuje bajty). Kompatybilność zapewnia reguła: **nigdy nie zmieniać kolejności ani szerokości pól, tylko dopisywać warianty** do wolnych wartości. Jeśli wersjonowanie okaże się potrzebne, można poświęcić wolne bity w bloku L (6 z 8 używanych) lub D.
-- Parser najpierw znajduje `MPH`, dopiero potem wycina znaki spoza HEX. Dzięki temu litery A–F z otaczającego tekstu nie wpadają do kodu. Wersja segmentowa (`MPH-02-04-…`) działa.
-- Wartości spoza zakresu są przycinane z ostrzeżeniem (`warnings`), a parser nigdy nie rzuca wyjątku.
+### Rejestr wariantów
+
+`core/catalog/registry.ts` wylicza z schematu wszystkie numery każdej litery. `registry.lock.json` zapisuje każdy wydany numer. Test `registry.test.ts` pada, gdy numer zniknie, zmieni znaczenie (klucz) albo ten sam wariant dostanie dwa numery. Po dodaniu wariantu: `npm run lock` i commit obu plików. Gdy dwie osoby dodadzą wariant naraz, git pokaże konflikt w pliku blokady.
+
+### Imię stwora i pliki
+
+`creatureName(kod)` losuje imię z sylab (ziarno = FNV-1a kodu), więc ten sam kod zawsze daje to samo imię. Własne imię użytkownika jest zapisywane lokalnie (`morphoid.names`), nie w DNA. Pliki: `Morphoid <Imię>.stl / .3mf / .zip`. Kod DNA jest w `Metadata/dna.txt` i w opisie 3MF oraz w `dna.txt` w ZIP. Nagłówek STL (80 bajtów, ASCII) ma imię, skrót kodu `#xxxxxx` i nazwę części.
+
+- **Postać kanoniczna:** typ „Brak” zeruje pozostałe pola bloku, więc jeden fenotyp = jeden kod.
 
 ## Reguła N→2N
 
