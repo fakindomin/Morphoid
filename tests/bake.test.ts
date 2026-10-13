@@ -177,8 +177,8 @@ describe('body plan (gene Y) and stand (gene Q)', () => {
       if (!stand) { if (st) bad.push(`${label}: stand without the gene`); continue; }
       if (!st) { bad.push(`${label}: no stand`); continue; }
       if (!st.validation.watertight || st.validation.shells !== 1 || st.validation.genus !== 0) bad.push(`${label} stand: shells ${st.validation.shells}, holes ${st.validation.genus}`);
-      // feet of a normal or round build carry a real peg; stick feet (4.4 mm) are too thin and may fall back to a tab or glue
-      if (build !== 1 && !st.joints.every((j) => j.peg !== null && j.peg !== 'tab')) bad.push(`${label}: stand joints ${st.joints.map((j) => j.peg).join(',')}`);
+      // every foot is held by a peg or, since jointed legs have slender ankles that cannot take a socket, a tab
+      if (!st.joints.every((j) => j.peg !== null)) bad.push(`${label}: stand joints ${st.joints.map((j) => j.peg).join(',')}`);
       if (!st.joints.length) bad.push(`${label}: stand touches no foot`);
     }
     expect(bad).toEqual([]);

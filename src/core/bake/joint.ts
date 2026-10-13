@@ -118,7 +118,7 @@ function stampBox(g: Grid3, s: V3, n: V3, u: V3, v: V3, t0: number, t1: number, 
   }
 }
 
-interface Patch { c: V3; n: V3; nodes: number[]; overlap: boolean; /** counts as touching below this host distance */ near: number; /** index of the host */ host: number }
+interface Patch { c: V3; n: V3; /** the axis counting every body of the part nearby (the old rule, a fallback) */ nAll: V3; nodes: number[]; overlap: boolean; /** counts as touching below this host distance */ near: number; /** index of the host */ host: number }
 
 /** A body of the part farther than this from its host is not joined (mm); closer ones get a tab that bridges the gap. */
 const MAX_GAP_MM = 3;
@@ -165,7 +165,7 @@ function contacts(part: Grid3, hosts: Grid3[]): Patch[] {
   const out: Patch[] = [];
   const minNodes = MIN_CONTACT_MM3 / h ** 3;
   let bodyId = 0, patchId = 0;
-  const makePatch = (nodes: number[], near: number, host: number): void => {
+  const makePatch = (nodes: number[], near: number, host: number, own: number): void => {
     if (nodes.length < minNodes) return;
     const hv = hvs[host]!;
     // centre: of the shared volume when there is one (that is where a peg has the most host around it)
@@ -176,22 +176,25 @@ function contacts(part: Grid3, hosts: Grid3[]): Patch[] {
       sx += idx % nx; sy += Math.floor(idx / nx) % ny; sz += Math.floor(idx / (nx * ny)); cnt++;
     }
     const c: V3 = [part.ox + (sx / cnt) * h, part.oy + (sy / cnt) * h, part.oz + (sz / cnt) * h];
-    // axis: from the patch towards the part material that is clear of the host nearby
+    // axis: from the patch towards the part material that is clear of the host nearby, in this body only (a leg must
+    // not point its peg at the leg next to it)
     const R = 12, r2 = R * R, rn = Math.ceil(R / h);
     const ci = Math.round(sx / cnt), cj = Math.round(sy / cnt), ck = Math.round(sz / cnt);
-    let ax = 0, ay = 0, az = 0, m = 0;
+    let ax = 0, ay = 0, az = 0, m = 0, bx = 0, by = 0, bz = 0, mb = 0;
     for (let k = Math.max(0, ck - rn); k <= Math.min(nz - 1, ck + rn); k++) for (let j = Math.max(0, cj - rn); j <= Math.min(ny - 1, cj + rn); j++) for (let i = Math.max(0, ci - rn); i <= Math.min(nx - 1, ci + rn); i++) {
       const idx = (k * ny + j) * nx + i;
       if (hv[idx]! < near || hv[idx]! >= BIG) continue;
       const dx = part.ox + i * h - c[0], dy = part.oy + j * h - c[1], dz = part.oz + k * h - c[2];
       if (dx * dx + dy * dy + dz * dz > r2) continue;
-      ax += dx; ay += dy; az += dz; m++;
+      bx += dx; by += dy; bz += dz; mb++;
+      if (body[idx] === own) { ax += dx; ay += dy; az += dz; m++; }
     }
-    if (m) out.push({ c, n: norm([ax, ay, az]), nodes, overlap, near, host });
+    if (m) out.push({ c, n: norm([ax, ay, az]), nAll: norm([bx, by, bz]), nodes, overlap, near, host });
   };
   for (let s = 0; s < n; s++) {
     if (data[s]! >= 0 || body[s]! >= 0) continue;
-    const nodes = flood(part, s, body, bodyId++, (m) => data[m]! < 0);
+    const own = bodyId++;
+    const nodes = flood(part, s, body, own, (m) => data[m]! < 0);
     const before = out.length;
     let minHv = BIG, minAt = -1, minHost = 0;
     hosts.forEach((_, hi) => {
@@ -199,7 +202,7 @@ function contacts(part: Grid3, hosts: Grid3[]): Patch[] {
       for (const idx of nodes) if (hv[idx]! < minHv) { minHv = hv[idx]!; minAt = idx; minHost = hi; }
       for (const idx of nodes) {
         if (hv[idx]! >= NEAR_MM || tag[idx]! >= 0) continue;
-        makePatch(flood(part, idx, tag, patchId++, (m) => data[m]! < 0 && hv[m]! < NEAR_MM), NEAR_MM, hi);
+        makePatch(flood(part, idx, tag, patchId++, (m) => data[m]! < 0 && hv[m]! < NEAR_MM), NEAR_MM, hi, own);
       }
     });
     // a bit buried deep inside the host (an arm hub under the octopus mantle) has no clear side to point a joint at
@@ -207,7 +210,7 @@ function contacts(part: Grid3, hosts: Grid3[]): Patch[] {
       // not touching anything: join at the closest approach to the nearest host
       const hv = hvs[minHost]!, near = minHv + NEAR_MM;
       const nodes2 = flood(part, minAt, patchTags[minHost]!, patchId++, (m) => data[m]! < 0 && hv[m]! < near);
-      makePatch(nodes2.length >= minNodes ? nodes2 : nodes2.concat(Array(Math.ceil(minNodes - nodes2.length)).fill(minAt)), near, minHost);
+      makePatch(nodes2.length >= minNodes ? nodes2 : nodes2.concat(Array(Math.ceil(minNodes - nodes2.length)).fill(minAt)), near, minHost, own);
     }
   }
   return out;
@@ -321,6 +324,7 @@ function planPeg(part: Grid3, host: Grid3, patch: Patch, placed: HostSockets['pl
   const h = part.h;
   // axes to try: the contact's own axis, then the vertical (pegs print best standing), then halfway between
   const axes: V3[] = [patch.n];
+  if (dot(patch.nAll, patch.n) < 0.995) axes.push(patch.nAll);
   if (Math.abs(patch.n[1]) > 0.3) {
     const vert: V3 = [0, Math.sign(patch.n[1]), 0];
     axes.push(vert, norm(add(patch.n, vert)));
@@ -631,7 +635,7 @@ export function joinPart(
       // tab + slot: the part's own section at the contact, swept TAB_MM along the axis into the host; the slot is the
       // tab grown by the clearance. A sweep can always be pushed in along the axis, whatever the part's outline.
       const { nx, ny, nz, h } = part;
-      const ax = patch.n;
+      const ax = patch.nAll; // tabs keep the axis that counts every body nearby (pegs try their own body first)
       let ci0 = nx, ci1 = 0, cj0 = ny, cj1 = 0, ck0 = nz, ck1 = 0;
       for (const idx of patch.nodes) {
         const i = idx % nx, j = Math.floor(idx / nx) % ny, k = Math.floor(idx / (nx * ny));
@@ -769,7 +773,7 @@ export function joinPart(
   };
   const lo: V3 = [part.ox, part.oy, part.oz], hi: V3 = [part.ox + (part.nx - 1) * part.h, part.oy + (part.ny - 1) * part.h, part.oz + (part.nz - 1) * part.h];
   // where it only comes near a host (no overlap to seat in), it is glued
-  const whole = patches.map((p): Joint => ({ at: p.c, axis: p.n, peg: p.overlap ? 'tab' : null, host: p.host }));
+  const whole = patches.map((p): Joint => ({ at: p.c, axis: p.nAll, peg: p.overlap ? 'tab' : null, host: p.host }));
   let slotted = true;
   for (const { sockets } of hosts) {
     sockets.carve.push((g) => {

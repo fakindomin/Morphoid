@@ -10,6 +10,7 @@ import { dimensions as D, type NodeId, type Rig } from '../rig';
 import { PRINT_RULES } from '../print/rules';
 import { ellipse, Path, polygon, taper, tube, type ToPx, type XY } from './path';
 import type { Pose } from './pose';
+import { legLimb, legSpecOf, limbOutline } from './limb';
 
 /** skin/skinFar = body colour (c1); accent = c2; white/ink/glint = details; clip = not drawn. */
 export type SlotKind =
@@ -33,24 +34,6 @@ export type Shapes = Record<SlotId, string>;
 
 const p = (pose: Pose, id: NodeId): XY => pose.pos[id];
 const R = D.HEAD_RADIUS;
-
-/** One leg + rounded foot. Soles are always flat on y = foot y (print rule). */
-function leg(top: XY, foot: XY, w: number, type: number, soleL: number, bulge = 0): Path {
-  const [tx, ty] = top, [fx, fy] = foot;
-  const hw = w / 2, fh = type === 2 ? 5 : 2.4;
-  const toe = fx + soleL * 0.7, heel = fx - soleL * 0.3;
-  const path = new Path().M(tx - hw, ty).L(tx + hw, ty);
-  // bulge > 0 (muscular build): the upper leg swells forward, like a thigh or a shoulder
-  if (bulge > 0) path.Q(tx + hw * (1 + bulge * 1.6), ty - (ty - fy) * 0.35, fx + hw * 0.9, fy + fh); else path.L(fx + hw * 0.9, fy + fh);
-  if (type === 2) { // hoof: boxy
-    path.L(fx + hw * 1.2, fy + fh).L(fx + hw * 1.2, fy).L(fx - hw * 1.2, fy).L(fx - hw * 1.2, fy + fh);
-  } else if (type === 1) { // claws: ONE simple outline, the claw is a wedge that continues the sole forward on the bed
-    path.L(toe, fy + fh * 0.7).L(toe + 3.4, fy + 1.4).L(toe + 3.4, fy).L(heel, fy).Q(heel - 1.5, fy + fh * 0.6, fx - hw * 0.9, fy + fh);
-  } else {
-    path.Q(toe + 0.5, fy + fh, toe, fy + 0.2).L(heel, fy).Q(heel - 1.5, fy + fh * 0.6, fx - hw * 0.9, fy + fh);
-  }
-  return path.Z();
-}
 
 /**
  * Insect leg from the hip: the thigh rises to a knee out to the side (`dir`: +1 forward, -1 back, 0 middle), the shin
@@ -204,14 +187,17 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
   const hipB = p(pose, 'hipB'), shF = p(pose, 'shoulderF'), fB = p(pose, 'footBL'), fF = p(pose, 'footFL');
   const muscular = n.build === 2;
   // muscular build: a thigh / shoulder bulge at the top of each leg (inside the torso's lower half, never overhanging)
-  const limb = (top: XY, f: XY): Path => leg(top, f, legW, foot, n.soleL, muscular ? 0.5 : 0);
+  // jointed legs: the drawing is the side view of the 3D leg (see limb.ts), so sketch and solid are one shape
+  const biped = n.plan === D.PLAN.biped;
+  const limb = (slot: 'legB' | 'legF', top: XY, f: XY): Path =>
+    limbOutline(legLimb(legSpecOf(slot, biped, top, f, legW, foot, n.soleL, muscular), 0));
   const far = (path: (dx: number) => Path): [Path, Path] => [path(0), path(3.2)];
-  if (n.plan === D.PLAN.quadruped || n.plan === D.PLAN.biped) {
-    put('legB', limb(hipB, fB));
-    put('legBFar', limb([hipB[0] + 3.2, hipB[1]], [fB[0] + 3.2, fB[1]]));
-    if (n.plan !== D.PLAN.biped) { // a biped has no front legs
-      put('legF', limb(shF, fF));
-      put('legFFar', limb([shF[0] + 3.2, shF[1]], [fF[0] + 3.2, fF[1]]));
+  if (n.plan === D.PLAN.quadruped || biped) {
+    put('legB', limb('legB', hipB, fB));
+    put('legBFar', limb('legB', [hipB[0] + 3.2, hipB[1]], [fB[0] + 3.2, fB[1]]));
+    if (!biped) { // a biped has no front legs
+      put('legF', limb('legF', shF, fF));
+      put('legFFar', limb('legF', [shF[0] + 3.2, shF[1]], [fF[0] + 3.2, fF[1]]));
     }
   } else if (n.plan === D.PLAN.insect) {
     // six jointed legs: the knee rises above the hip, the shin drops steeply to a small flat foot; the front and

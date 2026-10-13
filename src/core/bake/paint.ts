@@ -9,6 +9,7 @@ import type { XY } from '../art/path';
 import type { ColorKey, Part3D } from '../art/spec3d';
 import { edgesOf, partBox, sdPolys, toLocal, type Edge } from './field';
 import type { Mesh } from './surfacenets';
+import { limbSd } from '../art/limb';
 
 /** AMS slot (0-based) of every colour the drawing uses: shades of a palette colour print in that colour. */
 export const FILAMENT_OF: Record<ColorKey, number> = { c1: 0, c1dark: 0, c2: 1, c2soft: 1, c3: 2, ink: 2, white: 3 };
@@ -33,6 +34,7 @@ const within = (s: Shape, x: number, y: number, z: number): boolean =>
 /** Signed distance to the rounded slab of a part (the same shape the bake fuses, without the slit closing). */
 function partSd(s: Shape, x: number, y: number, z: number): number {
   const { part } = s;
+  if (part.limb) return limbSd(part.limb, x, y, z);
   const half = part.thickness / 2, r = Math.min(part.bevel, half - 0.01);
   const [u, v, w] = toLocal(part, x, y, z);
   const wx = sdPolys(s.edges, part.polys, u, v) + r, wy = Math.abs(w - part.z) - half + r;

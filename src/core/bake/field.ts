@@ -6,6 +6,7 @@
 import type { Part3D } from '../art/spec3d';
 import type { XY } from '../art/path';
 import type { Grid3 } from './surfacenets';
+import { limbBox, limbSd } from '../art/limb';
 
 export const BIG = 6; // mm, "far away" distance written into empty space
 
@@ -66,6 +67,7 @@ export const toLocal = (p: Part3D, x: number, y: number, z: number): [number, nu
 
 /** World bounding box of a part's slab (without bevel growth: the slab never leaves its outline and thickness). */
 export function partBox(p: Part3D): { lo: [number, number, number]; hi: [number, number, number] } {
+  if (p.limb) return limbBox(p.limb);
   let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
   for (const poly of p.polys) for (const [u, v] of poly) { u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v); }
   const w0 = p.z - p.thickness / 2, w1 = p.z + p.thickness / 2;
@@ -116,6 +118,7 @@ export function closeOutline(d2: Float32Array, w: number, hgt: number, h: number
 /** Fuse a part into the grid with a smooth union. */
 export function addPart(g: Grid3, part: Part3D, k: number): void {
   const { h, nx, ny, nz } = g;
+  if (part.limb) { addLimb(g, part, k); return; }
   const edges = edgesOf(part.polys);
   if (!edges.length) return;
   const pad = k + 2 * h + part.bevel;
@@ -146,6 +149,22 @@ export function addPart(g: Grid3, part: Part3D, k: number): void {
       if (d3 > cur + k) continue;
       g.data[idx] = smin(cur, d3, k);
     }
+  }
+}
+
+/** Fuse a true 3D part (a jointed leg) into the grid with a smooth union. */
+function addLimb(g: Grid3, part: Part3D, k: number): void {
+  const { h, nx, ny, nz } = g, limb = part.limb!;
+  const pad = k + 2 * h;
+  const { lo, hi } = limbBox(limb);
+  const i0 = Math.max(0, Math.floor((lo[0] - pad - g.ox) / h)), i1 = Math.min(nx - 1, Math.ceil((hi[0] + pad - g.ox) / h));
+  const j0 = Math.max(0, Math.floor((lo[1] - pad - g.oy) / h)), j1 = Math.min(ny - 1, Math.ceil((hi[1] + pad - g.oy) / h));
+  const k0 = Math.max(0, Math.floor((lo[2] - pad - g.oz) / h)), k1 = Math.min(nz - 1, Math.ceil((hi[2] + pad - g.oz) / h));
+  for (let kk = k0; kk <= k1; kk++) for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+    const idx = (kk * ny + j) * nx + i, cur = g.data[idx]!;
+    const d3 = limbSd(limb, g.ox + i * h, g.oy + j * h, g.oz + kk * h);
+    if (d3 > cur + k) continue;
+    g.data[idx] = smin(cur, d3, k);
   }
 }
 

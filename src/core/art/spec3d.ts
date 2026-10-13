@@ -11,6 +11,7 @@ import { dimensions as D, type Rig } from '../rig';
 import { groupOfSlot, type PartGroup } from '../print/plan';
 import { EYES, WHISKER_TURN, octopusArms, STALK_W, STAND_MARGIN_MM, STAND_MM, WHISKER_FAN, WHISKER_PAD, WHISKER_W, whiskerLength, type SlotId, type SlotPaths } from './shapes';
 import type { XY } from './path';
+import { legLimb, legSpecOf, type Limb } from './limb';
 import { edgesOf, sdPolys, type Edge } from '../bake/field';
 
 export type ColorKey = 'c1' | 'c1dark' | 'c2' | 'c2soft' | 'c3' | 'ink' | 'white';
@@ -35,6 +36,8 @@ export interface Part3D {
   color: ColorKey;
   /** -1 / +1 for paired parts, 0 on the centre plane */
   side: -1 | 0 | 1;
+  /** a true 3D solid (a jointed leg) in world mm: then `polys` is only its side view, see limb.ts */
+  limb?: Limb;
 }
 
 interface Ctx { W: number; G: number; legW: number; legZ: number; headW: number; snoutW: number; neckT: number }
@@ -112,6 +115,13 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig): P
     if (p.slot === 'pupil') p.z = zs + 2.2 * p.side;
   }
   for (const p of out) if (p.slot === 'stand') standTop(p, g, rig);
+  // jointed legs of four- and two-legged creatures are real 3D chains (insects and caterpillars keep their slabs)
+  const plan = rig.dims.plan, biped = plan === D.PLAN.biped;
+  if (plan === D.PLAN.quadruped || biped) for (const p of out) {
+    if (p.slot !== 'legB' && p.slot !== 'legF') continue;
+    const [top, foot] = p.slot === 'legB' ? [rig.nodes.hipB, rig.nodes.footBL] : [rig.nodes.shoulderF, rig.nodes.footFL];
+    p.limb = legLimb(legSpecOf(p.slot, biped, [top.x, top.y], [foot.x, foot.y], rig.dims.legWidth, g.legs!.foot!, rig.dims.soleLength, rig.dims.build === 2), p.z);
+  }
   for (const p of out) if (p.slot === 'arms') { // octopus arms lie flat on the bed around the hub
     p.polys = octopusArms(rig.nodes.torso.x, D.OCTOPUS.armLen(g.legs!.length!), Math.max(6, rig.dims.bodyWidth * D.OCTOPUS.hub));
     p.plane = 'xz';

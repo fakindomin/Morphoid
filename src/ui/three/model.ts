@@ -28,7 +28,35 @@ export interface Model {
   dispose(): void;
 }
 
+/** A jointed leg (world mm): a tapered cylinder per segment, a ball at every joint, half an ellipsoid for the paw. */
+function limbGeometry(p: Part3D): THREE.BufferGeometry[] {
+  const out: THREE.BufferGeometry[] = [];
+  const up = new THREE.Vector3(0, 1, 0);
+  for (const c of p.limb!.cones) {
+    const a = new THREE.Vector3(...c.a), b = new THREE.Vector3(...c.b), len = a.distanceTo(b);
+    if (len > 1e-3) {
+      const cyl = new THREE.CylinderGeometry(c.rb, c.ra, len, 20, 1, true);
+      cyl.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(up, b.clone().sub(a).normalize()));
+      cyl.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
+      out.push(cyl);
+    }
+    for (const [q, r] of [[a, c.ra], [b, c.rb]] as const) {
+      const ball = new THREE.SphereGeometry(r, 20, 12);
+      ball.translate(q.x, q.y, q.z);
+      out.push(ball);
+    }
+  }
+  for (const d of p.limb!.domes) {
+    const dome = new THREE.SphereGeometry(1, 28, 10, 0, Math.PI * 2, 0, Math.PI / 2);
+    dome.scale(d.r[0], d.r[1], d.r[2]);
+    dome.translate(d.c[0], d.c[1], d.c[2]);
+    out.push(dome);
+  }
+  return out;
+}
+
 function geometryFor(p: Part3D): THREE.BufferGeometry[] {
+  if (p.limb) return limbGeometry(p);
   const b = Math.max(0, Math.min(p.bevel, p.thickness / 2 - 0.01));
   const depth = Math.max(0.05, p.thickness - 2 * b);
   return p.polys.map((poly) => {
@@ -126,7 +154,7 @@ export function buildModel(genome: MorphotypeGenome, plan: PrintPlan, report: Pr
       const mesh = new THREE.Mesh(geo, material);
       // a top-view part is drawn in (x, z) and extruded along y: +90 deg about X maps (u, v, w) to (u, -w, v), and the
       // slab is symmetric in w
-      if (part.plane === 'xz') { mesh.rotation.x = Math.PI / 2; mesh.position.y = part.z; } else mesh.position.z = part.z;
+      if (part.limb) { /* already in world mm */ } else if (part.plane === 'xz') { mesh.rotation.x = Math.PI / 2; mesh.position.y = part.z; } else mesh.position.z = part.z;
       holder.add(mesh);
     }
   }
