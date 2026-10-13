@@ -26,7 +26,7 @@ export const SLOTS = [
   ['mane', 'accent'], ['collar', 'accent'], ['ear', 'skin'], ['earIn', 'accentSoft'], ['horns', 'accent'], ['antennae', 'accent'], ['tuft', 'accent'],
   ['head', 'skin'], ['snout', 'skin'], ['wingNear', 'accent'], ['nose', 'ink'],
   ['mouth', 'groove'], ['teeth', 'white'], ['whiskers', 'skinFar'], ['stalks', 'skin'], ['blush', 'blush'], ['toes', 'groove'], ['eye', 'white'], ['iris', 'iris'], ['pupil', 'ink'],
-  ['glint', 'glint'], ['brow', 'groove'], ['bones', 'bone'],
+  ['glint', 'glint'], ['brow', 'groove'], ['wingRibs', 'groove'], ['bones', 'bone'],
 ] as const satisfies readonly (readonly [string, SlotKind])[];
 
 export type SlotId = (typeof SLOTS)[number][0];
@@ -56,6 +56,34 @@ export const insectRise = (bodyG: number): number => Math.max(5, bodyG * 0.45);
 export function prolegXs(torsoX: number, bodyL: number): number[] {
   const cnt = Math.max(3, Math.round(bodyL / 10));
   return Array.from({ length: cnt }, (_, i) => torsoX - bodyL * 0.4 + (bodyL * 0.8 * i) / (cnt - 1));
+}
+
+/** A rib of a wing: a side-view centre line with its radius at both ends (mm). */
+export interface WingRib { a: XY; b: XY; ra: number; rb: number }
+
+/**
+ * The skeleton of a wing, the same in the drawing and the solid. Bat: an arm along the leading edge to the wrist and
+ * three fingers spreading to the tips; feathers: the same arm and four shafts fanning back to the trailing edge.
+ * Every end stays ~0.06 of the span inside the outline so a rib never pokes past the membrane.
+ */
+export function wingRibs(type: number, root: XY, s: number): WingRib[] {
+  const [x, y] = root, at = (u: number, v: number): XY => [x + u * s, y + v * s];
+  const S: XY = [x + 1.2, y + Math.max(3, s * 0.1)], W = at(0, 0.85); // starts clear of the body: the joint stays in the membrane plane
+  const arm = Math.min(1.8, 1 + s * 0.018), fin = Math.max(0.7, arm * 0.5);
+  const lerp = (a: XY, b: XY, f: number): XY => [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+  const out: WingRib[] = [{ a: S, b: W, ra: arm, rb: arm * 0.82 }];
+  if (type === 2) {
+    // finger tips sit in sharp corners of the outline: pulled well back towards the wrist
+    for (const [u, v] of [[-0.3, 1.05], [-0.8, 0.8], [-0.4, 0.55]] as const) out.push({ a: W, b: lerp(at(u, v), W, 0.16), ra: arm * 0.75, rb: fin });
+  } else {
+    // shafts slant back towards the wing tip like the long flight feathers of a folded wing
+    const A: XY = [x + 3, y - 1.5], P1 = at(-0.62, 0.78), mid = at(-0.25, 0.7);
+    out.push({ a: W, b: lerp(at(-0.35, 1.05), mid, 0.2), ra: arm * 0.7, rb: fin });
+    for (const [f, g] of [[1, 1], [0.78, 0.86], [0.56, 0.72], [0.36, 0.58]] as const) {
+      out.push({ a: lerp(S, W, f), b: lerp(lerp(A, P1, g), mid, 0.18), ra: arm * 0.6, rb: fin });
+    }
+  }
+  return out;
 }
 
 /** Bat-wing finger tips (t1, t2) and the scallop notch (n1) as fractions of the wing size. */
@@ -468,6 +496,10 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
       : polygon([A, [x - 0.62 * s, y + 0.78 * s], [x - 0.35 * s, y + 1.05 * s], [x + 0.05 * s, y + 0.95 * s]]);
     put('wingNear', w);
     put('wingFar', w.translated(-3.5, 2.5));
+    // bones (bat) or feather shafts: raised ridges on the outer face, drawn as lines along their crests
+    const ribs = new Path();
+    for (const r of wingRibs(wingType, wingRoot, s)) ribs.append(tube(r.a, r.b, 0.9, 0.7));
+    put('wingRibs', ribs);
   }
 
   // ---- face -------------------------------------------------------------------------

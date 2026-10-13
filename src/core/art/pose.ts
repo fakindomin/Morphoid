@@ -17,7 +17,7 @@ export interface Nums {
 }
 export interface Pose { pos: PosMap; n: Nums }
 
-const typeSize = (g: MorphotypeGenome, block: 'ears' | 'horns' | 'wings' | 'crest' | 'antennae', table: readonly number[], f: string): number =>
+export const typeSize = (g: MorphotypeGenome, block: 'ears' | 'horns' | 'wings' | 'crest' | 'antennae', table: readonly number[], f: string): number =>
   g[block]!.type === 0 ? 0 : table[g[block]![f]!]!;
 
 export function targetPose(

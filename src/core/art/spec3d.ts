@@ -9,8 +9,9 @@
 import type { MorphotypeGenome } from '../genome';
 import { dimensions as D, type Rig } from '../rig';
 import { groupOfSlot, type PartGroup } from '../print/plan';
-import { EYES, WHISKER_TURN, insectHips, insectLegW, insectRise, prolegXs, roundTail, STALK_W, STAND_MARGIN_MM, STAND_MM, WHISKER_FAN, WHISKER_PAD, WHISKER_W, whiskerLength, type SlotId, type SlotPaths } from './shapes';
+import { EYES, WHISKER_TURN, insectHips, insectLegW, insectRise, prolegXs, roundTail, STALK_W, wingRibs, STAND_MARGIN_MM, STAND_MM, WHISKER_FAN, WHISKER_PAD, WHISKER_W, whiskerLength, type SlotId, type SlotPaths } from './shapes';
 import type { XY } from './path';
+import { typeSize } from './pose';
 import { insectLimb, legLimb, legSpecOf, octopusLimb, prolegLimb, type Limb } from './limb';
 import { edgesOf, sdPolys, type Edge } from '../bake/field';
 
@@ -38,6 +39,8 @@ export interface Part3D {
   side: -1 | 0 | 1;
   /** a true 3D solid (a jointed leg) in world mm: then `polys` is only its side view, see limb.ts */
   limb?: Limb;
+  /** raised 3D ribs fused onto the slab (wing bones, feather shafts), world mm */
+  ribs?: Limb;
 }
 
 interface Ctx { W: number; G: number; legW: number; legZ: number; headW: number; snoutW: number; neckT: number }
@@ -50,6 +53,7 @@ const centre = (): number => 0;
 /** `null` = deliberately not a 3D solid (render-only shading, or the mirror image of another slot). */
 export const SPEC_3D: Record<SlotId, Spec | null> = {
   shadow: null, torsoClip: null, belly: null, glint: null, bones: null, iris: null, blush: null, toes: null, // render-only
+  wingRibs: null, // drawn crests of the wing ribs; the ribs themselves are `ribs` on the wing, see buildParts3D
   legBFar: null, legFFar: null, wingFar: null,                          // mirror images, generated from the near slot
   torso: { color: 'c1', mirror: false, z: centre, t: (c) => c.W, bevel: (t) => round(0.48)(t) },
   pattern: null, // painted onto the torso surface (colour region), see the viewport
@@ -136,6 +140,14 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig): P
     if (tl) p.limb = tl;
   }
   if (plan === D.PLAN.caterpillar) for (const p of out) if (p.slot === 'legF') p.limb = prolegLimb(prolegXs(rig.nodes.torso.x, rig.dims.bodyLength), p.z);
+  // wing ribs stand on the OUTER face (the inner one stays flat: the wing prints lying on it)
+  const wingS = typeSize(g, 'wings', D.WING_SPAN, 'scale');
+  if (g.wings!.type! > 0 && wingS > 0.5) for (const p of out) if (p.slot === 'wingNear') {
+    const zo = Math.abs(p.z) + p.thickness / 2, side = p.side || 1;
+    const zAt = (r: number): number => side * (zo - 0.25 * r);
+    const n = rig.nodes.wingRoot;
+    p.ribs = { cones: wingRibs(g.wings!.type!, [n.x, n.y], wingS).map((r) => ({ a: [r.a[0], r.a[1], zAt(r.ra)], b: [r.b[0], r.b[1], zAt(r.rb)], ra: r.ra, rb: r.rb })), domes: [] };
+  }
   return out;
 }
 

@@ -9,7 +9,7 @@ import { buildPaths, type SlotId } from '../art/shapes';
 import { buildParts3D, type Part3D } from '../art/spec3d';
 import { GROUPS, isSeparate, pieceOf, type PartGroup, type PrintPlan } from '../print';
 import { closeSmallHoles, restore } from './close';
-import { addPart, clipBelow, gridDims, makeGrid, partBox } from './field';
+import { addPart, clipBelow, clipMid, gridDims, makeGrid, partBox } from './field';
 import { flipMesh, validateMesh, type MeshValidation } from './mesh';
 import { JOIN_MARGIN_MM, crop, cutAway, joinPart, newHostSockets, type HostSockets, type Joint } from './joint';
 import { paintMesh } from './paint';
@@ -194,6 +194,8 @@ export function bake(
     for (const p of ps) addPart(grid, p, BLEND_MM);
     // flat cuts so a piece has a real footprint on the bed
     if (id === 'head') clipBelow(grid, rig.nodes.neckBase.y);
+    // wings print lying on their inner face: the ribs' smooth blend must not bulge through it
+    if (id === 'wings') { const w = ps.filter((p) => p.ribs); if (w.length) clipMid(grid, Math.min(...w.map((p) => Math.abs(p.z) - p.thickness / 2))); }
     if (id === 'body' && legsSeparate) {
       let ymin = Infinity;
       for (const p of ps) ymin = Math.min(ymin, partBox(p).lo[1]);

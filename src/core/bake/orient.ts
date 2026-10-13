@@ -35,6 +35,21 @@ function components(m: Mesh): { tris: number[]; min: [number, number, number]; m
   });
 }
 
+/** Area of the faces lying in the lowest (bottom) or highest (top) 0.3 mm of a body and facing out of it. */
+function flatArea(m: Mesh, c: { tris: number[]; min: number[]; max: number[] }, which: 'top' | 'bottom'): number {
+  const P = m.positions, I = m.indices;
+  let a = 0;
+  for (const t of c.tris) {
+    const i = 3 * I[3 * t]!, j = 3 * I[3 * t + 1]!, k = 3 * I[3 * t + 2]!;
+    const zs = [P[i + 2]!, P[j + 2]!, P[k + 2]!];
+    if (which === 'bottom' ? Math.max(...zs) > c.min[2]! + 0.3 : Math.min(...zs) < c.max[2]! - 0.3) continue;
+    const ux = P[j]! - P[i]!, uy = P[j + 1]! - P[i + 1]!, vx = P[k]! - P[i]!, vy = P[k + 1]! - P[i + 1]!;
+    const nz = (ux * vy - uy * vx) / 2;
+    if (which === 'bottom' ? nz < 0 : nz > 0) a += Math.abs(nz);
+  }
+  return a;
+}
+
 export function printMesh(piece: BakedPiece): Mesh {
   const src = piece.mesh;
   if (piece.orientation === 'upright') {
@@ -54,12 +69,15 @@ export function printMesh(piece: BakedPiece): Mesh {
   const P = new Float32Array(src.positions.length);
   let cursor = 0;
   for (const c of comps) {
-    const dx = -xmin, dy = cursor - c.min[1], dz = -c.min[2];
+    // a body with ribs or a peg on one face lies on the other one: turned over (180 deg about X) when its top is flatter
+    const flip = flatArea(src, c, 'top') > flatArea(src, c, 'bottom') * 1.2;
+    const [ymin, ymax] = flip ? [-c.max[1], -c.min[1]] : [c.min[1], c.max[1]];
+    const dx = -xmin, dy = cursor - ymin, dz = flip ? c.max[2] : -c.min[2];
     for (const t of c.tris) for (let k = 0; k < 3; k++) {
-      const v = src.indices[3 * t + k]!;
-      P[3 * v] = src.positions[3 * v]! + dx; P[3 * v + 1] = src.positions[3 * v + 1]! + dy; P[3 * v + 2] = src.positions[3 * v + 2]! + dz;
+      const v = src.indices[3 * t + k]!, sg = flip ? -1 : 1;
+      P[3 * v] = src.positions[3 * v]! + dx; P[3 * v + 1] = sg * src.positions[3 * v + 1]! + dy; P[3 * v + 2] = sg * src.positions[3 * v + 2]! + dz;
     }
-    cursor += c.max[1] - c.min[1] + GAP_MM;
+    cursor += ymax - ymin + GAP_MM;
   }
   return { positions: P, indices: src.indices };
 }

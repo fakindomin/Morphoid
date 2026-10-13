@@ -6,7 +6,7 @@
 import type { Part3D } from '../art/spec3d';
 import type { XY } from '../art/path';
 import type { Grid3 } from './surfacenets';
-import { limbBox, limbSd } from '../art/limb';
+import { limbBox, limbSd, type Limb } from '../art/limb';
 
 export const BIG = 6; // mm, "far away" distance written into empty space
 
@@ -68,6 +68,13 @@ export const toLocal = (p: Part3D, x: number, y: number, z: number): [number, nu
 /** World bounding box of a part's slab (without bevel growth: the slab never leaves its outline and thickness). */
 export function partBox(p: Part3D): { lo: [number, number, number]; hi: [number, number, number] } {
   if (p.limb) return limbBox(p.limb);
+  const slab = slabBox(p);
+  if (!p.ribs) return slab;
+  const r = limbBox(p.ribs);
+  return { lo: slab.lo.map((v, i) => Math.min(v, r.lo[i]!)) as [number, number, number], hi: slab.hi.map((v, i) => Math.max(v, r.hi[i]!)) as [number, number, number] };
+}
+
+function slabBox(p: Part3D): { lo: [number, number, number]; hi: [number, number, number] } {
   let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
   for (const poly of p.polys) for (const [u, v] of poly) { u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v); }
   const w0 = p.z - p.thickness / 2, w1 = p.z + p.thickness / 2;
@@ -118,11 +125,12 @@ export function closeOutline(d2: Float32Array, w: number, hgt: number, h: number
 /** Fuse a part into the grid with a smooth union. */
 export function addPart(g: Grid3, part: Part3D, k: number): void {
   const { h, nx, ny, nz } = g;
-  if (part.limb) { addLimb(g, part, k); return; }
+  if (part.limb) { addLimb(g, part.limb, k); return; }
+  if (part.ribs) addLimb(g, part.ribs, k);
   const edges = edgesOf(part.polys);
   if (!edges.length) return;
   const pad = k + 2 * h + part.bevel;
-  const { lo, hi } = partBox(part);
+  const { lo, hi } = slabBox(part);
   const i0 = Math.max(0, Math.floor((lo[0] - pad - g.ox) / h)), i1 = Math.min(nx - 1, Math.ceil((hi[0] + pad - g.ox) / h));
   const j0 = Math.max(0, Math.floor((lo[1] - pad - g.oy) / h)), j1 = Math.min(ny - 1, Math.ceil((hi[1] + pad - g.oy) / h));
   const k0 = Math.max(0, Math.floor((lo[2] - pad - g.oz) / h)), k1 = Math.min(nz - 1, Math.ceil((hi[2] + pad - g.oz) / h));
@@ -153,8 +161,8 @@ export function addPart(g: Grid3, part: Part3D, k: number): void {
 }
 
 /** Fuse a true 3D part (a jointed leg) into the grid with a smooth union. */
-function addLimb(g: Grid3, part: Part3D, k: number): void {
-  const { h, nx, ny, nz } = g, limb = part.limb!;
+function addLimb(g: Grid3, limb: Limb, k: number): void {
+  const { h, nx, ny, nz } = g;
   const pad = k + 2 * h;
   const { lo, hi } = limbBox(limb);
   const i0 = Math.max(0, Math.floor((lo[0] - pad - g.ox) / h)), i1 = Math.min(nx - 1, Math.ceil((hi[0] + pad - g.ox) / h));
@@ -165,6 +173,16 @@ function addLimb(g: Grid3, part: Part3D, k: number): void {
     const d3 = limbSd(limb, g.ox + i * h, g.oy + j * h, g.oz + kk * h);
     if (d3 > cur + k) continue;
     g.data[idx] = smin(cur, d3, k);
+  }
+}
+
+/** Remove the slab |z| < z0 (the gap between a pair of wings: their inner faces stay flat). */
+export function clipMid(g: Grid3, z0: number): void {
+  const { nx, ny, nz, h } = g;
+  for (let k = 0; k < nz; k++) {
+    const d = z0 - Math.abs(g.oz + k * h);
+    if (d <= 0) continue;
+    for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) { const idx = (k * ny + j) * nx + i; if (d > g.data[idx]!) g.data[idx] = d; }
   }
 }
 

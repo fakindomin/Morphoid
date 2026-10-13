@@ -39,7 +39,8 @@ function partSd(s: Shape, x: number, y: number, z: number): number {
   const [u, v, w] = toLocal(part, x, y, z);
   const wx = sdPolys(s.edges, part.polys, u, v) + r, wy = Math.abs(w - part.z) - half + r;
   const px = Math.max(wx, 0), py = Math.max(wy, 0);
-  return Math.min(Math.max(wx, wy), 0) + Math.hypot(px, py) - r;
+  const d = Math.min(Math.max(wx, wy), 0) + Math.hypot(px, py) - r;
+  return part.ribs ? Math.min(d, limbSd(part.ribs, x, y, z)) : d;
 }
 
 /**

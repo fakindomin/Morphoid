@@ -5,6 +5,7 @@ import { solveRig, type NodeId } from '../../core/rig';
 import { targetPose } from '../../core/art/pose';
 import { buildPaths } from '../../core/art/shapes';
 import { buildParts3D, ctxFor, type ColorKey, type Part3D } from '../../core/art/spec3d';
+import type { Limb } from '../../core/art/limb';
 import { groupOfSlot, pieceOf, type PartGroup, type PrintPlan, type PrintReport } from '../../core/print';
 
 /** How far each separately printed piece slides away in the exploded view (mm at 100%). z is multiplied by the piece's side. */
@@ -29,10 +30,10 @@ export interface Model {
 }
 
 /** A jointed leg (world mm): a tapered cylinder per segment, a ball at every joint, half an ellipsoid for the paw. */
-function limbGeometry(p: Part3D): THREE.BufferGeometry[] {
+function limbGeometry(limb: Limb): THREE.BufferGeometry[] {
   const out: THREE.BufferGeometry[] = [];
   const up = new THREE.Vector3(0, 1, 0);
-  for (const c of p.limb!.cones) {
+  for (const c of limb.cones) {
     const a = new THREE.Vector3(...c.a), b = new THREE.Vector3(...c.b), len = a.distanceTo(b);
     if (len > 1e-3) {
       const cyl = new THREE.CylinderGeometry(c.rb, c.ra, len, 20, 1, true);
@@ -46,7 +47,7 @@ function limbGeometry(p: Part3D): THREE.BufferGeometry[] {
       out.push(ball);
     }
   }
-  for (const d of p.limb!.domes) {
+  for (const d of limb.domes) {
     const dome = new THREE.SphereGeometry(1, 28, 10, 0, Math.PI * 2, 0, Math.PI / 2);
     dome.scale(d.r[0], d.r[1], d.r[2]);
     dome.translate(d.c[0], d.c[1], d.c[2]);
@@ -56,7 +57,7 @@ function limbGeometry(p: Part3D): THREE.BufferGeometry[] {
 }
 
 function geometryFor(p: Part3D): THREE.BufferGeometry[] {
-  if (p.limb) return limbGeometry(p);
+  if (p.limb) return limbGeometry(p.limb);
   const b = Math.max(0, Math.min(p.bevel, p.thickness / 2 - 0.01));
   const depth = Math.max(0.05, p.thickness - 2 * b);
   return p.polys.map((poly) => {
@@ -157,6 +158,7 @@ export function buildModel(genome: MorphotypeGenome, plan: PrintPlan, report: Pr
       if (part.limb) { /* already in world mm */ } else if (part.plane === 'xz') { mesh.rotation.x = Math.PI / 2; mesh.position.y = part.z; } else mesh.position.z = part.z;
       holder.add(mesh);
     }
+    if (part.ribs) for (const geo of limbGeometry(part.ribs)) { geometries.push(geo); holder.add(new THREE.Mesh(geo, material)); }
   }
 
   // pegs for the separately printed parts (preview markers; real peg geometry comes with the bake)
