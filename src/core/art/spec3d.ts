@@ -11,6 +11,7 @@ import type { Rig } from '../rig';
 import { groupOfSlot, type PartGroup } from '../print/plan';
 import type { SlotId, SlotPaths } from './shapes';
 import type { XY } from './path';
+import { edgesOf, sdPolys, type Edge } from '../bake/field';
 
 export type ColorKey = 'c1' | 'c1dark' | 'c2' | 'c2soft' | 'c3' | 'ink' | 'white';
 
@@ -92,5 +93,56 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig): P
       out.push({ id: slot, slot, group, polys, z, thickness: t, bevel, color: spec.color, side: 0 });
     }
   }
+  const head = out.find((p) => p.slot === 'head');
+  if (head) for (const p of out) if (p.slot === 'ear') p.polys = seatOn(p, head);
   return out;
+}
+
+/** Signed distance to a part's rounded slab (the shape the bake fuses). */
+function slabSd(p: Part3D, e: Edge[], x: number, y: number, z: number): number {
+  const half = p.thickness / 2, r = Math.min(p.bevel, half - 0.01);
+  const wx = sdPolys(e, p.polys, x, y) + r, wy = Math.abs(z - p.z) - half + r;
+  const px = Math.max(wx, 0), py = Math.max(wy, 0);
+  return Math.min(Math.max(wx, wy), 0) + Math.hypot(px, py) - r;
+}
+
+/** How deep (mm) the root of an element must reach below its 2D base to sit in the head across its whole thickness. */
+const SEAT_MM = 0.4;
+const MAX_ROOT_MM = 6;
+
+/**
+ * An element standing on the head off the centre plane (an ear) is drawn with its base tucked behind the head, but the
+ * head is rounded across Z, so at the ear's Z its top is lower than the 2D outline: a flat skull leaves a strip of the
+ * ear's base in the air. The ear gets a root, hidden inside the head outline, that runs down until it is SEAT_MM deep
+ * in the head on both faces of the ear.
+ */
+function seatOn(p: Part3D, host: Part3D): XY[][] {
+  const pe = edgesOf(p.polys), he = edgesOf(host.polys);
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const poly of p.polys) for (const [x, y] of poly) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  const zs = [p.z - p.thickness / 2 + p.bevel, p.z + p.thickness / 2 - p.bevel];
+  const step = 0.25, top: XY[] = [], bottom: XY[] = [], roots: XY[][] = [];
+  const close = (): void => {
+    if (top.length > 1) roots.push([...top, ...bottom.reverse()]);
+    top.length = 0; bottom.length = 0;
+  };
+  for (let x = x0; x <= x1 + 1e-9; x += step) {
+    // the ear's lowest point in this column, where that point is inside the head outline (hidden in 2D)
+    let yb = NaN;
+    for (let y = y0; y <= y1; y += 0.1) if (sdPolys(pe, p.polys, x, y) < 0) { yb = y; break; }
+    // (a corner right at the head's edge counts too: the root then starts a hair outside, too little to see)
+    if (isNaN(yb) || sdPolys(he, host.polys, x, yb) > 0.5) { close(); continue; }
+    let d = 0;
+    while (d < MAX_ROOT_MM && zs.some((z) => slabSd(host, he, x, yb - d, z) > -SEAT_MM)) d += 0.1;
+    // the root must stay inside the head outline (never show below it in 2D)
+    while (d > 0 && sdPolys(he, host.polys, x, yb - d) > -SEAT_MM) d -= 0.1;
+    if (d <= 0.05) { close(); continue; }
+    top.push([x, yb + 0.3]); bottom.push([x, yb - d]);
+  }
+  close();
+  if (!roots.length) return p.polys;
+  // same winding as the ear itself, so the non-zero fill adds the root instead of cancelling it
+  const area = (poly: XY[]): number => poly.reduce((a, [x, y], i) => { const [u, v] = poly[(i + 1) % poly.length]!; return a + x * v - u * y; }, 0);
+  const sign = Math.sign(area(p.polys[0]!));
+  return [...p.polys, ...roots.map((r) => (Math.sign(area(r)) === sign ? r : r.reverse()))];
 }

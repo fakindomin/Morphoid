@@ -44,3 +44,36 @@ describe('3D contract: everything drawn in 2D exists in 3D', () => {
     expect(wings[0]!.thickness).toBe(1.6);
   });
 });
+
+describe('3D contract: elements sit on what they stand on', () => {
+  it('the hidden base of an ear rests on the head across its whole thickness (every skull, ear type and size)', async () => {
+    const { edgesOf, sdPolys } = await import('../src/core/bake/field');
+    const slab = (p: ReturnType<typeof parts>['parts'][number], x: number, y: number, z: number): number => {
+      const half = p.thickness / 2, r = Math.min(p.bevel, half - 0.01);
+      const wx = sdPolys(edgesOf(p.polys), p.polys, x, y) + r, wy = Math.abs(z - p.z) - half + r;
+      return Math.min(Math.max(wx, wy), 0) + Math.hypot(Math.max(wx, 0), Math.max(wy, 0)) - r;
+    };
+    const bad: string[] = [];
+    for (let skull = 0; skull < 3; skull++) for (let type = 1; type <= 3; type++) for (let scale = 0; scale <= 5; scale++) {
+      const g = defaultGenome(); g.head!.skull = skull; g.ears!.type = type; g.ears!.scale = scale;
+      const ps = parts(g).parts;
+      const ear = ps.find((p) => p.id === 'ear+')!, head = ps.find((p) => p.slot === 'head')!;
+      const ee = edgesOf(ear.polys), he = edgesOf(head.polys);
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      for (const poly of ear.polys) for (const [x, y] of poly) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+      // columns where the ear's lowest point is tucked behind the head in 2D: there it must touch the head in 3D too
+      let run = 0, worst = 0;
+      for (let x = x0; x <= x1; x += 0.1) {
+        let yb = NaN;
+        for (let y = y0; y <= y1; y += 0.1) if (sdPolys(ee, ear.polys, x, y) < 0) { yb = y; break; }
+        const hidden = !isNaN(yb) && sdPolys(he, head.polys, x, yb) < 0;
+        const gap = hidden ? Math.max(...[-0.4, 0, 0.4].map((f) => slab(head, x, yb - 0.1, ear.z + f * ear.thickness))) : 0;
+        run = gap > 0.3 ? run + 0.1 : 0;
+        worst = Math.max(worst, run);
+      }
+      // a strip narrower than the nozzle (0.4 mm) is not printed as a separate line
+      if (worst >= 0.4) bad.push(`skull ${skull} ears ${type} size ${scale + 1}: ${worst.toFixed(1)} mm of the base in the air`);
+    }
+    expect(bad).toEqual([]);
+  });
+});
