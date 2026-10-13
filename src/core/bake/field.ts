@@ -60,11 +60,24 @@ export function sdPolys(edges: Edge[], polys: XY[][], x: number, y: number): num
   return inside ? -d : d;
 }
 
+/** A point in a part's own frame: (outline u, outline v, extrusion w). Side-view parts: (x, y, z); top-view: (x, z, y). */
+export const toLocal = (p: Part3D, x: number, y: number, z: number): [number, number, number] =>
+  p.plane === 'xz' ? [x, z, y] : [x, y, z];
+
+/** World bounding box of a part's slab (without bevel growth: the slab never leaves its outline and thickness). */
+export function partBox(p: Part3D): { lo: [number, number, number]; hi: [number, number, number] } {
+  let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+  for (const poly of p.polys) for (const [u, v] of poly) { u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v); }
+  const w0 = p.z - p.thickness / 2, w1 = p.z + p.thickness / 2;
+  return p.plane === 'xz' ? { lo: [u0, w0, v0], hi: [u1, w1, v1] } : { lo: [u0, v0, w0], hi: [u1, v1, w1] };
+}
+
 export function gridDims(parts: Part3D[], h: number, margin = 3): { nx: number; ny: number; nz: number; ox: number; oy: number; oz: number } {
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity;
   for (const p of parts) {
-    for (const poly of p.polys) for (const [x, y] of poly) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
-    z0 = Math.min(z0, p.z - p.thickness / 2); z1 = Math.max(z1, p.z + p.thickness / 2);
+    const { lo, hi } = partBox(p);
+    x0 = Math.min(x0, lo[0]); y0 = Math.min(y0, lo[1]); z0 = Math.min(z0, lo[2]);
+    x1 = Math.max(x1, hi[0]); y1 = Math.max(y1, hi[1]); z1 = Math.max(z1, hi[2]);
   }
   const m = margin;
   // grid phase is fixed in space (multiples of h): two bakes of nearly the same model give comparable meshes
@@ -105,32 +118,35 @@ export function addPart(g: Grid3, part: Part3D, k: number): void {
   const { h, nx, ny, nz } = g;
   const edges = edgesOf(part.polys);
   if (!edges.length) return;
-  let px0 = Infinity, px1 = -Infinity, py0 = Infinity, py1 = -Infinity;
-  for (const poly of part.polys) for (const [x, y] of poly) { px0 = Math.min(px0, x); px1 = Math.max(px1, x); py0 = Math.min(py0, y); py1 = Math.max(py1, y); }
   const pad = k + 2 * h + part.bevel;
-  const i0 = Math.max(0, Math.floor((px0 - pad - g.ox) / h)), i1 = Math.min(nx - 1, Math.ceil((px1 + pad - g.ox) / h));
-  const j0 = Math.max(0, Math.floor((py0 - pad - g.oy) / h)), j1 = Math.min(ny - 1, Math.ceil((py1 + pad - g.oy) / h));
+  const { lo, hi } = partBox(part);
+  const i0 = Math.max(0, Math.floor((lo[0] - pad - g.ox) / h)), i1 = Math.min(nx - 1, Math.ceil((hi[0] + pad - g.ox) / h));
+  const j0 = Math.max(0, Math.floor((lo[1] - pad - g.oy) / h)), j1 = Math.min(ny - 1, Math.ceil((hi[1] + pad - g.oy) / h));
+  const k0 = Math.max(0, Math.floor((lo[2] - pad - g.oz) / h)), k1 = Math.min(nz - 1, Math.ceil((hi[2] + pad - g.oz) / h));
   const half = part.thickness / 2, r = Math.min(part.bevel, half - 0.01);
-  const k0 = Math.max(0, Math.floor((part.z - half - pad - g.oz) / h)), k1 = Math.min(nz - 1, Math.ceil((part.z + half + pad - g.oz) / h));
+  // the outline's 2D distance is computed once on its own plane (i, j) or (i, k), then swept along the third axis
+  const top = part.plane === 'xz';
+  const [v0, v1, vo] = top ? [k0, k1, g.oz] : [j0, j1, g.oy];
+  const [w0, w1, wo] = top ? [j0, j1, g.oy] : [k0, k1, g.oz];
   const w2 = i1 - i0 + 1;
   const far = k + 2 * h; // beyond this distance the field value is irrelevant (only its sign, which stays positive)
-  const d2 = new Float32Array(w2 * (j1 - j0 + 1));
-  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) d2[(j - j0) * w2 + (i - i0)] = sdPolys(edges, part.polys, g.ox + i * h, g.oy + j * h);
-  closeOutline(d2, w2, j1 - j0 + 1, h, SLIT_CLOSE_MM);
-  for (let kk = k0; kk <= k1; kk++) {
-    const wy = Math.abs(g.oz + kk * h - part.z) - half + r;
-    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
-      const sd = d2[(j - j0) * w2 + (i - i0)]!;
+  const d2 = new Float32Array(w2 * (v1 - v0 + 1));
+  for (let v = v0; v <= v1; v++) for (let i = i0; i <= i1; i++) d2[(v - v0) * w2 + (i - i0)] = sdPolys(edges, part.polys, g.ox + i * h, vo + v * h);
+  closeOutline(d2, w2, v1 - v0 + 1, h, SLIT_CLOSE_MM);
+  for (let w = w0; w <= w1; w++) {
+    const wy = Math.abs(wo + w * h - part.z) - half + r;
+    for (let v = v0; v <= v1; v++) for (let i = i0; i <= i1; i++) {
+      const sd = d2[(v - v0) * w2 + (i - i0)]!;
       if (sd > far) continue; // farther than the blend radius from this part's outline: cannot matter
       const wx = sd + r;
       const px = wx > 0 ? wx : 0, py = wy > 0 ? wy : 0;
       const d3 = Math.min(Math.max(wx, wy), 0) + Math.sqrt(px * px + py * py) - r;
-      const idx = (kk * ny + j) * nx + i;
+      const idx = top ? (v * ny + w) * nx + i : (w * ny + v) * nx + i;
       const cur = g.data[idx]!;
       if (d3 > cur + k) continue;
-      let v = smin(cur, d3, k);
-      if (cur > 0 && d3 > 0 && cur + d3 < GAP_MM) v = Math.min(v, Math.min(cur, d3) - (GAP_MM - cur - d3) * 3); // close hairline slits
-      g.data[idx] = v;
+      let val = smin(cur, d3, k);
+      if (cur > 0 && d3 > 0 && cur + d3 < GAP_MM) val = Math.min(val, Math.min(cur, d3) - (GAP_MM - cur - d3) * 3); // close hairline slits
+      g.data[idx] = val;
     }
   }
 }

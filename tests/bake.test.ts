@@ -77,9 +77,9 @@ describe('print orientation and export', () => {
       expect(zmin, p.id).toBeCloseTo(0, 3);
     }
     const whiskers = r.pieces.find((p) => p.id === 'whiskers')!;
-    expect(whiskers.orientation).toBe('flat');
+    expect(whiskers.orientation).toBe('upright'); // a horizontal plate: printed as it lies
     const m = printMesh(whiskers);
-    // all strands/pad touch the bed: the number of vertices at z ~ 0 is large and nothing is below
+    // all strands/pad touch the bed (both sides at the same height): many vertices at z ~ 0 and nothing below
     let low = 0, below = 0;
     for (let i = 2; i < m.positions.length; i += 3) { if (m.positions[i]! < 0.01) low++; if (m.positions[i]! < -0.001) below++; }
     expect(below).toBe(0);

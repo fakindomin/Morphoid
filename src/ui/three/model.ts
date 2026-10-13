@@ -124,7 +124,9 @@ export function buildModel(genome: MorphotypeGenome, plan: PrintPlan, report: Pr
     for (const geo of geometryFor(part)) {
       geometries.push(geo);
       const mesh = new THREE.Mesh(geo, material);
-      mesh.position.z = part.z;
+      // a top-view part is drawn in (x, z) and extruded along y: +90 deg about X maps (u, v, w) to (u, -w, v), and the
+      // slab is symmetric in w
+      if (part.plane === 'xz') { mesh.rotation.x = Math.PI / 2; mesh.position.y = part.z; } else mesh.position.z = part.z;
       holder.add(mesh);
     }
   }
@@ -135,7 +137,9 @@ export function buildModel(genome: MorphotypeGenome, plan: PrintPlan, report: Pr
   for (const piece of report.pieces.filter((p) => p.kind === 'part' && p.peg)) {
     const group = piece.id as PartGroup;
     const [s, len] = piece.peg === '5x5x8' ? [5, 8] : [3, 5];
-    const zs = [...new Set(parts.filter((p) => pieceOf(p.slot, plan) === group && p.group === group).map((p) => Math.round(p.z * 100) / 100))];
+    const own = parts.filter((p) => pieceOf(p.slot, plan) === group && p.group === group);
+    if (own.some((p) => p.plane === 'xz')) continue; // top-view parts (whiskers) seat on tabs, see the bake
+    const zs = [...new Set(own.map((p) => Math.round(p.z * 100) / 100))];
     for (const nodeId of ROOTS[group]) {
       for (const z of zs.length ? zs : [0]) {
         const n = rig.nodes[nodeId];

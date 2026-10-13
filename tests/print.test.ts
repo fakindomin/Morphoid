@@ -85,13 +85,13 @@ describe('print audit (Bambu P1S profile)', () => {
     }
   });
 
-  it('whiskers are always a separate flat part with a peg pad', () => {
+  it('whiskers are always a separate part (a horizontal plate, printed as it lies) with a peg pad', () => {
     const g = defaultGenome();
     g.face!.whiskers = 2;
     const { rig, paths } = geometry(g);
     const rep = analyzePrint(paths, rig, planWhole());
     const w = rep.pieces.find((p) => p.id === 'whiskers');
-    expect(w?.orientation).toBe('flat');
+    expect(w?.orientation).toBe('upright'); // they stick out sideways: their large face is already horizontal
     expect(w?.peg).not.toBeNull();
   });
 

@@ -9,7 +9,7 @@ import { buildPaths, type SlotId } from '../art/shapes';
 import { buildParts3D, type Part3D } from '../art/spec3d';
 import { GROUPS, isSeparate, pieceOf, type PartGroup, type PrintPlan } from '../print';
 import { closeSmallHoles, restore } from './close';
-import { addPart, clipBelow, gridDims, makeGrid } from './field';
+import { addPart, clipBelow, gridDims, makeGrid, partBox } from './field';
 import { flipMesh, validateMesh, type MeshValidation } from './mesh';
 import { JOIN_MARGIN_MM, crop, cutAway, joinPart, newHostSockets, type HostSockets, type Joint } from './joint';
 import { paintMesh } from './paint';
@@ -191,7 +191,7 @@ export function bake(
     if (id === 'head') clipBelow(grid, rig.nodes.neckBase.y);
     if (id === 'body' && legsSeparate) {
       let ymin = Infinity;
-      for (const p of ps) for (const poly of p.polys) for (const [, y] of poly) ymin = Math.min(ymin, y);
+      for (const p of ps) ymin = Math.min(ymin, partBox(p).lo[1]);
       clipBelow(grid, ymin + 2);
     }
     grids.set(id, grid);
@@ -221,6 +221,12 @@ export function bake(
     }
   });
   for (const [host, list] of sockets) for (const carve of list.carve) grids.set(host, carve(grids.get(host)!));
+  // a piece made of horizontal plates (whiskers) prints as it lies: its underside must stay one flat face, so a tab
+  // that dips below it on a slanted joint axis is trimmed back to the plate
+  for (const id of order) {
+    const ps = byPiece.get(id)!;
+    if (id !== 'body' && ps.every((p) => p.plane === 'xz')) clipBelow(grids.get(id)!, Math.min(...ps.map((p) => partBox(p).lo[1])) + 0.05);
+  }
   inspect?.(grids);
 
   // 3. meshes

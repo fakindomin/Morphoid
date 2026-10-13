@@ -9,7 +9,7 @@
 import type { MorphotypeGenome } from '../genome';
 import type { Rig } from '../rig';
 import { groupOfSlot, type PartGroup } from '../print/plan';
-import type { SlotId, SlotPaths } from './shapes';
+import { WHISKER_FAN, WHISKER_PAD, WHISKER_W, whiskerLength, type SlotId, type SlotPaths } from './shapes';
 import type { XY } from './path';
 import { edgesOf, sdPolys, type Edge } from '../bake/field';
 
@@ -20,9 +20,14 @@ export interface Part3D {
   slot: SlotId;
   /** group the user can print separately; null = part of the body piece */
   group: PartGroup | null;
-  /** outline polygons in rig mm (x forward, y up) */
+  /**
+   * outline polygons in rig mm. A side-view part (the default) is drawn in (x forward, y up) and extruded along Z;
+   * a top-view part (`plane: 'xz'`, e.g. whiskers sticking out sideways, a stand) is drawn in (x forward, z left)
+   * and extruded along Y.
+   */
   polys: XY[][];
-  /** centre of the slab along Z, and its total thickness (mm) */
+  plane?: 'xz';
+  /** centre of the slab along its extrusion axis (Z, or Y for a top-view part), and its total thickness (mm) */
   z: number;
   thickness: number;
   /** rounding radius (mm) of the edges (<= thickness / 2) */
@@ -68,7 +73,7 @@ export const SPEC_3D: Record<SlotId, Spec | null> = {
   brow: { color: 'ink', mirror: true, z: (c) => c.headW / 2 - 0.1, t: () => 0.5, bevel: () => 0.1 },
   mouth: { color: 'ink', mirror: true, z: (c) => c.snoutW / 2 - 0.1, t: () => 0.5, bevel: () => 0.1 },
   teeth: { color: 'white', mirror: true, z: (c) => c.snoutW / 2 - 0.4, t: () => 1.6, bevel: () => 0.1 },
-  whiskers: { color: 'c1dark', mirror: true, z: (c) => c.snoutW / 2 + 0.7, t: () => 1.6, bevel: (t) => flat(t) },
+  whiskers: { color: 'c1dark', mirror: true, z: () => 0, t: () => 1.6, bevel: (t) => flat(t) }, // top-view plate, see whiskerTop
 };
 
 export function ctxFor(rig: Rig): Ctx {
@@ -95,7 +100,33 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig): P
   }
   const head = out.find((p) => p.slot === 'head');
   if (head) for (const p of out) if (p.slot === 'ear') p.polys = seatOn(p, head);
+  for (const p of out) if (p.slot === 'whiskers') whiskerTop(p, g, ctx);
   return out;
+}
+
+/**
+ * Whiskers stick out sideways: the part becomes a top-view plate (x, z) at the height of its pad in the side view,
+ * the pad half sunk into the muzzle side, three strands fanning out from it.
+ */
+function whiskerTop(p: Part3D, g: MorphotypeGenome, ctx: Ctx): void {
+  const pad = p.polys[0]!;
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const [x, y] of pad) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, side = p.side || 1, len = whiskerLength(g.face!.whiskers!);
+  const zr = ctx.snoutW / 2 - 0.6; // pad centre: just inside the muzzle side
+  const polys: XY[][] = [];
+  const ell: XY[] = [];
+  for (let i = 0; i < 24; i++) { const a = (i / 24) * Math.PI * 2; ell.push([cx + Math.cos(a) * WHISKER_PAD[0], side * (zr + Math.sin(a) * WHISKER_PAD[1])]); }
+  polys.push(side > 0 ? ell : ell.reverse());
+  for (const a of WHISKER_FAN) {
+    const ax = cx, az = zr + 0.8, bx = cx + Math.sin(a) * len, bz = zr + 1.2 + Math.cos(a) * len;
+    const l = Math.hypot(bx - ax, bz - az), nx = -(bz - az) / l * (WHISKER_W / 2), nz = (bx - ax) / l * (WHISKER_W / 2);
+    const quad: XY[] = [[ax + nx, side * (az + nz)], [bx + nx, side * (bz + nz)], [bx - nx, side * (bz - nz)], [ax - nx, side * (az - nz)]];
+    polys.push(side > 0 ? quad : quad.reverse());
+  }
+  p.polys = polys;
+  p.plane = 'xz';
+  p.z = cy;
 }
 
 /** Signed distance to a part's rounded slab (the shape the bake fuses). */

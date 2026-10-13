@@ -7,7 +7,7 @@
  */
 import type { XY } from '../art/path';
 import type { ColorKey, Part3D } from '../art/spec3d';
-import { edgesOf, sdPolys, type Edge } from './field';
+import { edgesOf, partBox, sdPolys, toLocal, type Edge } from './field';
 import type { Mesh } from './surfacenets';
 
 /** AMS slot (0-based) of every colour the drawing uses: shades of a palette colour print in that colour. */
@@ -22,11 +22,8 @@ const REACH_MM = 2;
 interface Shape { part: Part3D; edges: Edge[]; lo: [number, number, number]; hi: [number, number, number] }
 
 function shapeOf(part: Part3D, pad: number): Shape {
-  const lo: [number, number, number] = [Infinity, Infinity, part.z - part.thickness / 2 - pad];
-  const hi: [number, number, number] = [-Infinity, -Infinity, part.z + part.thickness / 2 + pad];
-  for (const poly of part.polys) for (const [x, y] of poly) {
-    lo[0] = Math.min(lo[0], x - pad); lo[1] = Math.min(lo[1], y - pad); hi[0] = Math.max(hi[0], x + pad); hi[1] = Math.max(hi[1], y + pad);
-  }
+  const b = partBox(part);
+  const lo = b.lo.map((v) => v - pad) as [number, number, number], hi = b.hi.map((v) => v + pad) as [number, number, number];
   return { part, edges: edgesOf(part.polys), lo, hi };
 }
 
@@ -37,7 +34,8 @@ const within = (s: Shape, x: number, y: number, z: number): boolean =>
 function partSd(s: Shape, x: number, y: number, z: number): number {
   const { part } = s;
   const half = part.thickness / 2, r = Math.min(part.bevel, half - 0.01);
-  const wx = sdPolys(s.edges, part.polys, x, y) + r, wy = Math.abs(z - part.z) - half + r;
+  const [u, v, w] = toLocal(part, x, y, z);
+  const wx = sdPolys(s.edges, part.polys, u, v) + r, wy = Math.abs(w - part.z) - half + r;
   const px = Math.max(wx, 0), py = Math.max(wy, 0);
   return Math.min(Math.max(wx, wy), 0) + Math.hypot(px, py) - r;
 }

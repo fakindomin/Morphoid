@@ -81,6 +81,14 @@ function earPaths(type: number, e: number, ex: number, ey: number): { outer: Pat
   };
 }
 
+/** Whiskers: fan angles (rad from straight sideways; + = forward), pad half sizes (along x, across z), strand width. */
+export const WHISKER_FAN = [-0.42, 0, 0.42] as const;
+export const WHISKER_PAD = [3.4, 2.6] as const;
+export const WHISKER_W = 1.4;
+export const whiskerLength = (type: number): number => (type === 1 ? 6 : 11);
+/** Where the whisker pad sits on the muzzle side (x, y), from the muzzle tip. */
+export const whiskerRoot = (tipX: number, tip: XY): XY => [tipX - 4.2, tip[1] + 0.6];
+
 /** Slots -> geometry in rig millimetres. THE source for both the 2D art and the print audit. */
 export type SlotPaths = Record<SlotId, Path>;
 
@@ -340,14 +348,14 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
     }
     put('teeth', t);
   }
-  if (face.whiskers! > 0) { // separate flat part: 1.4 mm wide plates, 1.6 mm thick
-    const len = face.whiskers === 1 ? 6 : 11;
+  if (face.whiskers! > 0) {
+    // Whiskers stick out SIDEWAYS from the muzzle (a flat plate lying in the horizontal plane, see whiskerTop in
+    // spec3d). Seen from the side they are foreshortened: the root pad and the strands that fan back and forward.
+    const len = whiskerLength(face.whiskers!);
     const wk = new Path();
-    wk.append(ellipse(tipX - 4.2, tip[1] + 0.2, 3.4, 2.7)); // root pad: carries the peg, sits in a socket in the muzzle
-    for (const a of [-0.25, 0.05, 0.35]) {
-      const wx = tipX - 3, wy = tip[1] + 1;
-      wk.append(tube([wx, wy], [wx + Math.cos(a) * len, wy + Math.sin(a) * len - 1], 1.4, 1.4));
-    }
+    const [cx, cy] = whiskerRoot(tipX, tip);
+    wk.append(ellipse(cx, cy, WHISKER_PAD[0], 1.6));
+    for (const a of WHISKER_FAN) if (Math.abs(a) > 0.01) wk.append(tube([cx, cy], [cx + Math.sin(a) * len, cy + 0.4 * Math.sign(a)], 1.2, 1.2));
     put('whiskers', wk);
   }
 

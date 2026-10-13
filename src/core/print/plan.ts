@@ -30,7 +30,8 @@ export const GROUPS: readonly GroupDef[] = [
   { id: 'wings', label: 'Skrzydła', slots: ['wingNear', 'wingFar'], orientation: 'flat' },
   { id: 'tail', label: 'Ogon', slots: ['tail'], orientation: 'flat' },
   { id: 'legs', label: 'Nogi', slots: ['legB', 'legF', 'legBFar', 'legFFar'], orientation: 'upright' },
-  { id: 'whiskers', label: 'Wąsy', slots: ['whiskers'], orientation: 'flat', forced: true },
+  // whiskers lie in the horizontal plane (they stick out sideways), so they print flat as they are: 'upright'
+  { id: 'whiskers', label: 'Wąsy', slots: ['whiskers'], orientation: 'upright', forced: true },
 ];
 
 export const groupOfSlot = (slot: SlotId): GroupDef | undefined => GROUPS.find((g) => g.slots.includes(slot));
