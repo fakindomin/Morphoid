@@ -13,7 +13,7 @@ import { EYES, WHISKER_TURN, insectHips, insectLegW, insectRise, prolegXs, round
 import type { XY } from './path';
 import { typeSize } from './pose';
 import { insectLimb, legLimb, legSpecOf, octopusLimb, prolegLimb, type Limb } from './limb';
-import { edgesOf, sdPolys, type Edge } from '../bake/field';
+import { edgesOf, sdPolys, slabDist, type Edge } from '../bake/field';
 
 export type ColorKey = 'c1' | 'c1dark' | 'c2' | 'c2soft' | 'c3' | 'ink' | 'white';
 
@@ -37,6 +37,11 @@ export interface Part3D {
   color: ColorKey;
   /** -1 / +1 for paired parts, 0 on the centre plane */
   side: -1 | 0 | 1;
+  /**
+   * one-sided rounding (paired parts that print lying flat: horns, antennae, ears): the inner face (towards z = 0) stays
+   * flat, the outer side is rounded with this radius, so the section is a dome that prints without supports
+   */
+  dome?: number;
   /** a true 3D solid (a jointed leg) in world mm: then `polys` is only its side view, see limb.ts */
   limb?: Limb;
   /** raised 3D ribs fused onto the slab (wing bones, feather shafts), world mm */
@@ -44,7 +49,7 @@ export interface Part3D {
 }
 
 interface Ctx { W: number; G: number; legW: number; legZ: number; headW: number; snoutW: number; neckT: number }
-interface Spec { color: ColorKey; mirror: boolean; z: (c: Ctx) => number; t: (c: Ctx) => number; bevel: (t: number, c: Ctx) => number }
+interface Spec { color: ColorKey; mirror: boolean; z: (c: Ctx) => number; t: (c: Ctx) => number; bevel: (t: number, c: Ctx) => number; dome?: (t: number) => number }
 
 const round = (k: number) => (t: number): number => Math.min(t / 2 - 0.01, t * k);
 const flat = (t: number): number => Math.min(0.45, t / 2 - 0.01);
@@ -65,10 +70,10 @@ export const SPEC_3D: Record<SlotId, Spec | null> = {
   head: { color: 'c1', mirror: false, z: centre, t: (c) => c.headW, bevel: (t) => round(0.42)(t) },
   snout: { color: 'c1', mirror: false, z: centre, t: (c) => c.snoutW, bevel: (t) => round(0.42)(t) },
   nose: { color: 'ink', mirror: false, z: centre, t: (c) => c.snoutW * 0.8, bevel: (t) => round(0.45)(t) },
-  ear: { color: 'c1', mirror: true, z: (c) => c.headW * 0.28, t: () => 2.4, bevel: (t) => flat(t) },
+  ear: { color: 'c1', mirror: true, z: (c) => c.headW * 0.28, t: () => 2.8, bevel: (t) => round(0.45)(t), dome: (t) => t * 0.75 },
   earIn: { color: 'c2soft', mirror: true, z: (c) => c.headW * 0.28 + 1.35, t: () => 0.3, bevel: () => 0.05 },
-  horns: { color: 'c2', mirror: true, z: (c) => c.headW * 0.3, t: () => 3.2, bevel: (t) => round(0.3)(t) },
-  antennae: { color: 'c2', mirror: true, z: (c) => c.headW * 0.22, t: () => 2, bevel: (t) => round(0.35)(t) },
+  horns: { color: 'c2', mirror: true, z: (c) => c.headW * 0.3, t: () => 3.4, bevel: (t) => round(0.45)(t), dome: (t) => t * 0.75 },
+  antennae: { color: 'c2', mirror: true, z: (c) => c.headW * 0.22, t: () => 2, bevel: (t) => round(0.45)(t), dome: (t) => t * 0.75 },
   stalks: { color: 'c1', mirror: true, z: (c) => c.headW * 0.25, t: () => STALK_W, bevel: (t) => round(0.4)(t) },
   tuft: { color: 'c2', mirror: false, z: centre, t: () => 3.2, bevel: (t) => round(0.3)(t) },
   mane: { color: 'c2', mirror: false, z: centre, t: (c) => c.neckT * 0.6, bevel: (t) => round(0.3)(t) },
@@ -105,7 +110,7 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig): P
     if (!polys.length) continue;
     const t = spec.t(ctx), bevel = spec.bevel(t, ctx), z = spec.z(ctx), group = groupOfSlot(slot)?.id ?? null;
     if (spec.mirror) {
-      for (const side of [1, -1] as const) out.push({ id: `${slot}${side > 0 ? '+' : '-'}`, slot, group, polys, z: z * side, thickness: t, bevel, color: spec.color, side });
+      for (const side of [1, -1] as const) out.push({ id: `${slot}${side > 0 ? '+' : '-'}`, slot, group, polys, z: z * side, thickness: t, bevel, color: spec.color, side, ...(spec.dome ? { dome: spec.dome(t) } : {}) });
     } else {
       out.push({ id: slot, slot, group, polys, z, thickness: t, bevel, color: spec.color, side: 0 });
     }
@@ -198,11 +203,10 @@ function whiskerTop(p: Part3D, g: MorphotypeGenome, ctx: Ctx): void {
 
 /** Signed distance to a part's rounded slab (the shape the bake fuses). */
 function slabSd(p: Part3D, e: Edge[], x: number, y: number, z: number): number {
-  const half = p.thickness / 2, r = Math.min(p.bevel, half - 0.01);
-  const wx = sdPolys(e, p.polys, x, y) + r, wy = Math.abs(z - p.z) - half + r;
-  const px = Math.max(wx, 0), py = Math.max(wy, 0);
-  return Math.min(Math.max(wx, wy), 0) + Math.hypot(px, py) - r;
+  return slabDist(p, sdPolys(e, p.polys, x, y), z - p.z);
 }
+
+
 
 /** How deep (mm) the root of an element must reach below its 2D base to sit in the head across its whole thickness. */
 const SEAT_MM = 0.4;

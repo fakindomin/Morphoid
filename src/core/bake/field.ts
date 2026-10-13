@@ -122,6 +122,25 @@ export function closeOutline(d2: Float32Array, w: number, hgt: number, h: number
   for (const idx of fill) d2[idx] = Math.min(d2[idx]!, -0.2);
 }
 
+/**
+ * Signed distance to a part's slab from the 2D distance `sd` to its outline and the offset `w` from its centre plane
+ * along the extrusion: a box with rounded edges, or with `dome` a flat inner face and a round outer side.
+ */
+export function slabDist(p: Part3D, sd: number, w: number): number {
+  const half = p.thickness / 2;
+  if (p.dome && p.side) {
+    // the outer half of a slab grown inwards by R and rounded by R, cut flat at the inner face
+    const R = Math.min(p.dome, p.thickness), o = w * p.side, he = half + R / 2;
+    const qx = sd + R, qy = Math.abs(o + R / 2) - he + R;
+    const d = Math.min(Math.max(qx, qy), 0) + Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) - R;
+    return Math.max(d, -half - o);
+  }
+  const r = Math.min(p.bevel, half - 0.01);
+  const wx = sd + r, wy = Math.abs(w) - half + r;
+  const px = Math.max(wx, 0), py = Math.max(wy, 0);
+  return Math.min(Math.max(wx, wy), 0) + Math.hypot(px, py) - r;
+}
+
 /** Fuse a part into the grid with a smooth union. */
 export function addPart(g: Grid3, part: Part3D, k: number): void {
   const { h, nx, ny, nz } = g;
@@ -134,7 +153,7 @@ export function addPart(g: Grid3, part: Part3D, k: number): void {
   const i0 = Math.max(0, Math.floor((lo[0] - pad - g.ox) / h)), i1 = Math.min(nx - 1, Math.ceil((hi[0] + pad - g.ox) / h));
   const j0 = Math.max(0, Math.floor((lo[1] - pad - g.oy) / h)), j1 = Math.min(ny - 1, Math.ceil((hi[1] + pad - g.oy) / h));
   const k0 = Math.max(0, Math.floor((lo[2] - pad - g.oz) / h)), k1 = Math.min(nz - 1, Math.ceil((hi[2] + pad - g.oz) / h));
-  const half = part.thickness / 2, r = Math.min(part.bevel, half - 0.01);
+  const half = part.thickness / 2, r = Math.min(part.bevel, half - 0.01), dome = !!(part.dome && part.side);
   // the outline's 2D distance is computed once on its own plane (i, j) or (i, k), then swept along the third axis
   const top = part.plane === 'xz';
   const [v0, v1, vo] = top ? [k0, k1, g.oz] : [j0, j1, g.oy];
@@ -145,13 +164,17 @@ export function addPart(g: Grid3, part: Part3D, k: number): void {
   for (let v = v0; v <= v1; v++) for (let i = i0; i <= i1; i++) d2[(v - v0) * w2 + (i - i0)] = sdPolys(edges, part.polys, g.ox + i * h, vo + v * h);
   closeOutline(d2, w2, v1 - v0 + 1, h, SLIT_CLOSE_MM);
   for (let w = w0; w <= w1; w++) {
-    const wy = Math.abs(wo + w * h - part.z) - half + r;
+    const wz = wo + w * h - part.z, wy = Math.abs(wz) - half + r;
     for (let v = v0; v <= v1; v++) for (let i = i0; i <= i1; i++) {
       const sd = d2[(v - v0) * w2 + (i - i0)]!;
       if (sd > far) continue; // farther than the blend radius from this part's outline: cannot matter
-      const wx = sd + r;
-      const px = wx > 0 ? wx : 0, py = wy > 0 ? wy : 0;
-      const d3 = Math.min(Math.max(wx, wy), 0) + Math.sqrt(px * px + py * py) - r;
+      let d3: number;
+      if (dome) d3 = slabDist(part, sd, wz);
+      else {
+        const wx = sd + r;
+        const px = wx > 0 ? wx : 0, py = wy > 0 ? wy : 0;
+        d3 = Math.min(Math.max(wx, wy), 0) + Math.sqrt(px * px + py * py) - r;
+      }
       const idx = top ? (v * ny + w) * nx + i : (w * ny + v) * nx + i;
       const cur = g.data[idx]!;
       if (d3 > cur + k) continue;

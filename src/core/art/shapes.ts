@@ -412,7 +412,7 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
     else if (hornType === 2) horns.append(taper([x, y], [x - 0.05 * s, y + 0.9 * s], [x - 0.5 * s, y + 1.4 * s], (t) => Math.max(TIP, 5.6 * (1 - t * 0.8)), 12));
     else if (hornType === 3) {
       horns.append(spike(x, y, -2.5, 1.2, x - 0.4 * s, y + s));
-      horns.append(spike(x, y, 1, 4, x + 0.05 * s, y + 1.25 * s));
+      horns.append(spike(x, y, -0.2, 4, x + 0.05 * s, y + 1.25 * s)); // the two bases overlap well: one piece
     } else {
       horns.append(taper([x, y], [x - 0.1 * s, y + 0.6 * s], [x - 0.4 * s, y + 1.05 * s], (t) => Math.max(TIP, 4 * (1 - t * 0.6)), 8));
       horns.append(taper([x - 0.2 * s, y + 0.55 * s], [x + 0.05 * s, y + 0.8 * s], [x + 0.2 * s, y + 1.15 * s], (t) => Math.max(TIP, 2.8 * (1 - t)), 5));
