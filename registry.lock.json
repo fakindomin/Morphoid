@@ -126,7 +126,8 @@
     "02": "biped",
     "03": "caterpillar",
     "04": "insect",
-    "05": "fish"
+    "05": "fish",
+    "06": "octopus"
   },
   "Q": {
     "00": "none",

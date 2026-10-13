@@ -202,7 +202,8 @@ function contacts(part: Grid3, hosts: Grid3[]): Patch[] {
         makePatch(flood(part, idx, tag, patchId++, (m) => data[m]! < 0 && hv[m]! < NEAR_MM), NEAR_MM, hi);
       }
     });
-    if (out.length === before && minAt >= 0 && minHv < MAX_GAP_MM) {
+    // a bit buried deep inside the host (an arm hub under the octopus mantle) has no clear side to point a joint at
+    if (out.length === before && minAt >= 0 && minHv >= 0 && minHv < MAX_GAP_MM) {
       // not touching anything: join at the closest approach to the nearest host
       const hv = hvs[minHost]!, near = minHv + NEAR_MM;
       const nodes2 = flood(part, minAt, patchTags[minHost]!, patchId++, (m) => data[m]! < 0 && hv[m]! < near);

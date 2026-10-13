@@ -153,7 +153,7 @@ describe('build (gene J): every build bakes and splits cleanly', () => {
 describe('body plan (gene Y) and stand (gene Q)', () => {
   it('every body plan bakes into ONE watertight shell (whole) and watertight pieces (modular), at both size extremes', { timeout: 240000 }, () => {
     const bad: string[] = [];
-    for (let plan = 0; plan < 5; plan++) for (const st of [0, 5]) {
+    for (let plan = 0; plan < 6; plan++) for (const st of [0, 5]) {
       const g = defaultGenome();
       g.plan!.type = plan; g.body!.length = st; g.body!.girth = st; g.legs!.length = st; g.tail!.length = st; g.crest!.type = 3;
       const w = bake(g, planWhole(), 'draft').pieces.find((p) => p.id === 'body')!.validation;

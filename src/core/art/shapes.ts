@@ -17,7 +17,7 @@ export type SlotKind =
   | 'white' | 'ink' | 'glint' | 'groove' | 'bone' | 'clip';
 
 export const SLOTS = [
-  ['shadow', 'shadow'], ['stand', 'accent'], ['wingFar', 'accentFar'], ['tail', 'skin'], ['legBFar', 'skinFar'], ['legFFar', 'skinFar'],
+  ['shadow', 'shadow'], ['stand', 'accent'], ['arms', 'skin'], ['wingFar', 'accentFar'], ['tail', 'skin'], ['legBFar', 'skinFar'], ['legFFar', 'skinFar'],
   ['legB', 'skin'], ['throat', 'skin'], ['torso', 'skin'], ['torsoClip', 'clip'], ['belly', 'belly'], ['pattern', 'pattern'],
   ['saddle', 'accent'], ['spines', 'accent'], ['finD', 'accent'], ['legF', 'skin'], ['finP', 'accent'], ['neck', 'skin'], ['neckDecor', 'skinFar'],
   ['mane', 'accent'], ['collar', 'accent'], ['ear', 'skin'], ['earIn', 'accentSoft'], ['horns', 'accent'], ['tuft', 'accent'],
@@ -108,6 +108,23 @@ export function standSpan(pose: Pose, n: Pose['n']): [number, number] {
   return [Math.min(...feet) - n.soleL * 0.3 - STAND_MARGIN_MM, Math.max(...feet) + n.soleL * 0.7 + 3.4 + STAND_MARGIN_MM];
 }
 
+/**
+ * Octopus arms seen from above, in (x, z) around the hub at x = cx: eight tapering arms, each curling the same way
+ * at its tip, half-way between the axes so none points straight at the viewer.
+ */
+export function octopusArms(cx: number, len: number, hub: number): XY[][] {
+  const polys: XY[][] = [];
+  const base = taper([hub * 0.5, 0], [len * 0.7, len * 0.1], [len, len * 0.42], (t) => Math.max(TIP, 6 * (1 - t) + 1.6 * t), 14);
+  for (let k = 0; k < D.OCTOPUS.arms; k++) {
+    const a = ((k + 0.5) * 2 * Math.PI) / D.OCTOPUS.arms;
+    for (const poly of base.rotated(0, 0, a).flatten(6)) polys.push(poly.map(([x, z]) => [cx + x, z] as XY));
+  }
+  const ring: XY[] = [];
+  for (let i = 0; i < 24; i++) { const a = (i / 24) * Math.PI * 2; ring.push([cx + Math.cos(a) * hub, Math.sin(a) * hub]); }
+  polys.push(ring);
+  return polys;
+}
+
 /** Whiskers: fan angles (rad from straight sideways; + = forward), pad half sizes (along x, across z), strand width. */
 export const WHISKER_FAN = [-0.42, 0, 0.42] as const;
 export const WHISKER_PAD = [3.4, 2.6] as const;
@@ -194,6 +211,14 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
     put('legF', nf); put('legFFar', ff);
   }
   // fish: no legs
+  if (n.plan === D.PLAN.octopus) {
+    // side view of the arms lying on the bed: a low band from the farthest arm tip behind to the one in front
+    const arms = octopusArms(torso[0], n.armLen, n.hub);
+    let x0 = Infinity, x1 = -Infinity;
+    for (const poly of arms) for (const [x] of poly) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); }
+    const t = D.OCTOPUS.armMm;
+    put('arms', new Path().M(x0, 0).L(x1, 0).Q(x1 + 1.2, t * 0.5, x1 - 1, t).L(x0 + 1, t).Q(x0 - 1.2, t * 0.5, x0, 0).Z());
+  }
 
   // ---- torso: a plain round ellipsoid; shape is never bent to avoid supports ---------
   // muscular build: chest and haunch lobes fused into it (the bake blends them smoothly)

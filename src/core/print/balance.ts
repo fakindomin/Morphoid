@@ -42,7 +42,7 @@ export function balanceOf(paths: SlotPaths, rig: Rig): Balance {
   let lo = Infinity, hi = -Infinity;
   const standPolys = paths.stand.flatten(6);
   if (standPolys.length) for (const poly of standPolys) for (const [x] of poly) { lo = Math.min(lo, x); hi = Math.max(hi, x); }
-  else for (const slot of ['legB', 'legF'] as const) for (const poly of paths[slot].flatten(6)) for (const [x, y] of poly) if (y < 0.3) { lo = Math.min(lo, x); hi = Math.max(hi, x); }
+  else for (const slot of ['legB', 'legF', 'arms'] as const) for (const poly of paths[slot].flatten(6)) for (const [x, y] of poly) if (y < 0.3) { lo = Math.min(lo, x); hi = Math.max(hi, x); }
   if (lo > hi) return { com, support: [com, com], outside: 0 };
   return { com, support: [lo, hi], outside: Math.max(0, lo - com, com - hi) };
 }

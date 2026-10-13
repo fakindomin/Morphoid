@@ -245,6 +245,8 @@ export function bake(
     const { mesh, validation, holesClosed } = meshWithRepair(grid, 12, (name) =>
       onProgress?.({ frac: Math.min(1, (base + weights[n]! * rest * start[name]) / totalW), label: PHASE_LABEL[name], piece: labelOf(id), index: n + 1, count: order.length }), holes);
     grids.delete(id);
+    // a part swallowed whole by the piece it gave way to (ears inside a big octopus mantle) leaves nothing to print
+    if (id !== 'body' && validation.shells === 0) { doneW += weights[n]! * rest; return; }
     const paint = paintMesh(mesh, byPiece.get(id)!, decalsOf(id), id === 'body' ? paths.pattern.flatten(8) : []);
     const flat = id !== 'body' && GROUPS.find((x: { id: PartGroup }) => x.id === id)?.orientation === 'flat';
     pieces.push({ id, label: labelOf(id), orientation: flat ? 'flat' : 'upright', mesh, paint, validation, ms: performance.now() - t1, holesClosed, clashesWith: clashes.get(id) ?? [], joints: (joints.get(id) ?? []).map((j) => ({ ...j, hostId: hostsOf(id)[j.host]! })) });

@@ -108,7 +108,7 @@ export const BLOCKS: readonly BlockDef[] = [
     e('type', [['normal', 'Normalna'], ['stick', 'Patyk'], ['muscular', 'Umięśniona'], ['round', 'Kulista'], ['skeletal', 'Szkieletowa']]),
   ] },
   { id: 'plan', letter: 'Y', label: 'Plan ciała', fields: [
-    e('type', [['quadruped', 'Czworonóg'], ['biped', 'Dwunóg / ptak'], ['caterpillar', 'Gąsienica'], ['insect', 'Owad (6 nóg)'], ['fish', 'Ryba']]),
+    e('type', [['quadruped', 'Czworonóg'], ['biped', 'Dwunóg / ptak'], ['caterpillar', 'Gąsienica'], ['insect', 'Owad (6 nóg)'], ['fish', 'Ryba'], ['octopus', 'Ośmiornica']]),
   ] },
   { id: 'stand', letter: 'Q', label: 'Podstawka', noneMeansEmpty: true, fields: [
     e('type', [['none', 'Brak'], ['round', 'Okrągła'], ['stone', 'Kamień']]),

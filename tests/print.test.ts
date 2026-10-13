@@ -65,7 +65,7 @@ describe('print audit (Bambu P1S profile)', () => {
 
   it('every build and body plan prints whole without errors (40 random creatures each)', { timeout: 60000 }, () => {
     const rnd = mulberry32(33);
-    for (let k = 0; k < 10; k++) for (let i = 0; i < 40; i++) {
+    for (let k = 0; k < 11; k++) for (let i = 0; i < 40; i++) {
       const g = randomGenome(rnd);
       if (k < 5) g.build!.type = k; else g.plan!.type = k - 5;
       const { rig, paths } = geometry(g);

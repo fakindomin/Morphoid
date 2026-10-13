@@ -52,8 +52,13 @@ export const BUILD: readonly Build[] = [
 export const BIPED = { tilt: 0.32, hipX: 0.06, leg: 1.35, sole: 1.5 } as const;
 
 /** Body plans by index (gene Y). Belly plans lie on the bed: the torso's flat underside is their sole. */
-export const PLAN = { quadruped: 0, biped: 1, caterpillar: 2, insect: 3, fish: 4 } as const;
+export const PLAN = { quadruped: 0, biped: 1, caterpillar: 2, insect: 3, fish: 4, octopus: 5 } as const;
 export const onBelly = (plan: number): boolean => plan === PLAN.caterpillar || plan === PLAN.fish;
+/**
+ * Octopus: eight arms lying flat on the bed around a hub under the mantle (the torso, standing on the hub). Arms are
+ * top-view plates ARM_MM thick; their length comes from the legs' length gene.
+ */
+export const OCTOPUS = { arms: 8, armMm: 3.2, hub: 0.5, armLen: (legStep: number) => 16 + legStep * 4 } as const;
 /** How much of a belly plan's torso height is cut flat by the bed. */
 export const BELLY_FLAT = 0.22;
 

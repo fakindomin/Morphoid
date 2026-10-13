@@ -34,8 +34,9 @@ Jedna wartość przeskalowuje tułów i kończyny całego stwora (`dimensions.ts
 
 ### Plan ciała (gen Y) i podstawka (gen Q)
 
-- 01 czworonóg, 02 dwunóg/ptak, 03 gąsienica, 04 owad (6 nóg), 05 ryba. Numery idą w kolejności wdrażania, nie według tabeli z propozycji.
+- 01 czworonóg, 02 dwunóg/ptak, 03 gąsienica, 04 owad (6 nóg), 05 ryba, 06 ośmiornica. Numery idą w kolejności wdrażania, nie według tabeli z propozycji.
 - Gąsienica i ryba leżą na płaskim brzuchu (`onBelly`, spód tułowia ścięty przez stół o `BELLY_FLAT`). Gąsienica ma tułów z segmentów i krótkie nóżki wystające z boków. Owad ma trzy pary zgiętych nóg (kolano wyżej niż biodro, łuk co najmniej tak szeroki jak wysoki, żeby obrys się nie zawinął). Ryba ma płetwę ogonową leżącą dolną krawędzią na stole, płetwę grzbietową i piersiowe (sloty `finD`, `finP`), a szyję prawie zerową.
+- Ośmiornica (06) stoi na ośmiu mackach leżących płasko na stole (slot `arms`): to płyty widziane z góry (`plane: 'xz'`, grubość `D.OCTOPUS.armMm`) wokół pierścienia pod płaszczem. Długość macek bierze się z długości nóg (gen L). Część połknięta w całości przez inną (uszy w dużym płaszczu) nie trafia do wydruku jako pusty element.
 - Dwunóg stoi na tylnych nogach pod środkiem tułowia, tułów jest pochylony nosem w górę (`BIPED.tilt`), a szyja, ogon i nogi obracają się z powrotem o ten kąt, więc ich reguły druku (głowa poziomo, ogon ≥ 45°, nogi pionowo) się nie zmieniają. Nogi są dłuższe, a podeszwy 1,5× dłuższe. Przednie stopy nie są punktami styku.
 - Podstawka (00 brak, 01 okrągła, 02 kamień) to płyta 4 mm pod stopami, zawsze drukowana osobno (grupa `stand`). Czopy idą z podstawki w górę, w stopy. Przy nogach drukowanych osobno podstawka łączy się z nogami.
 - Audyt druku ostrzega (`BALANCE`), gdy środek ciężkości (pole z boku × grubość części) wypada poza podeszwy albo podstawkę (`print/balance.ts`). Dotyczy to głównie dwunogów.

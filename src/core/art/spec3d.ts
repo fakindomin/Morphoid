@@ -7,9 +7,9 @@
  * in 3D, which the project forbids - tests/art3d.test.ts enforces the full coverage.
  */
 import type { MorphotypeGenome } from '../genome';
-import type { Rig } from '../rig';
+import { dimensions as D, type Rig } from '../rig';
 import { groupOfSlot, type PartGroup } from '../print/plan';
-import { STAND_MARGIN_MM, STAND_MM, WHISKER_FAN, WHISKER_PAD, WHISKER_W, whiskerLength, type SlotId, type SlotPaths } from './shapes';
+import { octopusArms, STAND_MARGIN_MM, STAND_MM, WHISKER_FAN, WHISKER_PAD, WHISKER_W, whiskerLength, type SlotId, type SlotPaths } from './shapes';
 import type { XY } from './path';
 import { edgesOf, sdPolys, type Edge } from '../bake/field';
 
@@ -75,6 +75,7 @@ export const SPEC_3D: Record<SlotId, Spec | null> = {
   brow: { color: 'ink', mirror: true, z: (c) => c.headW / 2 - 0.1, t: () => 0.5, bevel: () => 0.1 },
   mouth: { color: 'ink', mirror: true, z: (c) => c.snoutW / 2 - 0.1, t: () => 0.5, bevel: () => 0.1 },
   teeth: { color: 'white', mirror: true, z: (c) => c.snoutW / 2 - 0.4, t: () => 1.6, bevel: () => 0.1 },
+  arms: { color: 'c1', mirror: false, z: centre, t: () => D.OCTOPUS.armMm, bevel: (t) => round(0.45)(t) }, // top-view, see buildParts3D
   stand: { color: 'c2', mirror: false, z: centre, t: () => STAND_MM, bevel: (t) => round(0.3)(t) }, // top-view plate, see standTop
   whiskers: { color: 'c1dark', mirror: true, z: () => 0, t: () => 1.6, bevel: (t) => flat(t) }, // top-view plate, see whiskerTop
 };
@@ -105,6 +106,11 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig): P
   if (head) for (const p of out) if (p.slot === 'ear') p.polys = seatOn(p, head);
   for (const p of out) if (p.slot === 'whiskers') whiskerTop(p, g, ctx);
   for (const p of out) if (p.slot === 'stand') standTop(p, g, rig);
+  for (const p of out) if (p.slot === 'arms') { // octopus arms lie flat on the bed around the hub
+    p.polys = octopusArms(rig.nodes.torso.x, D.OCTOPUS.armLen(g.legs!.length!), Math.max(6, rig.dims.bodyWidth * D.OCTOPUS.hub));
+    p.plane = 'xz';
+    p.z = D.OCTOPUS.armMm / 2;
+  }
   return out;
 }
 
