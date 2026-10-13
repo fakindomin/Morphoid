@@ -16,3 +16,13 @@ npx vite-node scripts/bake-bench.ts   # bake time / size per quality
 npm run audit -- 200 whole    # print audit over random Morphoids (or: modular)
 
 Docs: `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, `docs/ELEMENT_CONTRACT.md` (the 2D↔3D↔print rule).
+
+## Wdrożenie na Cloudflare Pages
+
+Aplikacja jest w całości statyczna (bez serwera), więc działa na Cloudflare Pages podpiętym do repozytorium:
+
+- Build command: `npm run build`
+- Build output directory: `dist`
+- Node: wersja z pliku `.node-version` (22)
+
+Każdy push na wybraną gałąź wdraża nową wersję. `public/_headers` ustawia długie cache dla plików w `/assets` (mają hash w nazwie).
