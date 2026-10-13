@@ -241,7 +241,31 @@ function bodies(g: Grid3): number {
  * pieces were joined (the tab of one leg running into the peg of the next), which is no good either.
  */
 function dropFragments(g: Grid3, count: number): boolean {
-  const { nx, ny, nz, data, h } = g;
+  const { data, h } = g;
+  const comps = components(g);
+  if (comps.length < count) return false;
+  if (comps.length === count) return true;
+  comps.sort((a, b) => b.length - a.length);
+  const extra = comps.slice(count);
+  // only slivers next to a real piece: a small leg next to its twin is not one
+  if (extra.some((c) => !isSliver(g, c, comps[0]!))) return false;
+  for (const c of extra) for (const idx of c) data[idx] = h;
+  return true;
+}
+
+const isSliver = (g: Grid3, c: number[], biggest: number[]): boolean => c.length <= CHIP_MM3 / g.h ** 3 && c.length <= 0.1 * biggest.length;
+
+/** Drop the specks a part may start with (a wing tip a hair away from its wing); returns how many bodies remain. */
+function dropSpecks(g: Grid3): number {
+  const comps = components(g).sort((a, b) => b.length - a.length);
+  let n = 0;
+  for (const c of comps) if (n && isSliver(g, c, comps[0]!)) for (const idx of c) g.data[idx] = g.h; else n++;
+  return n;
+}
+
+/** Inside nodes of the grid, by 6-connected body. */
+function components(g: Grid3): number[][] {
+  const { nx, ny, nz, data } = g;
   const seen = new Uint8Array(nx * ny * nz);
   const comps: number[][] = [];
   for (let s = 0; s < seen.length; s++) {
@@ -260,14 +284,7 @@ function dropFragments(g: Grid3, count: number): boolean {
     }
     comps.push(comp);
   }
-  if (comps.length < count) return false;
-  if (comps.length === count) return true;
-  comps.sort((a, b) => b.length - a.length);
-  const extra = comps.slice(count);
-  // only slivers next to a real piece: a small leg next to its twin is not one
-  if (extra.some((c) => c.length > CHIP_MM3 / h ** 3 || c.length > 0.1 * comps[0]!.length)) return false;
-  for (const c of extra) for (const idx of c) data[idx] = h;
-  return true;
+  return comps;
 }
 
 export interface HostSockets {
@@ -521,9 +538,9 @@ export function joinPart(
   /** sockets planned in the part (when it is itself a host, e.g. the head for the ears), so later ones keep clear */
   partPlaced: HostSockets['placed'] = [],
 ): Joint[] {
+  const before = dropSpecks(part);
   const patches = contacts(part, hosts.map((x) => x.grid));
   const original = part.data.slice();
-  const before = bodies(part);
   const chiOf = (): [number, number] => euler(part, 0, part.nx - 1, 0, part.ny - 1, 0, part.nz - 1);
   const chi0 = chiOf();
   const mark = hosts.map((x) => ({ carve: x.sockets.carve.length, holes: x.sockets.holes.length, placed: x.sockets.placed.length }));
@@ -750,7 +767,8 @@ export function joinPart(
     return g;
   };
   const lo: V3 = [part.ox, part.oy, part.oz], hi: V3 = [part.ox + (part.nx - 1) * part.h, part.oy + (part.ny - 1) * part.h, part.oz + (part.nz - 1) * part.h];
-  const whole = patches.filter((p) => p.overlap).map((p): Joint => ({ at: p.c, axis: p.n, peg: 'tab', host: p.host }));
+  // where it only comes near a host (no overlap to seat in), it is glued
+  const whole = patches.map((p): Joint => ({ at: p.c, axis: p.n, peg: p.overlap ? 'tab' : null, host: p.host }));
   let slotted = true;
   for (const { sockets } of hosts) {
     sockets.carve.push((g) => {
