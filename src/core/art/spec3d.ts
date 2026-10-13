@@ -42,6 +42,8 @@ export interface Part3D {
    * flat, the outer side is rounded with this radius, so the section is a dome that prints without supports
    */
   dome?: number;
+  /** anatomy: the slab's thickness times k, sampled every dx mm from x0 (a torso's chest, waist and haunches) */
+  widths?: { x0: number; dx: number; k: number[] };
   /** a true 3D solid (a jointed leg) in world mm: then `polys` is only its side view, see limb.ts */
   limb?: Limb;
   /** raised 3D ribs fused onto the slab (wing bones, feather shafts), world mm */
@@ -153,7 +155,39 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig): P
     const n = rig.nodes.wingRoot;
     p.ribs = { cones: wingRibs(g.wings!.type!, [n.x, n.y], wingS).map((r) => ({ a: [r.a[0], r.a[1], zAt(r.ra)], b: [r.b[0], r.b[1], zAt(r.rb)], ra: r.ra, rb: r.rb })), domes: [] };
   }
+  if (plan === D.PLAN.quadruped || biped) for (const p of out) if (p.slot === 'torso') p.widths = torsoWidths(p, rig);
   return out;
+}
+
+/**
+ * Seen from above a torso is not a plank: full over the haunches, drawn in at the waist, deepest over the chest. Values
+ * are half-width factors at the rear end, the hips, the waist, the shoulders and the front end, per build (gene J).
+ */
+const ANATOMY: readonly (readonly [number, number, number, number, number])[] = [
+  [0.86, 0.97, 0.86, 1, 0.9],   // normal
+  [0.8, 0.92, 0.78, 1, 0.86],   // stick
+  [0.86, 1, 0.8, 1, 0.9],       // muscular: big haunches and chest, a tight waist
+  [0.92, 1, 0.97, 1, 0.94],     // round: barely any waist
+  [0.78, 0.88, 0.68, 1, 0.84],  // skeletal: a ribcage and a wasp waist
+];
+
+function torsoWidths(p: Part3D, rig: Rig): Part3D['widths'] {
+  let x0 = Infinity, x1 = -Infinity;
+  for (const poly of p.polys) for (const [x] of poly) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); }
+  const hip = rig.nodes.hipB.x, sh = rig.nodes.shoulderF.x;
+  const [kr, kh, kw, ks, kf] = ANATOMY[rig.dims.build] ?? ANATOMY[0]!;
+  const keys: [number, number][] = [[x0, kr], [hip, kh], [(hip + sh) / 2, kw], [sh, ks], [x1, kf]];
+  keys.sort((a, b) => a[0] - b[0]);
+  const at = (x: number): number => {
+    for (let i = 0; i + 1 < keys.length; i++) {
+      const [a, ka] = keys[i]!, [b, kb] = keys[i + 1]!;
+      if (x <= b) { const t = b > a ? Math.max(0, (x - a) / (b - a)) : 1, s = t * t * (3 - 2 * t); return ka + (kb - ka) * s; } // smoothstep
+    }
+    return keys[keys.length - 1]![1];
+  };
+  const dx = 0.5, k: number[] = [];
+  for (let x = x0; x <= x1 + dx; x += dx) k.push(at(x));
+  return { x0, dx, k };
 }
 
 /** The stand seen from above: an oval (or an uneven stone) under every foot, its top on the bed plane y = 0. */
@@ -203,7 +237,7 @@ function whiskerTop(p: Part3D, g: MorphotypeGenome, ctx: Ctx): void {
 
 /** Signed distance to a part's rounded slab (the shape the bake fuses). */
 function slabSd(p: Part3D, e: Edge[], x: number, y: number, z: number): number {
-  return slabDist(p, sdPolys(e, p.polys, x, y), z - p.z);
+  return slabDist(p, sdPolys(e, p.polys, x, y), z - p.z, x);
 }
 
 

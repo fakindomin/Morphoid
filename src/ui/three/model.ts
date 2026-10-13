@@ -6,6 +6,7 @@ import { targetPose } from '../../core/art/pose';
 import { buildPaths } from '../../core/art/shapes';
 import { buildParts3D, ctxFor, type ColorKey, type Part3D } from '../../core/art/spec3d';
 import type { Limb } from '../../core/art/limb';
+import { widthAt } from '../../core/bake/field';
 import { groupOfSlot, pieceOf, type PartGroup, type PrintPlan, type PrintReport } from '../../core/print';
 
 /** How far each separately printed piece slides away in the exploded view (mm at 100%). z is multiplied by the piece's side. */
@@ -67,6 +68,11 @@ function geometryFor(p: Part3D): THREE.BufferGeometry[] {
       bevelEnabled: b > 0.03, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: 3,
     });
     geo.translate(0, 0, -depth / 2); // centre the slab on z = 0 (bevel extends symmetrically)
+    if (p.widths) { // anatomy: narrower at the waist, as the bake makes it
+      const pos = geo.getAttribute('position');
+      for (let i = 0; i < pos.count; i++) pos.setZ(i, pos.getZ(i) * widthAt(p, pos.getX(i)));
+      geo.computeVertexNormals();
+    }
     return geo;
   });
 }

@@ -122,12 +122,20 @@ export function closeOutline(d2: Float32Array, w: number, hgt: number, h: number
   for (const idx of fill) d2[idx] = Math.min(d2[idx]!, -0.2);
 }
 
+/** Width multiplier of a part at x (its anatomy profile: chest, waist, haunches), 1 without one. */
+export function widthAt(p: Part3D, x: number): number {
+  const w = p.widths;
+  if (!w) return 1;
+  const f = Math.min(w.k.length - 1, Math.max(0, (x - w.x0) / w.dx)), i = Math.min(w.k.length - 2, Math.floor(f));
+  return w.k[i]! + (w.k[i + 1]! - w.k[i]!) * (f - i);
+}
+
 /**
  * Signed distance to a part's slab from the 2D distance `sd` to its outline and the offset `w` from its centre plane
  * along the extrusion: a box with rounded edges, or with `dome` a flat inner face and a round outer side.
  */
-export function slabDist(p: Part3D, sd: number, w: number): number {
-  const half = p.thickness / 2;
+export function slabDist(p: Part3D, sd: number, w: number, x?: number): number {
+  const half = (p.thickness / 2) * (x === undefined ? 1 : widthAt(p, x));
   if (p.dome && p.side) {
     // the outer half of a slab grown inwards by R and rounded by R, cut flat at the inner face
     const R = Math.min(p.dome, p.thickness), o = w * p.side, he = half + R / 2;
@@ -170,6 +178,7 @@ export function addPart(g: Grid3, part: Part3D, k: number): void {
       if (sd > far) continue; // farther than the blend radius from this part's outline: cannot matter
       let d3: number;
       if (dome) d3 = slabDist(part, sd, wz);
+      else if (part.widths) d3 = slabDist(part, sd, wz, g.ox + i * h);
       else {
         const wx = sd + r;
         const px = wx > 0 ? wx : 0, py = wy > 0 ? wy : 0;
