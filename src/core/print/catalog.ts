@@ -45,6 +45,7 @@ export const PARTS: readonly PartSpec[] = [
   { id: 'eyes', blocks: ['face'], slots: ['eye', 'pupil'], repr3D: 'dome', modular: false, note: 'oko = kopułka >= 0,8 mm, źrenica = kolor/zagłębienie 0,4 mm' },
   { id: 'mouth', blocks: ['face'], slots: ['mouth', 'brow'], repr3D: 'groove', modular: false, note: 'rowek 0,8 x 0,5 mm' },
   { id: 'teeth', blocks: ['face'], slots: ['teeth'], repr3D: 'dome', modular: false, note: 'płaski relief na boku pyska (wysokość 0,8 mm), nic nie zwisa poza obrys' },
+  { id: 'fins', blocks: ['plan'], slots: ['finD', 'finP'], repr3D: 'plate', modular: false, note: 'płetwy ryby: grzbietowa 2,4 mm, piersiowe 1,6 mm po bokach, spód każdej opada >= 45°' },
   { id: 'stand', blocks: ['stand'], slots: ['stand'], repr3D: 'flat-part', modular: true, note: 'płyta 4 mm pod stopami, drukowana osobno; czopy wchodzą w stopy' },
   { id: 'whiskers', blocks: ['face'], slots: ['whiskers'], repr3D: 'flat-part', modular: true, note: 'płaska nakładka 1,6 mm drukowana osobno, czop w kufie' },
   { id: 'pattern', blocks: ['coat'], slots: ['pattern'], repr3D: 'groove', modular: false, note: 'płytkie zagłębienie 0,4 mm = granica koloru' },
@@ -58,11 +59,11 @@ export const RENDER_ONLY_SLOTS: readonly SlotId[] = ['shadow', 'torsoClip', 'bel
 /** Additive parts that form the support-free print silhouette (whiskers are printed separately). */
 export const PRINT_SOLID_SLOTS: readonly SlotId[] = [
   'tail', 'legBFar', 'legFFar', 'legB', 'torso', 'saddle', 'spines', 'legF', 'neck', 'mane', 'collar',
-  'ear', 'horns', 'tuft', 'head', 'snout', 'wingNear', 'wingFar', 'throat',
+  'ear', 'horns', 'tuft', 'head', 'snout', 'wingNear', 'wingFar', 'throat', 'finD', 'finP',
 ];
 
 export const SLOT_NAME_PL: Record<SlotId, string> = {
-  shadow: 'cień', stand: 'podstawka', wingFar: 'skrzydło', tail: 'ogon', legBFar: 'noga tylna', legFFar: 'noga przednia', legB: 'noga tylna',
+  shadow: 'cień', stand: 'podstawka', finD: 'płetwa grzbietowa', finP: 'płetwa piersiowa', wingFar: 'skrzydło', tail: 'ogon', legBFar: 'noga tylna', legFFar: 'noga przednia', legB: 'noga tylna',
   torso: 'brzuch/tułów', torsoClip: 'tułów', belly: 'brzuch', pattern: 'wzór', saddle: 'siodło', spines: 'kolce', legF: 'noga przednia',
   neck: 'szyja', neckDecor: 'ozdoba szyi', mane: 'grzywa', collar: 'obroża', ear: 'ucho', earIn: 'ucho', horns: 'rogi', tuft: 'czub',
   head: 'głowa', snout: 'pysk', wingNear: 'skrzydło', nose: 'nos', mouth: 'usta', teeth: 'zęby', whiskers: 'wąsy', eye: 'oko',

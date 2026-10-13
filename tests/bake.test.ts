@@ -151,6 +151,20 @@ describe('build (gene J): every build bakes and splits cleanly', () => {
 });
 
 describe('body plan (gene Y) and stand (gene Q)', () => {
+  it('every body plan bakes into ONE watertight shell (whole) and watertight pieces (modular), at both size extremes', { timeout: 240000 }, () => {
+    const bad: string[] = [];
+    for (let plan = 0; plan < 5; plan++) for (const st of [0, 5]) {
+      const g = defaultGenome();
+      g.plan!.type = plan; g.body!.length = st; g.body!.girth = st; g.legs!.length = st; g.tail!.length = st; g.crest!.type = 3;
+      const w = bake(g, planWhole(), 'draft').pieces.find((p) => p.id === 'body')!.validation;
+      if (!w.watertight || w.shells !== 1 || w.genus !== 0) bad.push(`plan ${plan} size ${st + 1} whole: shells ${w.shells}, holes ${w.genus}`);
+      for (const p of bake(g, planModular(), 'draft').pieces) {
+        if (!p.validation.watertight || (p.id === 'body' && p.validation.shells !== 1)) bad.push(`plan ${plan} size ${st + 1} ${p.id}: shells ${p.validation.shells}`);
+      }
+    }
+    expect(bad).toEqual([]);
+  });
+
   it('a biped bakes into one shell; its stand is a separate watertight plate pegged into the feet', { timeout: 120000 }, () => {
     const bad: string[] = [];
     for (const build of [0, 1, 3]) for (const stand of [0, 1, 2]) for (const plan of [planWhole(), planModular()]) {

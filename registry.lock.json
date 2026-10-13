@@ -123,7 +123,10 @@
   },
   "Y": {
     "01": "quadruped",
-    "02": "biped"
+    "02": "biped",
+    "03": "caterpillar",
+    "04": "insect",
+    "05": "fish"
   },
   "Q": {
     "00": "none",

@@ -102,18 +102,22 @@ export function solveRig(genome: MorphotypeGenome): Rig {
 
 function build(g: MorphotypeGenome, code: string): Rig {
   const build = g.build?.type ?? 0, B = D.BUILD[build]!;
-  const plan = g.plan?.type ?? 0, biped = plan === 1;
+  const plan = g.plan?.type ?? 0, biped = plan === D.PLAN.biped, belly = D.onBelly(plan), insect = plan === D.PLAN.insect;
+  const fish = plan === D.PLAN.fish;
   const tilt = biped ? D.BIPED.tilt : 0;
   const L = D.snap(D.BODY_LENGTH[g.body!.length!]! * B.length);
   const G = D.snap(D.BODY_GIRTH[g.body!.girth!]! * B.girth);
   const W = D.snap(D.BODY_GIRTH[g.body!.girth!]! * D.BODY_WIDTH_RATIO[g.body!.shape!]! * B.width);
-  const legLen = D.snap(D.LEG_LENGTH[g.legs!.length!]! * B.leg * (biped ? D.BIPED.leg : 1));
+  // belly plans: the "feet" are the torso's flat underside (G/2 + 1.5 is the drawn torso's half height)
+  const legLen = belly ? (G / 2 + 1.5) * (1 - D.BELLY_FLAT) - G * 0.35
+    : D.snap(D.LEG_LENGTH[g.legs!.length!]! * B.leg * (biped ? D.BIPED.leg : insect ? 1.15 : 1));
   const legW = D.snap(B.legW(G));
-  const neckLen = D.NECK_LENGTH[g.head!.neckLength!]!;
+  const neckLen = D.NECK_LENGTH[g.head!.neckLength!]! * (fish ? 0.25 : plan === D.PLAN.caterpillar ? 0.5 : 1);
   const tailLen = g.tail!.type === 0 ? 0 : D.TAIL_LENGTH[g.tail!.length!]!;
   const sole = { length: D.snap(D.FOOT_SOLE[g.legs!.foot!]!.length * B.sole * (biped ? D.BIPED.sole : 1)), width: legW };
-  const legZ = W * 0.32;
-  const legX = Math.max(5, L * 0.3);
+  // caterpillar prolegs peek out of the flanks
+  const legZ = W * (plan === D.PLAN.caterpillar ? 0.45 : 0.32);
+  const legX = Math.max(5, L * (insect ? 0.27 : 0.3));
 
   // Local offsets are a function of the dims only -> hierarchy: stretching the
   // torso moves neck/head/front legs forward and tail/hind legs backward.
@@ -125,14 +129,14 @@ function build(g: MorphotypeGenome, code: string): Rig {
     footFR: [0, biped ? 0 : -legLen, -legZ],
     footBL: [0, -legLen, legZ],
     footBR: [0, -legLen, -legZ],
-    neckBase: [L * 0.36, G * 0.25, 0],
+    neckBase: fish ? [L * 0.42, 0, 0] : belly ? [L * 0.4, G * 0.15, 0] : [L * 0.36, G * 0.25, 0],
     head: [neckLen, 0, 0], // along the neck's rotated frame
     muzzle: [D.HEAD_RADIUS + D.SNOUT_REACH[g.snout!.reach!]!, -2, 0],
     hornRoot: [1, 4, 0],
     earRoot: [-2, 4, 0],
     crestRoot: [0, 2, 0],
     wingRoot: [L * 0.18, G * 0.45, W * 0.3],
-    tailBase: [-L * 0.5 + 4, G * 0.1, 0], // root buried in the rump
+    tailBase: [-L * 0.5 + 4, fish ? 0 : G * 0.1, 0], // root buried in the rump
     tailMid: [tailLen * 0.5, 0, 0], // along the tail's rotated frame
     tailTip: [tailLen * 0.5, 0, 0],
   };
@@ -142,10 +146,10 @@ function build(g: MorphotypeGenome, code: string): Rig {
     torso: tilt,
     shoulderF: -tilt,
     hipB: -tilt,
-    neckBase: NECK_ANGLE - tilt,
-    head: -NECK_ANGLE, // head level again
-    tailBase: Math.PI - TAIL_RISE - tilt, // pointing backwards and up
-    tailMid: -TAIL_CURL,           // facing backwards, so a negative turn = steeper
+    neckBase: (fish ? 0 : belly ? 0.5 : NECK_ANGLE) - tilt,
+    head: -(fish ? 0 : belly ? 0.5 : NECK_ANGLE), // head level again
+    tailBase: fish ? Math.PI : Math.PI - TAIL_RISE - tilt, // pointing backwards and up (a fish: straight back)
+    tailMid: fish ? 0 : -TAIL_CURL, // facing backwards, so a negative turn = steeper
   };
 
   const nodes = {} as Record<NodeId, RigNode>;

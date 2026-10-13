@@ -19,7 +19,7 @@ export type SlotKind =
 export const SLOTS = [
   ['shadow', 'shadow'], ['stand', 'accent'], ['wingFar', 'accentFar'], ['tail', 'skin'], ['legBFar', 'skinFar'], ['legFFar', 'skinFar'],
   ['legB', 'skin'], ['throat', 'skin'], ['torso', 'skin'], ['torsoClip', 'clip'], ['belly', 'belly'], ['pattern', 'pattern'],
-  ['saddle', 'accent'], ['spines', 'accent'], ['legF', 'skin'], ['neck', 'skin'], ['neckDecor', 'skinFar'],
+  ['saddle', 'accent'], ['spines', 'accent'], ['finD', 'accent'], ['legF', 'skin'], ['finP', 'accent'], ['neck', 'skin'], ['neckDecor', 'skinFar'],
   ['mane', 'accent'], ['collar', 'accent'], ['ear', 'skin'], ['earIn', 'accentSoft'], ['horns', 'accent'], ['tuft', 'accent'],
   ['head', 'skin'], ['snout', 'skin'], ['wingNear', 'accent'], ['nose', 'ink'],
   ['mouth', 'groove'], ['teeth', 'white'], ['whiskers', 'skinFar'], ['eye', 'white'], ['pupil', 'ink'],
@@ -48,6 +48,20 @@ function leg(top: XY, foot: XY, w: number, type: number, soleL: number, bulge = 
     path.Q(toe + 0.5, fy + fh, toe, fy + 0.2).L(heel, fy).Q(heel - 1.5, fy + fh * 0.6, fx - hw * 0.9, fy + fh);
   }
   return path.Z();
+}
+
+/**
+ * Insect leg from the hip: the thigh rises to a knee out to the side (`dir`: +1 forward, -1 back, 0 middle), the shin
+ * drops steeply (>= 60 deg) to a small flat foot on the bed. Width w everywhere, so it prints as a bent rod.
+ */
+function insectLeg(hip: XY, dir: number, w: number, n: { bodyG: number; soleL: number }): Path {
+  // out >= rise keeps the arch wide enough for the leg's width (a tighter bend would fold the outline)
+  const rise = Math.max(5, n.bodyG * 0.45), out = rise * (dir === 0 ? 1 : 1.25) + w;
+  const knee: XY = [hip[0] + out * (dir || 1), hip[1] + rise]; // control point: the drawn knee sits about halfway up
+  const foot: XY = [knee[0] + out * 0.5 * (dir || 1), 1];
+  const p = taper(hip, knee, foot, () => w, 12);
+  p.append(polygon([[foot[0] - 2.4, 0], [foot[0] + 2.4, 0], [foot[0] + 1.6, 2.2], [foot[0] - 1.6, 2.2]])); // flat foot
+  return p;
 }
 
 /** Bat-wing finger tips (t1, t2) and the scallop notch (n1) as fractions of the wing size. */
@@ -86,6 +100,10 @@ export const STAND_MM = 4;
 export const STAND_MARGIN_MM = 6;
 /** x range of the stand: every foot on the bed, toe to heel, plus the margin. */
 export function standSpan(pose: Pose, n: Pose['n']): [number, number] {
+  if (D.onBelly(n.plan)) { // lies on its flat belly
+    const tx = pose.pos.torso[0], half = (n.bodyL / 2 + 2.5) * 0.85;
+    return [tx - half - STAND_MARGIN_MM, tx + half + STAND_MARGIN_MM];
+  }
   const feet = (n.plan === 1 ? ['footBL'] : ['footBL', 'footFL']).map((id) => pose.pos[id as NodeId][0]);
   return [Math.min(...feet) - n.soleL * 0.3 - STAND_MARGIN_MM, Math.max(...feet) + n.soleL * 0.7 + 3.4 + STAND_MARGIN_MM];
 }
@@ -146,23 +164,52 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
   const muscular = n.build === 2;
   // muscular build: a thigh / shoulder bulge at the top of each leg (inside the torso's lower half, never overhanging)
   const limb = (top: XY, f: XY): Path => leg(top, f, legW, foot, n.soleL, muscular ? 0.5 : 0);
-  put('legB', limb(hipB, fB));
-  put('legBFar', limb([hipB[0] + 3.2, hipB[1]], [fB[0] + 3.2, fB[1]]));
-  if (n.plan !== 1) { // a biped has no front legs
-    put('legF', limb(shF, fF));
-    put('legFFar', limb([shF[0] + 3.2, shF[1]], [fF[0] + 3.2, fF[1]]));
+  const far = (path: (dx: number) => Path): [Path, Path] => [path(0), path(3.2)];
+  if (n.plan === D.PLAN.quadruped || n.plan === D.PLAN.biped) {
+    put('legB', limb(hipB, fB));
+    put('legBFar', limb([hipB[0] + 3.2, hipB[1]], [fB[0] + 3.2, fB[1]]));
+    if (n.plan !== D.PLAN.biped) { // a biped has no front legs
+      put('legF', limb(shF, fF));
+      put('legFFar', limb([shF[0] + 3.2, shF[1]], [fF[0] + 3.2, fF[1]]));
+    }
+  } else if (n.plan === D.PLAN.insect) {
+    // six jointed legs: the knee rises above the hip, the shin drops steeply to a small flat foot; the front and
+    // middle pair share the front slot, the hind pair the back one
+    const mid: XY = [(hipB[0] + shF[0]) / 2, (hipB[1] + shF[1]) / 2];
+    const lw = Math.max(3.2, legW * 0.6);
+    const [nb, fb] = far((dx) => insectLeg([hipB[0] + dx, hipB[1]], -1, lw, n));
+    const [nf, ff] = far((dx) => insectLeg([shF[0] + dx, shF[1]], 1, lw, n).append(insectLeg([mid[0] + dx, mid[1]], 0, lw, n)));
+    put('legB', nb); put('legBFar', fb); put('legF', nf); put('legFFar', ff);
+  } else if (n.plan === D.PLAN.caterpillar) {
+    // stubby prolegs along the flat belly, peeking out of the flanks (drawn over the torso)
+    const [nf, ff] = far((dx) => {
+      const pl = new Path();
+      const cnt = Math.max(3, Math.round(n.bodyL / 10));
+      for (let i = 0; i < cnt; i++) {
+        const x = torso[0] - n.bodyL * 0.4 + (n.bodyL * 0.8 * i) / (cnt - 1) + dx;
+        pl.append(polygon([[x - 1.8, 0], [x + 1.8, 0], [x + 1.4, 3.2], [x - 1.4, 3.2]]));
+      }
+      return pl;
+    });
+    put('legF', nf); put('legFFar', ff);
   }
+  // fish: no legs
 
   // ---- torso: a plain round ellipsoid; shape is never bent to avoid supports ---------
   // muscular build: chest and haunch lobes fused into it (the bake blends them smoothly)
   // one outline: an ellipse swelling at the shoulders (front, up) and the haunch (back, up), dipping at the waist
   const bump = (a: number, at: number, h: number, wd: number): number => h * Math.exp(-(((Math.atan2(Math.sin(a - at), Math.cos(a - at))) / wd) ** 2));
   const trunkPts: XY[] = [];
+  const belly = D.onBelly(n.plan);
+  const segs = n.plan === D.PLAN.caterpillar ? Math.max(4, Math.round(n.bodyL / 9)) : n.plan === D.PLAN.insect ? 3 : 1;
   for (let i = 0; i < 72; i++) {
     const a = (i / 72) * Math.PI * 2;
     const k = muscular ? 1 + bump(a, 0.55, 0.16, 0.45) + bump(a, Math.PI - 0.6, 0.13, 0.45) - bump(a, Math.PI / 2, 0.07, 0.3) : 1;
-    const lx = Math.cos(a) * tRx * k, ly = Math.sin(a) * tRy * k; // torso frame, then tilted (biped: nose up)
-    trunkPts.push([torso[0] + lx * Math.cos(n.tilt) - ly * Math.sin(n.tilt), torso[1] + lx * Math.sin(n.tilt) + ly * Math.cos(n.tilt)]);
+    let lx = Math.cos(a) * tRx * k, ly = Math.sin(a) * tRy * k; // torso frame, then tilted (biped: nose up)
+    if (segs > 1 && ly > 0) ly *= 1 - 0.14 * Math.abs(Math.sin((Math.PI * segs * (lx / tRx + 1)) / 2)) ** 6; // notches between segments
+    if (n.plan === D.PLAN.fish) lx *= 1 + 0.12 * Math.sin(a) ** 2 * Math.sign(lx); // a fuller front, a slimmer back
+    const wx = torso[0] + lx * Math.cos(n.tilt) - ly * Math.sin(n.tilt), wy = torso[1] + lx * Math.sin(n.tilt) + ly * Math.cos(n.tilt);
+    trunkPts.push([wx, belly ? Math.max(0, wy) : wy]); // a belly plan lies flat on the bed
   }
   /** height of the trunk's top outline at x (for parts that stand on the back) */
   const trunkTop = (x: number): number => {
@@ -173,7 +220,7 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
     }
     return top === -Infinity ? torso[1] : top;
   };
-  const trunk = (): Path => (muscular ? polygon(trunkPts) : ellipse(torso[0], torso[1], tRx, tRy, n.tilt));
+  const trunk = (): Path => (muscular || belly || segs > 1 ? polygon(trunkPts) : ellipse(torso[0], torso[1], tRx, tRy, n.tilt));
   /** a shape drawn in the torso's own (untilted) frame, turned with the torso */
   const tilted = (path: Path): Path => path.rotated(torso[0], torso[1], n.tilt);
   put('torso', trunk());
@@ -204,9 +251,22 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
   const acc = g.accessory!.type!;
   if (acc === 2) put('saddle', tilted(ellipse(torso[0] - n.bodyL * 0.02, torso[1] + tRy * 0.62, n.bodyL * 0.2, tRy * 0.3)));
 
-  // ---- tail: leaves the rump backwards and up (>= 45 deg), tip is never thinner than TIP ----
+  // ---- fish: fins. A forked tail fin whose lower edge lies on the bed, a dorsal fin raked back, a pectoral fin
+  // down to the bed behind the head. Every free underside slopes >= 45 deg.
   const tailType = g.tail!.type!;
-  if (tailType > 0 && n.tailLen > 0.5) {
+  if (n.plan === D.PLAN.fish) {
+    const top = (x: number): number => trunkTop(x);
+    const h = n.bodyG * 0.55, xf = torso[0] + tRx * 0.1, xb = torso[0] - tRx * 0.3;
+    put('finD', polygon([[xf, top(xf) - 1], [xb - h * 0.3, top(xb) + h], [xb - h * 0.3 + TIP, top(xb) + h], [xb, top(xb) - 1]]));
+    const px = torso[0] + tRx * 0.45, py = torso[1] - tRy * 0.15, d = py * 0.7;
+    put('finP', polygon([[px + 2, py + 1.5], [px - d, 0], [px - d + 2 * TIP, 0], [px + 3, py - 2]]));
+  }
+  if (n.plan === D.PLAN.fish && tailType > 0 && n.tailLen > 0.5) {
+    const [x0, y0] = tailBase, len = n.tailLen;
+    put('tail', polygon([[x0 + 3, y0 + 2], [x0 - len * 0.95, y0 + len * 0.75], [x0 - len * 0.95 + TIP, y0 + len * 0.75],
+      [x0 - len * 0.55, y0 + len * 0.2], [x0 - len, 0], [x0 + 3, 0]]));
+  } else if (tailType > 0 && n.tailLen > 0.5) {
+    // ---- tail: leaves the rump backwards and up (>= 45 deg), tip is never thinner than TIP ----
     const ctrl: XY = [2 * tailMid[0] - (tailBase[0] + tailTip[0]) / 2, 2 * tailMid[1] - (tailBase[1] + tailTip[1]) / 2];
     const w0 = n.bodyG * 0.46;
     const width = tailType === 1 ? (t: number) => Math.max(1.8, w0 * (1 - t * 0.9))
@@ -311,9 +371,11 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
         .append(spike(base[0], base[1], 1, 5, base[0] + 3.8, base[1] + c)));
     } else if (crestType === 2) {
       const m = new Path();
-      const cnt = Math.max(2, Math.min(6, Math.floor(dl / 3.6)));
+      // every spike's base is >= 3.6 mm along the neck; a very short neck (a fish) gets one spike reaching past it
+      const cnt = Math.max(dl >= 4 ? 2 : 1, Math.min(6, Math.floor(dl / 3.6)));
+      const t0s = cnt === 1 && dl < 3.6 ? -(3.6 - dl) / 2 / dl : 0, span = cnt === 1 && dl < 3.6 ? 3.6 / dl : 1;
       for (let i = 0; i < cnt; i++) {
-        const t0 = i / cnt, t1 = (i + 1) / cnt;
+        const t0 = t0s + (span * i) / cnt, t1 = t0s + (span * (i + 1)) / cnt;
         const a = at(t0, upSign * neckW(t0) / 2 - 0.8), d2 = at(t1, upSign * neckW(t1) / 2 - 0.8);
         const b = at((t0 + t1) / 2, upSign * (neckW((t0 + t1) / 2) / 2 + c * 0.9));
         m.append(polygon([a, [b[0] - TIP / 2, b[1]], [b[0] + TIP / 2, b[1]], d2]));

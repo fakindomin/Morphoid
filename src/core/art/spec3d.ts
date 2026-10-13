@@ -64,6 +64,8 @@ export const SPEC_3D: Record<SlotId, Spec | null> = {
   horns: { color: 'c2', mirror: true, z: (c) => c.headW * 0.3, t: () => 3.2, bevel: (t) => round(0.3)(t) },
   tuft: { color: 'c2', mirror: false, z: centre, t: () => 3.2, bevel: (t) => round(0.3)(t) },
   mane: { color: 'c2', mirror: false, z: centre, t: (c) => c.neckT * 0.6, bevel: (t) => round(0.3)(t) },
+  finD: { color: 'c2', mirror: false, z: centre, t: () => 2.4, bevel: (t) => round(0.3)(t) },
+  finP: { color: 'c2', mirror: true, z: (c) => c.W * 0.42, t: () => 1.6, bevel: (t) => flat(t) },
   spines: { color: 'c2', mirror: false, z: centre, t: () => 3.2, bevel: (t) => round(0.3)(t) },
   wingNear: { color: 'c2', mirror: true, z: (c) => c.W * 0.34, t: () => 1.6, bevel: (t) => flat(t) },
   saddle: { color: 'c2', mirror: false, z: centre, t: (c) => c.W * 0.96, bevel: (t) => round(0.45)(t) },
