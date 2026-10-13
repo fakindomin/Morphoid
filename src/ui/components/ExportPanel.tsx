@@ -1,4 +1,6 @@
 import { exportBundle } from '../../core/bake/orient';
+import { export3mf } from '../../core/bake/threemf';
+import { PALETTES } from '../../core/palette';
 import { VOXEL_MM, type BakeQuality } from '../../core/bake/bake';
 import { bakeStore } from '../bakeStore';
 import { download } from '../download';
@@ -43,8 +45,8 @@ export function ExportPanel() {
 
   return (
     <section className="tile">
-      <header className="tile-header"><span className="tile-title">📦 Eksport do druku</span><span className="tile-status">STL</span></header>
-      <p className="hint">Zamienia model na jedną gładką, szczelną bryłę (zrost bez szwów) i sprawdza ją. Części drukowane osobno trafiają do ZIP-a. Przygotowanie trwa od ułamka sekundy do kilku sekund i dzieje się w tle.</p>
+      <header className="tile-header"><span className="tile-title">📦 Eksport do druku</span><span className="tile-status">STL · 3MF</span></header>
+      <p className="hint">Zamienia model na jedną gładką, szczelną bryłę (zrost bez szwów) i sprawdza ją. Części drukowane osobno trafiają do ZIP-a. 3MF zawiera wszystkie części ułożone na stole i pomalowane czterema filamentami (c1, c2, c3 i biały) pod AMS. Przygotowanie trwa od ułamka sekundy do kilku sekund i dzieje się w tle.</p>
       <div className="control-label">Dokładność</div>
       <div className="segment">
         {QUALITY.map((q) => (
@@ -94,6 +96,10 @@ export function ExportPanel() {
           <button type="button" className="btn-tile" disabled={!fresh || !allOk}
             onClick={() => { const f = exportBundle(result, code); download(f.name, f.bytes); }}>
             ⬇ Pobierz {result.pieces.length > 1 ? 'ZIP z częściami (STL)' : 'STL'}
+          </button>
+          <button type="button" className="btn-tile" disabled={!fresh || !allOk} title="Bambu Studio, OrcaSlicer, PrusaSlicer: kolory jako pomalowane obszary, filamenty 1–4 = c1, c2, c3, biały"
+            onClick={() => { const f = export3mf(result, code, PALETTES[genome.palette!.index!]!); download(f.name, f.bytes); }}>
+            ⬇ Pobierz 3MF w kolorach (AMS)
           </button>
         </div>
       )}

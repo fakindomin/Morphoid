@@ -12,7 +12,7 @@ self.onmessage = (e: MessageEvent<Req>): void => {
     const transfer: ArrayBuffer[] = [];
     for (const p of result.pieces) {
       delete p.mesh.cells; // only needed for repairs
-      transfer.push(p.mesh.positions.buffer as ArrayBuffer, p.mesh.indices.buffer as ArrayBuffer);
+      transfer.push(p.mesh.positions.buffer as ArrayBuffer, p.mesh.indices.buffer as ArrayBuffer, p.paint.buffer as ArrayBuffer);
     }
     self.postMessage({ type: 'result', id, result }, transfer);
   } catch (err) {

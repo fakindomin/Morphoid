@@ -46,26 +46,21 @@ export function printMesh(piece: BakedPiece): Mesh {
     for (let v = 0; v < P.length; v += 3) { P[v] = P[v]! - xmin; P[v + 1] = P[v + 1]! - ymin; P[v + 2] = P[v + 2]! - zmin; }
     return { positions: P, indices: src.indices };
   }
-  // flat: lay every body on the bed (z up stays z up), then line them up along Y
+  // flat: lay every body on the bed (z up stays z up), then line them up along Y. Triangles keep their order (and
+  // so their paint, see paint.ts): only the vertices move, each with its own body.
   const comps = components(src).sort((a, b) => a.min[1] - b.min[1]);
   const xmin = Math.min(...comps.map((c) => c.min[0]));
   const P = new Float32Array(src.positions.length);
-  const I: number[] = [];
-  const remap = new Map<number, number>();
   let cursor = 0;
   for (const c of comps) {
     const dx = -xmin, dy = cursor - c.min[1], dz = -c.min[2];
     for (const t of c.tris) for (let k = 0; k < 3; k++) {
       const v = src.indices[3 * t + k]!;
-      if (!remap.has(v)) {
-        remap.set(v, v);
-        P[3 * v] = src.positions[3 * v]! + dx; P[3 * v + 1] = src.positions[3 * v + 1]! + dy; P[3 * v + 2] = src.positions[3 * v + 2]! + dz;
-      }
-      I.push(v);
+      P[3 * v] = src.positions[3 * v]! + dx; P[3 * v + 1] = src.positions[3 * v + 1]! + dy; P[3 * v + 2] = src.positions[3 * v + 2]! + dz;
     }
     cursor += c.max[1] - c.min[1] + GAP_MM;
   }
-  return { positions: P, indices: new Uint32Array(I) };
+  return { positions: P, indices: src.indices };
 }
 
 export interface ExportFile { name: string; bytes: Uint8Array }

@@ -150,3 +150,33 @@ describe('joints: pegs, sockets and tabs are real geometry', () => {
     expect(glued / parts).toBeLessThan(0.2);
   });
 });
+
+describe('3MF for AMS: painted triangles', () => {
+  it('paints the eyes white, pupils and nose in c3, the inner ear in c2, and writes every piece into one 3MF', async () => {
+    const { export3mf } = await import('../src/core/bake/threemf');
+    const { unzipSync, strFromU8 } = await import('fflate');
+    const r = bake(defaultGenome(), planModular(), 'draft');
+    const used = (id: string): number[] => { const c = [0, 0, 0, 0]; for (const f of r.pieces.find((p) => p.id === id)!.paint) c[f]!++; return c; };
+    const head = used('head');
+    expect(head[0]).toBeGreaterThan(head[2]! + head[3]!);
+    expect(head[2]).toBeGreaterThan(0); // pupils, nose, mouth
+    expect(head[3]).toBeGreaterThan(0); // eye whites
+    expect(used('ears')[1]).toBeGreaterThan(0); // inner ear
+    for (const p of r.pieces) expect(p.paint.length).toBe(p.mesh.indices.length / 3);
+
+    const f = export3mf(r, 'TEST', ['#e8e2d4', '#c25e4e', '#1c2230']);
+    expect(f.name).toBe('morphoid-TEST.3mf');
+    const zip = unzipSync(f.bytes);
+    expect(Object.keys(zip).sort()).toEqual(['3D/3dmodel.model', '[Content_Types].xml', '_rels/.rels']);
+    const xml = strFromU8(zip['3D/3dmodel.model']!);
+    expect(xml.match(/<object /g)!.length).toBe(r.pieces.length);
+    expect(xml.match(/<item /g)!.length).toBe(r.pieces.length);
+    expect(xml).toContain('paint_color="1C"');
+    expect(xml).toContain('slic3rpe:mmu_segmentation="0C"');
+    // every triangle refers to a vertex of its own object
+    for (const obj of xml.split('<object ').slice(1)) {
+      const nv = obj.match(/<vertex /g)!.length;
+      for (const m of obj.matchAll(/v[123]="(\d+)"/g)) expect(Number(m[1])).toBeLessThan(nv);
+    }
+  });
+});

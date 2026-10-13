@@ -12,6 +12,7 @@ import { closeSmallHoles, restore } from './close';
 import { addPart, clipBelow, gridDims, makeGrid } from './field';
 import { flipMesh, validateMesh, type MeshValidation } from './mesh';
 import { JOIN_MARGIN_MM, crop, cutAway, joinPart, newHostSockets, type HostSockets, type Joint } from './joint';
+import { paintMesh } from './paint';
 import { makeManifoldField, surfaceNets, type Grid3, type Mesh } from './surfacenets';
 
 export type BakeQuality = 'draft' | 'standard' | 'fine';
@@ -118,6 +119,8 @@ export interface BakedPiece {
   orientation: 'upright' | 'flat';
   /** model coordinates (mm, y up) */
   mesh: Mesh;
+  /** AMS filament (0-based: c1, c2, c3, white) of every triangle, see paint.ts */
+  paint: Uint8Array;
   validation: MeshValidation;
   ms: number;
   /** through-holes the engine closed (tiny tunnels between neighbouring parts) */
@@ -154,7 +157,10 @@ export function bake(
   const t0 = performance.now();
   const rig = solveRig(genome);
   const paths = buildPaths(targetPose(rig, genome, 0, false, { x: 0, y: 0 }), genome, rig, false);
-  const parts = buildParts3D(paths, genome, rig).filter((p) => p.thickness >= MIN_SOLID_MM);
+  const all = buildParts3D(paths, genome, rig);
+  const parts = all.filter((p) => p.thickness >= MIN_SOLID_MM);
+  // too thin to be geometry: painted on the piece they belong to (3MF colour regions)
+  const decalsOf = (id: string): Part3D[] => all.filter((p) => p.thickness < MIN_SOLID_MM && pieceOf(p.slot as SlotId, plan) === id);
   const h = VOXEL_MM[quality];
 
   const byPiece = new Map<string, Part3D[]>();
@@ -231,8 +237,9 @@ export function bake(
     const { mesh, validation, holesClosed } = meshWithRepair(grid, 12, (name) =>
       onProgress?.({ frac: Math.min(1, (base + weights[n]! * rest * start[name]) / totalW), label: PHASE_LABEL[name], piece: labelOf(id), index: n + 1, count: order.length }), holes);
     grids.delete(id);
+    const paint = paintMesh(mesh, byPiece.get(id)!, decalsOf(id), id === 'body' ? paths.pattern.flatten(8) : []);
     const flat = id !== 'body' && GROUPS.find((x: { id: PartGroup }) => x.id === id)?.orientation === 'flat';
-    pieces.push({ id, label: labelOf(id), orientation: flat ? 'flat' : 'upright', mesh, validation, ms: performance.now() - t1, holesClosed, clashesWith: clashes.get(id) ?? [], joints: (joints.get(id) ?? []).map((j) => ({ ...j, hostId: hostsOf(id)[j.host]! })) });
+    pieces.push({ id, label: labelOf(id), orientation: flat ? 'flat' : 'upright', mesh, paint, validation, ms: performance.now() - t1, holesClosed, clashesWith: clashes.get(id) ?? [], joints: (joints.get(id) ?? []).map((j) => ({ ...j, hostId: hostsOf(id)[j.host]! })) });
     doneW += weights[n]! * rest;
   });
   onProgress?.({ frac: 1, label: 'Gotowe', piece: '', index: order.length, count: order.length });

@@ -23,9 +23,9 @@ export const smin = (a: number, b: number, k: number): number => {
   return Math.min(a, b) - h * h * k * 0.25;
 };
 
-interface Edge { ax: number; ay: number; bx: number; by: number }
+export interface Edge { ax: number; ay: number; bx: number; by: number }
 
-function edgesOf(polys: XY[][]): Edge[] {
+export function edgesOf(polys: XY[][]): Edge[] {
   const e: Edge[] = [];
   for (const poly of polys) for (let i = 0; i < poly.length; i++) {
     const a = poly[i]!, b = poly[(i + 1) % poly.length]!;
@@ -35,7 +35,7 @@ function edgesOf(polys: XY[][]): Edge[] {
 }
 
 /** Signed distance from (x, y) to the union of polygons: negative inside. */
-function sdPolys(edges: Edge[], polys: XY[][], x: number, y: number): number {
+export function sdPolys(edges: Edge[], polys: XY[][], x: number, y: number): number {
   let d2 = Infinity;
   for (const e of edges) {
     const dx = e.bx - e.ax, dy = e.by - e.ay;
