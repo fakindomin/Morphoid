@@ -2,7 +2,8 @@ import { exportBundle } from '../../core/bake/orient';
 import { VOXEL_MM, type BakeQuality } from '../../core/bake/bake';
 import { bakeStore } from '../bakeStore';
 import { download } from '../download';
-import { isSeparate } from '../../core/print';
+import { GROUPS, isSeparate, type PartGroup } from '../../core/print';
+import type { BakedPiece } from '../../core/bake/bake';
 import { studio, useStudioState } from '../studio';
 import { BakeProgressBar, useBakeFresh } from './BakeStatus';
 
@@ -14,6 +15,18 @@ const QUALITY: { id: BakeQuality; label: string; hint: string }[] = [
 
 /** Chrome reports the device RAM in GB; the finest bake needs roughly half a gigabyte. */
 const lowMemory = (): boolean => { const m = (navigator as Navigator & { deviceMemory?: number }).deviceMemory; return m !== undefined && m <= 2; };
+
+const PEG_TEXT: Record<string, string> = { '5x5x8': 'czop 5×5×8', '3x3x5': 'czop 3×3×5', '2x2x4': 'kołek 2×2×4', tab: 'wpust' };
+
+/** "czop 5×5×8, 2× wpust" — how this part is fixed to the rest */
+function jointSummary(p: BakedPiece): string {
+  const count = new Map<string, number>();
+  for (const j of p.joints) if (j.peg) count.set(j.peg, (count.get(j.peg) ?? 0) + 1);
+  if (!count.size) return p.joints.length ? 'do przyklejenia' : '';
+  return [...count].map(([k, n]) => (n > 1 ? `${n}× ` : '') + PEG_TEXT[k]).join(', ');
+}
+
+const labelOfPiece = (id: string): string => (id === 'body' ? 'korpus' : GROUPS.find((g) => g.id === id)?.label.toLowerCase() ?? id);
 
 export function ExportPanel() {
   const { job, fresh, stale } = useBakeFresh();
@@ -56,9 +69,16 @@ export function ExportPanel() {
                 <span className="group-name">{p.label}</span>
                 <span className={`valid ${p.validation.watertight ? 'ok' : 'bad'}`}>{p.validation.watertight ? '✓ szczelna' : '✗ otwarta'}</span>
                 <span className="peg-badge">{(p.validation.triangles / 1000).toFixed(0)}k trój. · {p.validation.volume.toFixed(1)} cm³</span>
+                {jointSummary(p) && <span className="peg-badge" title="Czop: kwadratowy kołek wchodzący w gniazdo z luzem 0,2 mm. Wpust: cienka część wchodzi w szczelinę swojego kształtu.">{jointSummary(p)}</span>}
               </li>
             ))}
           </ul>
+          {result.pieces.filter((p) => p.clashesWith.length).map((p) => (
+            <div key={p.id} className="msg warn">
+              {p.label} i {p.clashesWith.map(labelOfPiece).join(', ')} przenikają się po złożeniu, a żadnej z tych części nie da się przyciąć bez rozpadnięcia. Wydrukuj jedną z nich razem z resztą.
+              <button type="button" className="btn-mini" onClick={() => studio.setSeparate(p.id as PartGroup, false)}>Drukuj razem: {p.label.toLowerCase()}</button>
+            </div>
+          ))}
           {windowed && (
             <div className="msg info">
               {windowed.label}: między elementami jest otwór na wylot (np. między skrzydłem a ogonem). Bryła jest szczelna i się wydrukuje, ale slicer może dodać podpory nad otworem.

@@ -11,6 +11,7 @@ import { GROUPS, isSeparate, pieceOf, type PartGroup, type PrintPlan } from '../
 import { closeSmallHoles, restore } from './close';
 import { addPart, clipBelow, gridDims, makeGrid } from './field';
 import { flipMesh, validateMesh, type MeshValidation } from './mesh';
+import { JOIN_MARGIN_MM, crop, cutAway, joinPart, newHostSockets, type HostSockets, type Joint } from './joint';
 import { makeManifoldField, surfaceNets, type Grid3, type Mesh } from './surfacenets';
 
 export type BakeQuality = 'draft' | 'standard' | 'fine';
@@ -92,18 +93,22 @@ export const CLOSE_HOLES_MM = 2.0;
 
 export function meshWithRepair(
   grid: Grid3, maxIter = 12, phase?: (name: 'topology' | 'mesh' | 'validate') => void,
+  /** sockets and slots: closing tiny holes must not fill them, so they are cut again afterwards */
+  holes: readonly ((g: Grid3) => void)[] = [],
 ): { mesh: Mesh; validation: MeshValidation; repairs: number; holesClosed: number } {
   const first = meshLoop(grid, maxIter, phase);
   if (first.validation.genus <= 0) return { ...first, holesClosed: 0 };
   // through-holes: close the tiny ones (hairline tunnels between neighbouring parts); keep the result only if it helps
   phase?.('topology');
+  const keep = holes.length ? grid.data.slice() : null;
   const undo = closeSmallHoles(grid, CLOSE_HOLES_MM);
   if (!undo.index.length) return { ...first, holesClosed: 0 };
+  for (const cut of holes) cut(grid);
   const second = meshLoop(grid, maxIter, phase);
   if (second.validation.watertight && second.validation.genus < first.validation.genus) {
     return { ...second, holesClosed: first.validation.genus - second.validation.genus };
   }
-  restore(grid, undo);
+  if (keep) grid.data.set(keep); else restore(grid, undo);
   return { ...first, holesClosed: 0 };
 }
 
@@ -117,6 +122,10 @@ export interface BakedPiece {
   ms: number;
   /** through-holes the engine closed (tiny tunnels between neighbouring parts) */
   holesClosed: number;
+  /** separately printed pieces this one runs through when assembled (neither could be trimmed without falling apart) */
+  clashesWith: string[];
+  /** joints of this part with the pieces it mounts on; empty for the body */
+  joints: (Joint & { hostId: string })[];
 }
 
 export interface BakeResult { pieces: BakedPiece[]; ms: number; quality: BakeQuality }
@@ -137,7 +146,11 @@ type Progress = (p: BakeProgress) => void;
 const PHASES = { field: 0.28, topology: 0.2, mesh: 0.37, validate: 0.15 } as const;
 const PHASE_LABEL = { field: 'Zrost elementów w bryłę', topology: 'Naprawa topologii', mesh: 'Tworzenie siatki', validate: 'Kontrola szczelności' } as const;
 
-export function bake(genome: MorphotypeGenome, plan: PrintPlan, quality: BakeQuality, onProgress?: Progress): BakeResult {
+export function bake(
+  genome: MorphotypeGenome, plan: PrintPlan, quality: BakeQuality, onProgress?: Progress,
+  /** test hook: the finished fields of every piece, just before meshing */
+  inspect?: (grids: ReadonlyMap<string, Grid3>) => void,
+): BakeResult {
   const t0 = performance.now();
   const rig = solveRig(genome);
   const paths = buildPaths(targetPose(rig, genome, 0, false, { x: 0, y: 0 }), genome, rig, false);
@@ -152,17 +165,21 @@ export function bake(genome: MorphotypeGenome, plan: PrintPlan, quality: BakeQua
   const legsSeparate = isSeparate(plan, 'legs');
   const order = ['body', ...GROUPS.map((g) => g.id)].filter((id) => byPiece.has(id));
   const labelOf = (id: string): string => (id === 'body' ? (byPiece.size === 1 ? 'Całość' : 'Korpus') : GROUPS.find((x) => x.id === id)!.label);
-  const weights = order.map((id) => { const d = gridDims(byPiece.get(id)!, h); return d.nx * d.ny * d.nz; });
+  // a part plugs into the body, and into a separately printed head where it touches the head (ears, horns, a tuft)
+  const hostsOf = (id: string): string[] => id === 'body' ? [] : id === 'head' || !byPiece.has('head') ? ['body'] : ['body', 'head'];
+  const margin = (id: string): number => (id === 'body' ? 3 : JOIN_MARGIN_MM);
+  const weights = order.map((id) => { const d = gridDims(byPiece.get(id)!, h, margin(id)); return d.nx * d.ny * d.nz; });
   const totalW = weights.reduce((a, b) => a + b, 0) || 1;
   let doneW = 0;
-  const report = (n: number, phaseDone: number, label: string): void =>
-    onProgress?.({ frac: Math.min(1, (doneW + weights[n]! * phaseDone) / totalW), label, piece: labelOf(order[n]!), index: n + 1, count: order.length });
-  const pieces: BakedPiece[] = [];
+  const report = (n: number, share: number, label: string): void =>
+    onProgress?.({ frac: Math.min(1, (doneW + weights[n]! * share) / totalW), label, piece: labelOf(order[n]!), index: n + 1, count: order.length });
+
+  // 1. fields of every piece
+  const grids = new Map<string, Grid3>();
   order.forEach((id, n) => {
     const ps = byPiece.get(id)!;
-    const t1 = performance.now();
     report(n, 0, PHASE_LABEL.field);
-    const grid = makeGrid(ps, h);
+    const grid = makeGrid(ps, h, margin(id));
     for (const p of ps) addPart(grid, p, BLEND_MM);
     // flat cuts so a piece has a real footprint on the bed
     if (id === 'head') clipBelow(grid, rig.nodes.neckBase.y);
@@ -171,11 +188,52 @@ export function bake(genome: MorphotypeGenome, plan: PrintPlan, quality: BakeQua
       for (const p of ps) for (const poly of p.polys) for (const [, y] of poly) ymin = Math.min(ymin, y);
       clipBelow(grid, ymin + 2);
     }
-    const start = { topology: PHASES.field, mesh: PHASES.field + PHASES.topology, validate: PHASES.field + PHASES.topology + PHASES.mesh } as const;
-    const { mesh, validation, holesClosed } = meshWithRepair(grid, 12, (name) => report(n, start[name], PHASE_LABEL[name]));
+    grids.set(id, grid);
+    doneW += weights[n]! * PHASES.field;
+  });
+
+  // 2. joints: every part is cut against its (still unmodified) host, then the sockets are carved
+  const joints = new Map<string, Joint[]>();
+  const sockets = new Map<string, HostSockets>();
+  const partHoles = new Map<string, ((g: Grid3) => void)[]>();
+  order.forEach((id, n) => {
+    const hosts = hostsOf(id);
+    if (!hosts.length) return;
+    report(n, PHASES.field, 'Czopy i gniazda');
+    joints.set(id, joinPart(grids.get(id)!, hosts.map((hid) => ({ grid: grids.get(hid)!, sockets: sockets.get(hid) ?? sockets.set(hid, newHostSockets()).get(hid)! })),
+      GROUPS.find((x) => x.id === id)?.orientation === 'upright', partHoles.set(id, []).get(id)!,
+      (sockets.get(id) ?? sockets.set(id, newHostSockets()).get(id)!).placed));
+  });
+  const clashes = new Map<string, string[]>();
+  // separate parts that overlap each other but are not joined: the later one gives way to the earlier one
+  order.forEach((id, n) => {
+    if (!hostsOf(id).length) return;
+    for (const other of order.slice(0, n)) {
+      // the later part gives way; if that would chop it apart, the earlier one does; failing both, they clash
+      if (hostsOf(id).includes(other) || cutAway(grids.get(id)!, grids.get(other)!) || cutAway(grids.get(other)!, grids.get(id)!)) continue;
+      (clashes.get(id) ?? clashes.set(id, []).get(id)!).push(other);
+    }
+  });
+  for (const [host, list] of sockets) for (const carve of list.carve) grids.set(host, carve(grids.get(host)!));
+  inspect?.(grids);
+
+  // 3. meshes
+  const pieces: BakedPiece[] = [];
+  const rest = 1 - PHASES.field;
+  const start = { topology: 0, mesh: PHASES.topology / rest, validate: (PHASES.topology + PHASES.mesh) / rest } as const;
+  doneW = 0;
+  order.forEach((id, n) => {
+    const t1 = performance.now();
+    // keep the usual 3 mm of empty border: hole closing needs room around the solid
+    const grid = crop(grids.get(id)!, Math.ceil(3 / h));
+    const base = doneW + weights.reduce((a, w) => a + w * PHASES.field, 0);
+    const holes = [...(sockets.get(id)?.holes ?? []), ...(partHoles.get(id) ?? [])];
+    const { mesh, validation, holesClosed } = meshWithRepair(grid, 12, (name) =>
+      onProgress?.({ frac: Math.min(1, (base + weights[n]! * rest * start[name]) / totalW), label: PHASE_LABEL[name], piece: labelOf(id), index: n + 1, count: order.length }), holes);
+    grids.delete(id);
     const flat = id !== 'body' && GROUPS.find((x: { id: PartGroup }) => x.id === id)?.orientation === 'flat';
-    pieces.push({ id, label: labelOf(id), orientation: flat ? 'flat' : 'upright', mesh, validation, ms: performance.now() - t1, holesClosed });
-    doneW += weights[n]!;
+    pieces.push({ id, label: labelOf(id), orientation: flat ? 'flat' : 'upright', mesh, validation, ms: performance.now() - t1, holesClosed, clashesWith: clashes.get(id) ?? [], joints: (joints.get(id) ?? []).map((j) => ({ ...j, hostId: hostsOf(id)[j.host]! })) });
+    doneW += weights[n]! * rest;
   });
   onProgress?.({ frac: 1, label: 'Gotowe', piece: '', index: order.length, count: order.length });
   return { pieces, ms: performance.now() - t0, quality };

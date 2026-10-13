@@ -130,3 +130,23 @@ describe('solid quality: no holes, no gaps, no floating bits (every element, var
     expect(bad).toEqual([]);
   });
 });
+
+describe('joints: pegs, sockets and tabs are real geometry', () => {
+  it('modular parts are mostly seated on a peg or tab; the rest is marked for glue, and nothing loses its joint silently', () => {
+    const rnd = mulberry32(31);
+    let parts = 0, glued = 0;
+    const bad: string[] = [];
+    for (const g of [defaultGenome(), ...Array.from({ length: 8 }, () => randomGenome(rnd))]) {
+      for (const p of bake(g, planModular(), 'draft').pieces) {
+        if (!p.validation.watertight) bad.push(`${p.id} not watertight`);
+        if (p.id === 'body') { expect(p.joints).toEqual([]); continue; }
+        parts++;
+        if (!p.joints.length) bad.push(`${p.id} has no joint`);
+        if (!p.joints.some((j) => j.peg !== null)) glued++;
+        for (const j of p.joints) if (!['body', 'head'].includes(j.hostId)) bad.push(`${p.id} mounts on ${j.hostId}`);
+      }
+    }
+    expect(bad).toEqual([]);
+    expect(glued / parts).toBeLessThan(0.2);
+  });
+});

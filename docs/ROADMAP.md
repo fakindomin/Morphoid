@@ -63,10 +63,16 @@ Kontrakt elementu 2D↔3D↔druk (`docs/ELEMENT_CONTRACT.md`), audyt sylwetki be
 - *Zrealizowane:* `core/bake`: pole SDF z dokładnych odległości do konturów (wyciągnięcie w Z z zaokrągleniem, jak w podglądzie 3D), zrost `smin` (promień 1,2 mm), Surface Nets, **naprawa topologii przed siatkowaniem** (każda komórka ma połączone rogi wewnątrz i na zewnątrz, więc siatka się nie „zaciska"), walidator (każda krawędź dokładnie raz w każdym kierunku, objętość, liczba powłok), STL binarny, Web Worker z postępem i anulowaniem, orientacja do druku (stojące zostają, płaskie kładą się na stole), eksport STL lub ZIP części. Testy: kula (objętość ±3%), domyślny stworek w jednej szczelnej powłoce, 25 losowych w trybie całość i modułowym, STL, orientacja.
 - *Wydajność (po optymalizacji):* siatkowanie liczone tylko przy powierzchni (rzadkie skanowanie krawędzi zamiast wszystkich komórek), szybka walidacja na posortowanych kluczach, pomijanie punktów dalekich od konturu. Domyślny stworek: szkic 0,6 mm ok. 0,1–0,3 s, standard 0,3 mm ok. 0,7 s (177k trójkątów, 8,8 MB), dokładny 0,2 mm ok. 2,4 s (400k trójkątów, 20 MB); to 4–5 razy szybciej niż pierwsza wersja, a wynik jest identyczny. Największy możliwy stworek: standard 1,5 s, dokładny 4,3 s, ok. 340 MB pamięci. Obliczenia idą na urządzeniu użytkownika (nie na serwerze), więc czas zależy od jego komputera.
 - *Wskaźnik postępu:* globalny, nie tylko w panelu eksportu. Przycisk w nagłówku (Przygotuj do druku, procent z paskiem i anulowaniem, Bryła gotowa, Pobierz), pozycja w pasku statusu (procent, etap, część i czas), tytuł karty z procentem, komunikat po zakończeniu. Postęp jest ważony rozmiarem siatki każdej części, a komunikat „Liczy się w tle, możesz dalej edytować" mówi, że to nie zawieszenie. Wynik jest oznaczany jako nieaktualny po zmianie modelu.
-- *Jeszcze nie ma:* czopów i gniazd jako geometrii (części modułowe są szczelne, ale bez złączy), elementów cieńszych niż 0,8 mm (źrenice, usta, brwi, wnętrze ucha), które mają być obszarami koloru w 3MF, oraz 3MF (Etap 4).
+- *Jeszcze nie ma:* elementów cieńszych niż 0,8 mm (źrenice, usta, brwi, wnętrze ucha), które mają być obszarami koloru w 3MF, oraz 3MF (Etap 4).
 
-**Etap 4 – Części, kolory, dopracowanie (do zrobienia)**
-- Czopy/gniazda w domenie SDF (`max(a, -b)`), luz 0,2 mm konfigurowalny. Orientacja i układ części na stole.
+**Etap 4 – Części, kolory, dopracowanie (w toku)**
+- *Zrealizowane: złącza jako geometria* (`core/bake/joint.ts`). Każda osobna część dostaje złącze z korpusem albo głową:
+  - czop 5×5×8, 3×3×5 lub kołek 2×2×4 z luzem 0,2 mm na stronę, gniazdem 0,4 mm głębszym i ścianką ≥ 0,8 mm;
+  - część stojąca (głowa, nogi) ma gniazdo u siebie, a czop stoi na korpusie, więc obie drukują się bez podpór;
+  - cienkie części (uszy, rogi, skrzydła, wąsy, grzywa) dostają wpust: własny przekrój wsunięty do 3 mm w gniazdo, a przy cienkim gospodarzu płytszy (1,5 lub 0,75 mm).
+  - Żadne gniazdo ani wpust nie może przebić gospodarza ani zostawić w nim tunelu. Strażnik sprawdza to liczbą Eulera bryły i powietrza. Gdy nie da się tego zrobić, część jest „do przyklejenia” (ok. 10% części w losowych stworkach) i panel eksportu to pokazuje.
+  - Części drukowane osobno, które na siebie nachodzą, ustępują sobie nawzajem; jeśli żadna nie może, panel proponuje „Drukuj razem”.
+- Do zrobienia: luz konfigurowalny w UI, orientacja i układ części na stole.
 - `.3mf` wielomateriałowy: **spike na Bambu Studio i PrusaSlicer jako pierwszy krok etapu**, bo mechanizmy podziału na kolory są specyficzne dla slicera.
 - Pozostałe klocki z katalogu (krest, coat, accessory), landing, pasek postępu bake'u, dopracowanie Dark-Tech (`clip-path` 45°).
 

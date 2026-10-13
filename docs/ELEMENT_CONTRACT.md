@@ -22,7 +22,7 @@ Nie dodajemy niczego do rysunku bez wpisu w katalogu. Pilnują tego testy (`test
 | Płaska podeszwa stopy | ≥ 60 mm² |
 | Rowki (usta, brwi, wzory) | szer. ≥ 0,8 mm, głęb. ≤ 0,5 mm |
 | Reliefy (oczy, nos) | wysokość ≥ 0,8 mm |
-| Czop montażowy | 3×3×5 lub 5×5×8 mm, luz 0,2 mm na stronę, korzeń ≥ czop + 0,8 mm |
+| Czop montażowy | 5×5×8, 3×3×5 lub 2×2×4 mm (albo wpust do 3 mm), luz 0,2 mm na stronę, ścianka gniazda ≥ 0,8 mm |
 
 ## Polityka: projektujemy bez podpór, użytkownik może wszystko zmienić, aplikacja mówi o skutkach
 1. **Elementy w katalogu są projektowane tak, by w domyślnych rozmiarach drukowały się bez podpór.** Pilnuje tego `tests/print.test.ts`: uszy, rogi, skrzydła, grzywa/kolce i ogon nie dodają podpór w żadnym wariancie ani rozmiarze, a pysk w rozmiarach 1–3.
@@ -50,7 +50,7 @@ Poziom: zielony (OK), żółty (z uwagami), czerwony (nie wydrukuje się tak, ja
 
 ## Znane ograniczenia (uczciwie)
 - Audyt patrzy na **sylwetkę z boku**. Okrągłe przekroje w osi Z tylko poprawiają sytuację, ale audyt ich nie modeluje. Pełna weryfikacja bryły nastąpi w silniku bake (Etap 3).
-- Czopy i gniazda są na razie *planowane* (rozmiar i możliwość zamocowania), a ich geometria powstanie w silniku bake.
+- Czopy, gniazda i wpusty są geometrią z bake'u (`core/bake/joint.ts`). Część, której nie da się osadzić bez przebicia gospodarza, zostaje „do przyklejenia”, a panel eksportu to zaznacza.
 - Pole `coat.texture` (futro/łuski/pancerz) i `legs.count` nie są jeszcze rysowane, więc w UI są wyłączone.
 - Wartości w `core/rig/dimensions.ts` i `core/print/rules.ts` to wartości wyjściowe do strojenia na prawdziwych wydrukach z P1S.
 
