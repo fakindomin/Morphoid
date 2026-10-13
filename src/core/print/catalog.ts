@@ -57,7 +57,7 @@ export const PARTS: readonly PartSpec[] = [
 ];
 
 /** Drawn only to look good; carries no geometry and must never suggest any. */
-export const RENDER_ONLY_SLOTS: readonly SlotId[] = ['shadow', 'torsoClip', 'belly', 'glint', 'bones'];
+export const RENDER_ONLY_SLOTS: readonly SlotId[] = ['shadow', 'torsoClip', 'belly', 'glint', 'bones', 'iris', 'blush', 'toes'];
 
 /** Additive parts that form the support-free print silhouette (whiskers are printed separately). */
 export const PRINT_SOLID_SLOTS: readonly SlotId[] = [
@@ -70,5 +70,5 @@ export const SLOT_NAME_PL: Record<SlotId, string> = {
   torso: 'brzuch/tułów', torsoClip: 'tułów', belly: 'brzuch', pattern: 'wzór', saddle: 'siodło', spines: 'kolce', legF: 'noga przednia',
   neck: 'szyja', neckDecor: 'ozdoba szyi', mane: 'grzywa', collar: 'obroża', ear: 'ucho', earIn: 'ucho', horns: 'rogi', antennae: 'czułki', stalks: 'szypułki oczu', tuft: 'czub',
   head: 'głowa', snout: 'pysk', wingNear: 'skrzydło', nose: 'nos', mouth: 'usta', teeth: 'zęby', whiskers: 'wąsy', eye: 'oko',
-  pupil: 'źrenica', glint: 'odblask', brow: 'brew', bones: 'kości',
+  pupil: 'źrenica', glint: 'odblask', iris: 'tęczówka', blush: 'rumieniec', toes: 'paluszki', brow: 'brew', bones: 'kości',
 };

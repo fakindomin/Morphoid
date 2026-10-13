@@ -11,7 +11,7 @@ const to = (x: number, y: number) => [CX - x * SCALE, GROUND - y * SCALE] as con
 /** Solid parts that make up the figurine's silhouette: drawn once more underneath as one outline. */
 const SOLID: readonly SlotKind[] = ['skin', 'skinFar', 'accent', 'accentFar', 'accentSoft', 'white'];
 /** Small details drawn above the shading (eyes, mouth, nose), so the light does not tint them. */
-const DETAIL: readonly SlotKind[] = ['white', 'ink', 'glint', 'groove'];
+const DETAIL: readonly SlotKind[] = ['white', 'iris', 'ink', 'glint', 'groove', 'blush'];
 const SIL_SLOTS = SLOTS.filter(([, kind]) => SOLID.includes(kind));
 /**
  * Paint layers, back to front. The skin-coloured parts are fused into one smooth body (the 2D twin of the bake's
@@ -158,7 +158,7 @@ export function Canvas2D({ showBones, breathing, frozen, onSocket, markers = [] 
           </linearGradient>
           {/* fuse: blur the shapes, then cut the alpha sharp again: joints between parts get smooth fillets */}
           <filter id="goo" filterUnits="userSpaceOnUse" x={-40} y={-40} width={W + 80} height={H + 80}>
-            <feGaussianBlur in="SourceGraphic" stdDeviation={2.2} result="b" />
+            <feGaussianBlur in="SourceGraphic" stdDeviation={2.8} result="b" />
             <feColorMatrix in="b" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 24 -11" result="body" />
             {/* form shading: a soft shade along every lower edge, a soft light along every upper edge */}
             <feOffset in="body" dy={-9} result="up" />
@@ -188,9 +188,9 @@ export function Canvas2D({ showBones, breathing, frozen, onSocket, markers = [] 
             <feMerge><feMergeNode in="SourceGraphic" /><feMergeNode in="shade" /><feMergeNode in="hi" /></feMerge>
           </filter>
           <filter id="gooOutline" filterUnits="userSpaceOnUse" x={-40} y={-40} width={W + 80} height={H + 80}>
-            <feGaussianBlur in="SourceAlpha" stdDeviation={2.2} result="b" />
+            <feGaussianBlur in="SourceAlpha" stdDeviation={2.8} result="b" />
             <feColorMatrix in="b" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 24 -11" result="g" />
-            <feMorphology in="g" operator="dilate" radius={2.4} result="d" />
+            <feMorphology in="g" operator="dilate" radius={2.8} result="d" />
             <feFlood className="ink-flood" result="ink" />
             <feComposite in="ink" in2="d" operator="in" />
           </filter>

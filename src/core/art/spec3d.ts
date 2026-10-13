@@ -46,7 +46,7 @@ const centre = (): number => 0;
 
 /** `null` = deliberately not a 3D solid (render-only shading, or the mirror image of another slot). */
 export const SPEC_3D: Record<SlotId, Spec | null> = {
-  shadow: null, torsoClip: null, belly: null, glint: null, bones: null, // render-only
+  shadow: null, torsoClip: null, belly: null, glint: null, bones: null, iris: null, blush: null, toes: null, // render-only
   legBFar: null, legFFar: null, wingFar: null,                          // mirror images, generated from the near slot
   torso: { color: 'c1', mirror: false, z: centre, t: (c) => c.W, bevel: (t) => round(0.48)(t) },
   pattern: null, // painted onto the torso surface (colour region), see the viewport

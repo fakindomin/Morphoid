@@ -14,7 +14,9 @@ import type { Pose } from './pose';
 /** skin/skinFar = body colour (c1); accent = c2; white/ink/glint = details; clip = not drawn. */
 export type SlotKind =
   | 'shadow' | 'skin' | 'skinFar' | 'belly' | 'pattern' | 'accent' | 'accentFar' | 'accentSoft'
-  | 'white' | 'ink' | 'glint' | 'groove' | 'bone' | 'clip';
+  | 'white' | 'ink' | 'glint' | 'groove' | 'bone' | 'clip'
+  /** drawing-only touches of the illustrated style (no geometry): eye colour, cheek blush */
+  | 'iris' | 'blush';
 
 export const SLOTS = [
   ['shadow', 'shadow'], ['stand', 'accent'], ['arms', 'skin'], ['wingFar', 'accentFar'], ['tail', 'skin'], ['legBFar', 'skinFar'], ['legFFar', 'skinFar'],
@@ -22,7 +24,7 @@ export const SLOTS = [
   ['saddle', 'accent'], ['spines', 'accent'], ['finD', 'accent'], ['legF', 'skin'], ['finP', 'accent'], ['neck', 'skin'], ['neckDecor', 'skinFar'],
   ['mane', 'accent'], ['collar', 'accent'], ['ear', 'skin'], ['earIn', 'accentSoft'], ['horns', 'accent'], ['antennae', 'accent'], ['tuft', 'accent'],
   ['head', 'skin'], ['snout', 'skin'], ['wingNear', 'accent'], ['nose', 'ink'],
-  ['mouth', 'groove'], ['teeth', 'white'], ['whiskers', 'skinFar'], ['stalks', 'skin'], ['eye', 'white'], ['pupil', 'ink'],
+  ['mouth', 'groove'], ['teeth', 'white'], ['whiskers', 'skinFar'], ['stalks', 'skin'], ['blush', 'blush'], ['toes', 'groove'], ['eye', 'white'], ['iris', 'iris'], ['pupil', 'ink'],
   ['glint', 'glint'], ['brow', 'groove'], ['bones', 'bone'],
 ] as const satisfies readonly (readonly [string, SlotKind])[];
 
@@ -497,13 +499,25 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
     ? [[eye, er2], [[head[0] - hs.rx * 0.08, head[1] + hs.ry * 0.5], er2 * 0.8], [[head[0] + hs.rx * 0.62, head[1] + hs.ry * 0.02], er2 * 0.75], [[head[0] + hs.rx * 0.05, head[1] + hs.ry * 0.05], er2 * 0.7]]
     : face.eyes === EYES.stalks ? [[eyeOnStalk(head, hs), er2]] : [[eye, er2]];
   if (face.eyes === EYES.stalks) put('stalks', tube(eyeStalkRoot(head, hs), eyes[0]![0], STALK_W, STALK_W));
-  const ew = new Path(), ep = new Path(), eg = new Path();
+  const ew = new Path(), ei = new Path(), ep = new Path(), eg = new Path();
   for (const [[x, y], r] of eyes) {
     ew.append(ellipse(x, y, r, r * 1.08));
+    ei.append(ellipse(x + r * 0.2, y - r * 0.04, r * 0.8, r * 0.86)); // drawing only: a coloured iris round the pupil
     ep.append(ellipse(x + r * 0.22, y - r * 0.05, r * 0.62, r * 0.7));
-    eg.append(ellipse(x + r * 0.42, y + r * 0.32, r * 0.24, r * 0.24));
+    eg.append(ellipse(x + r * 0.42, y + r * 0.32, r * 0.26, r * 0.26)).append(ellipse(x - r * 0.02, y - r * 0.38, r * 0.12, r * 0.12));
   }
-  put('eye', ew); put('pupil', ep); put('glint', eg);
+  put('eye', ew); put('iris', ei); put('pupil', ep); put('glint', eg);
+  // drawing only: a rosy cheek under the eye, and two toe lines on each near paw
+  put('blush', ellipse(head[0] + hs.rx * 0.38, head[1] - hs.ry * 0.3, Math.max(2.2, hs.rx * 0.26), Math.max(1.3, hs.ry * 0.14)));
+  if (foot === 0 && (n.plan === D.PLAN.quadruped || n.plan === D.PLAN.biped)) {
+    const toes = new Path();
+    const feet = n.plan === D.PLAN.biped ? [fB] : [fB, fF];
+    for (const f of feet) {
+      const toe = f[0] + n.soleL * 0.7;
+      for (const dx of [1.4, 3]) toes.append(tube([toe - dx, 0.5], [toe - dx + 0.3, 2.1], 0.7, 0.7));
+    }
+    put('toes', toes);
+  }
 
   // grooves are real-width ribbons (0.9 mm) so the drawing shows what will be engraved
   const G = PRINT_RULES.grooveWidth + 0.1;
