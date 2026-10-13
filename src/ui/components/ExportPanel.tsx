@@ -2,7 +2,8 @@ import { exportBundle } from '../../core/bake/orient';
 import { VOXEL_MM, type BakeQuality } from '../../core/bake/bake';
 import { bakeStore } from '../bakeStore';
 import { download } from '../download';
-import { studio } from '../studio';
+import { isSeparate } from '../../core/print';
+import { studio, useStudioState } from '../studio';
 import { BakeProgressBar, useBakeFresh } from './BakeStatus';
 
 const QUALITY: { id: BakeQuality; label: string; hint: string }[] = [
@@ -21,6 +22,11 @@ export function ExportPanel() {
   const running = job.status === 'running';
   const allOk = result?.pieces.every((p) => p.validation.watertight && p.validation.volume > 0);
   const totalVol = result?.pieces.reduce((s, p) => s + p.validation.volume, 0) ?? 0;
+  const { genome, plan } = useStudioState();
+  // a through-hole is not a defect (the solid is watertight and prints), but the user should know it is there
+  const windowed = result?.pieces.find((p) => p.validation.genus > 0);
+  const splitGroup = (genome.wings!.type! > 0 && !isSeparate(plan, 'wings')) ? 'wings' as const
+    : (genome.tail!.type! > 0 && !isSeparate(plan, 'tail')) ? 'tail' as const : null;
 
   return (
     <section className="tile">
@@ -53,6 +59,16 @@ export function ExportPanel() {
               </li>
             ))}
           </ul>
+          {windowed && (
+            <div className="msg info">
+              {windowed.label}: między elementami jest otwór na wylot (np. między skrzydłem a ogonem). Bryła jest szczelna i się wydrukuje, ale slicer może dodać podpory nad otworem.
+              {splitGroup && (
+                <button type="button" className="btn-mini" onClick={() => studio.setSeparate(splitGroup, true)}>
+                  Wydrukuj osobno: {splitGroup === 'wings' ? 'skrzydła' : 'ogon'}
+                </button>
+              )}
+            </div>
+          )}
           <div className="hint">Objętość razem {totalVol.toFixed(1)} cm³ · czas {(result.ms / 1000).toFixed(1).replace('.', ',')} s · {allOk ? 'wszystkie bryły szczelne (manifold)' : 'uwaga: nieszczelne bryły'}</div>
           <label className="check"><input type="checkbox" checked={job.showBaked && fresh} disabled={!fresh} onChange={(e) => bakeStore.setShowBaked(e.target.checked)} /> Pokaż bryłę do druku w widoku 3D</label>
           <button type="button" className="btn-tile" disabled={!fresh || !allOk}

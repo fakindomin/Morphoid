@@ -72,18 +72,22 @@ function fillPolygon(g: Grid, poly: readonly (readonly [number, number])[], owne
   let ymin = Infinity, ymax = -Infinity;
   for (const [, y] of poly) { ymin = Math.min(ymin, y); ymax = Math.max(ymax, y); }
   const j0 = Math.max(0, Math.floor((ymin - g.y0) / CELL)), j1 = Math.min(g.h - 1, Math.ceil((ymax - g.y0) / CELL));
-  const xs: number[] = [];
+  // non-zero winding, like the SVG fill of the 2D drawing (a self-overlapping outline stays solid)
+  const xs: [number, number][] = [];
   for (let j = j0; j <= j1; j++) {
     const y = g.y0 + (j + 0.5) * CELL;
     xs.length = 0;
     for (let k = 0; k < poly.length; k++) {
       const a = poly[k]!, b = poly[(k + 1) % poly.length]!;
-      if ((a[1] <= y && b[1] > y) || (b[1] <= y && a[1] > y)) xs.push(a[0] + ((y - a[1]) / (b[1] - a[1])) * (b[0] - a[0]));
+      if ((a[1] <= y && b[1] > y) || (b[1] <= y && a[1] > y)) xs.push([a[0] + ((y - a[1]) / (b[1] - a[1])) * (b[0] - a[0]), b[1] > a[1] ? 1 : -1]);
     }
-    xs.sort((p, q) => p - q);
-    for (let k = 0; k + 1 < xs.length; k += 2) {
-      const i0 = Math.max(0, Math.ceil((xs[k]! - g.x0) / CELL - 0.5));
-      const i1 = Math.min(g.w - 1, Math.floor((xs[k + 1]! - g.x0) / CELL - 0.5));
+    xs.sort((p, q) => p[0] - q[0]);
+    let wn = 0;
+    for (let k = 0; k + 1 < xs.length; k++) {
+      wn += xs[k]![1];
+      if (!wn) continue;
+      const i0 = Math.max(0, Math.ceil((xs[k]![0] - g.x0) / CELL - 0.5));
+      const i1 = Math.min(g.w - 1, Math.floor((xs[k + 1]![0] - g.x0) / CELL - 0.5));
       for (let i = i0; i <= i1; i++) { g.occ[j * g.w + i] = 1; g.owner[j * g.w + i] = ownerId; }
     }
   }

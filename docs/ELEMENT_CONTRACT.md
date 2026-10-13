@@ -59,5 +59,7 @@ Poziom: zielony (OK), żółty (z uwagami), czerwony (nie wydrukuje się tak, ja
 - Każdy bake musi być wodoszczelny (0 krawędzi nieparzystych) – sprawdza `validateMesh`.
 - Szpary w obrysach 2D (SLIT) są wykrywane w raporcie jako `info` i zamykane przy bake (SLIT_CLOSE_MM 0.5, GAP_MM 1.2).
 - Otwory przelotowe (genus > 0) są zamykane trójwymiarowo (`close.ts`, CLOSE_HOLES_MM 2.0), o ile to poprawia wynik; liczba zamkniętych trafia do `BakedPiece.holesClosed`.
-- Audyt (300 losowych stworków, szkic): tryb całość – 0 nieszczelnych, 1 korpus z dodatkową powłoką, 6 korpusów z dużym oknem (≥ ~4 mm, głównie duże skrzydła + ogon/kolce); tryb modułowy – 0 nieszczelnych, 0 dodatkowych powłok, 0 okien.
+- Obrysy wypełniane są regułą non-zero (jak SVG w 2D), a `taper` zwęża kształt, jeśli jego obrys zawinąłby się sam na siebie (ósemka ściśnięta do punktu dawała osobną powłokę, np. krótki ogon typu 2).
+- Audyt (300 losowych stworków, szkic): tryb całość – 0 nieszczelnych, 0 dodatkowych powłok, 6 korpusów z dużym oknem (≥ ~4 mm, głównie duże skrzydła + ogon/kolce); tryb modułowy – 0 / 0 / 0.
+- Duże okno nie jest wadą (bryła jest szczelna i drukowalna), więc nie zmieniamy kształtu. Panel eksportu informuje o nim i proponuje „Wydrukuj osobno: skrzydła” (5 z 6 przypadków znika), a potem ogon.
 - Skrypt: `scripts/solid-audit.ts`.

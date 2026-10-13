@@ -48,12 +48,13 @@ function sdPolys(edges: Edge[], polys: XY[][], x: number, y: number): number {
   }
   let inside = false;
   for (const poly of polys) {
-    let c = false;
+    // non-zero winding, like the SVG fill of the 2D drawing: a self-overlapping outline (a tight tail curl) stays solid
+    let wn = 0;
     for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
       const a = poly[i]!, b = poly[j]!;
-      if ((a[1] > y) !== (b[1] > y) && x < ((b[0] - a[0]) * (y - a[1])) / (b[1] - a[1]) + a[0]) c = !c;
+      if ((a[1] > y) !== (b[1] > y) && x < ((b[0] - a[0]) * (y - a[1])) / (b[1] - a[1]) + a[0]) wn += a[1] > y ? 1 : -1;
     }
-    if (c) { inside = true; break; }
+    if (wn !== 0) { inside = true; break; }
   }
   const d = Math.sqrt(d2);
   return inside ? -d : d;

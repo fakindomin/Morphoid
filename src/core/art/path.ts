@@ -110,6 +110,15 @@ export function tube(a: XY, b: XY, w0: number, w1: number): Path {
 
 /** Quadratic curve a -> b (control c) swept with a width profile w(t), t in [0,1]. */
 export function taper(a: XY, c: XY, b: XY, w: (t: number) => number, n = 10, oneSided = false): Path {
+  // A width larger than the curve's bend makes the outline fold over itself (a twisted "figure 8" that pinches to a
+  // point and prints as two loose pieces). Narrow the whole shape just enough that the outline stays simple.
+  for (let scale = 1; ; scale *= 0.9) {
+    const pts = taperOutline(a, c, b, (t) => w(t) * scale, n, oneSided);
+    if (scale < 0.3 || !selfIntersects(pts)) return polygon(pts);
+  }
+}
+
+function taperOutline(a: XY, c: XY, b: XY, w: (t: number) => number, n: number, oneSided: boolean): XY[] {
   const left: XY[] = [], right: XY[] = [];
   for (let i = 0; i <= n; i++) {
     const t = i / n, u = 1 - t;
@@ -127,5 +136,21 @@ export function taper(a: XY, c: XY, b: XY, w: (t: number) => number, n = 10, one
       right.push([x - nx * hw, y - ny * hw]);
     }
   }
-  return polygon([...left, ...right.reverse()]);
+  return [...left, ...right.reverse()];
+}
+
+/** True when two non-adjacent edges of the closed outline cross. */
+export function selfIntersects(pts: readonly XY[]): boolean {
+  const m = pts.length;
+  const cross = (o: XY, p: XY, q: XY): number => (p[0] - o[0]) * (q[1] - o[1]) - (p[1] - o[1]) * (q[0] - o[0]);
+  for (let i = 0; i < m; i++) {
+    const a = pts[i]!, b = pts[(i + 1) % m]!;
+    for (let j = i + 2; j < m; j++) {
+      if (i === 0 && j === m - 1) continue;
+      const c = pts[j]!, d = pts[(j + 1) % m]!;
+      const d1 = cross(a, b, c), d2 = cross(a, b, d), d3 = cross(c, d, a), d4 = cross(c, d, b);
+      if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) return true;
+    }
+  }
+  return false;
 }
