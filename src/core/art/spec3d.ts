@@ -94,7 +94,7 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig): P
   for (const slot of Object.keys(SPEC_3D) as SlotId[]) {
     const spec = SPEC_3D[slot];
     if (!spec) continue;
-    const polys = paths[slot].flatten(8);
+    const polys = paths[slot].flatten(24); // fine steps: every polyline corner leaves a flat band on the rounded skin
     if (!polys.length) continue;
     const t = spec.t(ctx), bevel = spec.bevel(t, ctx), z = spec.z(ctx), group = groupOfSlot(slot)?.id ?? null;
     if (spec.mirror) {

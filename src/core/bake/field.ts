@@ -10,10 +10,10 @@ import type { Grid3 } from './surfacenets';
 export const BIG = 6; // mm, "far away" distance written into empty space
 
 /**
- * Slits between two parts narrower than about 0.9 mm cannot be printed (they fuse or leave a hairline void), so the
- * field closes them: where the distances to two different parts add up to less than GAP, the point is filled.
+ * Slits between two parts narrower than about 0.9 mm cannot be printed (they fuse or leave a hairline void). The smooth
+ * union closes them on its own: with a blend radius k it fills every gap narrower than about k / 2 between two parts
+ * (bake.ts sets k = 2.4 mm, so gaps up to 1.2 mm). An extra hard rule for this left visible ripples in the crevices.
  */
-export const GAP_MM = 1.2;
 /** Closing radius for slits inside one outline (slits narrower than twice this are filled). */
 export const SLIT_CLOSE_MM = 0.5;
 
@@ -144,9 +144,7 @@ export function addPart(g: Grid3, part: Part3D, k: number): void {
       const idx = top ? (v * ny + w) * nx + i : (w * ny + v) * nx + i;
       const cur = g.data[idx]!;
       if (d3 > cur + k) continue;
-      let val = smin(cur, d3, k);
-      if (cur > 0 && d3 > 0 && cur + d3 < GAP_MM) val = Math.min(val, Math.min(cur, d3) - (GAP_MM - cur - d3) * 3); // close hairline slits
-      g.data[idx] = val;
+      g.data[idx] = smin(cur, d3, k);
     }
   }
 }

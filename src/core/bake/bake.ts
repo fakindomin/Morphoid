@@ -13,14 +13,17 @@ import { addPart, clipBelow, gridDims, makeGrid, partBox } from './field';
 import { flipMesh, validateMesh, type MeshValidation } from './mesh';
 import { JOIN_MARGIN_MM, crop, cutAway, joinPart, newHostSockets, type HostSockets, type Joint } from './joint';
 import { paintMesh } from './paint';
+import { smoothMesh } from './smooth';
 import { makeManifoldField, surfaceNets, type Grid3, type Mesh } from './surfacenets';
 
 export type BakeQuality = 'draft' | 'standard' | 'fine';
 export const VOXEL_MM: Record<BakeQuality, number> = { draft: 0.6, standard: 0.3, fine: 0.2 };
-/** Smooth-union radius: joints grow organically within this distance (mm). */
-export const BLEND_MM = 1.2;
+/** Smooth-union radius: joints grow organically within this distance (mm); it also closes slits narrower than half of it. */
+export const BLEND_MM = 2.4;
 /** Parts thinner than this are colour regions / engraving (3MF), not geometry. */
 export const MIN_SOLID_MM = 0.8;
+/** How far skin smoothing may move a vertex, in voxels (see smooth.ts). */
+export const SMOOTH_MOVE = 0.9;
 
 /**
  * Surface Nets can pinch where two sheets of the surface meet inside one cell (features about one
@@ -242,9 +245,11 @@ export function bake(
     const grid = crop(grids.get(id)!, Math.ceil(3 / h));
     const base = doneW + weights.reduce((a, w) => a + w * PHASES.field, 0);
     const holes = [...(sockets.get(id)?.holes ?? []), ...(partHoles.get(id) ?? [])];
-    const { mesh, validation, holesClosed } = meshWithRepair(grid, 12, (name) =>
+    const { mesh: raw, validation: rawValidation, holesClosed } = meshWithRepair(grid, 12, (name) =>
       onProgress?.({ frac: Math.min(1, (base + weights[n]! * rest * start[name]) / totalW), label: PHASE_LABEL[name], piece: labelOf(id), index: n + 1, count: order.length }), holes);
     grids.delete(id);
+    const mesh = rawValidation.watertight ? smoothMesh(raw, SMOOTH_MOVE * h) : raw;
+    const validation = mesh === raw ? rawValidation : validateMesh(mesh);
     // a part swallowed whole by the piece it gave way to (ears inside a big octopus mantle) leaves nothing to print
     if (id !== 'body' && validation.shells === 0) { doneW += weights[n]! * rest; return; }
     const paint = paintMesh(mesh, byPiece.get(id)!, decalsOf(id), id === 'body' ? paths.pattern.flatten(8) : []);
