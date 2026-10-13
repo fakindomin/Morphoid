@@ -26,6 +26,9 @@ export const EAR_SIZE = table([5, 7, 9, 11, 14, 18]);
 export const SNOUT_REACH = table([4, 6, 8, 10, 13, 16]);
 export const CREST_SIZE = table([4, 6, 8, 10, 12, 15]);
 
+/** Head ellipse radius (mm); the muzzle starts at the head's front edge. */
+export const HEAD_RADIUS = 8;
+
 /** Body width (Z) as a fraction of its girth, per body shape. */
 export const BODY_WIDTH_RATIO = [0.9, 0.7, 1.15] as const;
 

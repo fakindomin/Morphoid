@@ -23,10 +23,12 @@ export function createStudioStore(initial: MorphotypeGenome = defaultGenome()) {
   const listeners = new Set<(s: StudioState) => void>();
   const emit = (): void => listeners.forEach((l) => l(state));
 
-  const commit = (next: MorphotypeGenome): void => {
-    if (serialize(next) === serialize(state.genome)) return;
+  /** @returns true when the genome actually changed (and a history entry was added). */
+  const commit = (next: MorphotypeGenome): boolean => {
+    if (serialize(next) === serialize(state.genome)) return false;
     state = { genome: next, past: [...state.past, state.genome].slice(-HISTORY_LIMIT), future: [] };
     emit();
+    return true;
   };
 
   return {
@@ -35,7 +37,7 @@ export function createStudioStore(initial: MorphotypeGenome = defaultGenome()) {
     code: (): string => serialize(state.genome),
     rig: (): Rig => solveRig(state.genome),
 
-    applyOps(ops: readonly Op[]): void { commit(ops.reduce(applyOp, state.genome)); },
+    applyOps(ops: readonly Op[]): boolean { return commit(ops.reduce(applyOp, state.genome)); },
     loadCode(text: string): ParseResult {
       const r = parse(text);
       if (r.ok) commit(r.genome);

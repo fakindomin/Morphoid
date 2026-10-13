@@ -110,7 +110,7 @@ function build(g: MorphotypeGenome, code: string): Rig {
     footBR: [0, -legLen, -legZ],
     neckBase: [L * 0.42, G * 0.25, 0],
     head: [neckLen, 0, 0], // along the neck's rotated frame
-    muzzle: [D.SNOUT_REACH[g.snout!.reach!]!, -2, 0],
+    muzzle: [D.HEAD_RADIUS + D.SNOUT_REACH[g.snout!.reach!]!, -2, 0],
     hornRoot: [1, 4, 0],
     earRoot: [-2, 4, 0],
     crestRoot: [0, 2, 0],
@@ -215,8 +215,9 @@ export function socketPosition(rig: Rig, socket: SocketId): RigNode {
 }
 
 /**
- * Cosmetic idle motion (breathing). Returns per-node offsets; contact nodes
- * and their direct hips/shoulders are never moved, so Y = 0 stays true.
+ * Cosmetic idle motion (breathing). Returns per-node LOCAL deltas in mm that
+ * accumulate down the hierarchy (a head delta also moves the muzzle). Contact
+ * nodes are never listed - the renderer pins them, so Y = 0 stays true.
  * Never feeds back into the genome or the export.
  */
 export function idleOffsets(rig: Rig, t: number): Partial<Record<NodeId, { dx: number; dy: number }>> {

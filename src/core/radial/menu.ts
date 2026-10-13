@@ -123,7 +123,8 @@ export function layoutSlices(items: readonly MenuNode[], backAngle: number | nul
   const hasBack = backAngle !== null;
   const count = items.length + (hasBack ? 1 : 0);
   if (count === 0) return [];
-  const span = TWO_PI / count;
+  // A lone Back button is a compact ~70° wedge under the cursor, not a full ring.
+  const span = items.length === 0 ? 1.2 : TWO_PI / count;
   const out: Slice[] = [];
   const mk = (id: string, label: string, angle: number, isBack: boolean, node?: MenuNode, icon?: string): Slice => ({
     id, label, isBack, angle, start: angle - span / 2, end: angle + span / 2, ...(node ? { node } : {}), ...(icon ? { icon } : {}),
