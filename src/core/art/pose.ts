@@ -9,7 +9,7 @@ import { dimensions as D, idleOffsets, type NodeId, type Rig } from '../rig';
 export type PosMap = Record<NodeId, [number, number]>;
 
 export interface Nums {
-  bodyL: number; bodyG: number; legW: number; build: number; plan: number; tilt: number;
+  bodyL: number; bodyG: number; bodyW: number; legW: number; build: number; plan: number; tilt: number;
   /** octopus: arm length and hub radius (mm) */
   armLen: number; hub: number;
   earS: number; hornS: number; wingS: number;
@@ -38,7 +38,7 @@ export function targetPose(
   return {
     pos,
     n: {
-      bodyL: rig.dims.bodyLength, bodyG: rig.dims.bodyGirth, legW: rig.dims.legWidth, build: rig.dims.build, plan: rig.dims.plan, tilt: rig.dims.tilt,
+      bodyL: rig.dims.bodyLength, bodyG: rig.dims.bodyGirth, bodyW: rig.dims.bodyWidth, legW: rig.dims.legWidth, build: rig.dims.build, plan: rig.dims.plan, tilt: rig.dims.tilt,
       armLen: D.OCTOPUS.armLen(g.legs!.length!), hub: Math.max(6, rig.dims.bodyWidth * D.OCTOPUS.hub),
       earS: typeSize(g, 'ears', D.EAR_SIZE, 'scale'), hornS: typeSize(g, 'horns', D.HORN_SPAN, 'span'),
       wingS: typeSize(g, 'wings', D.WING_SPAN, 'scale'), crestS: typeSize(g, 'crest', D.CREST_SIZE, 'scale'), antS: typeSize(g, 'antennae', D.ANTENNA_LEN, 'length'),

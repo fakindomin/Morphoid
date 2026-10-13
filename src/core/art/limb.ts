@@ -190,3 +190,52 @@ function hull(pts: XY[]): XY[] {
 export function legSpecOf(slot: 'legB' | 'legF', biped: boolean, top: XY, foot: XY, legW: number, footType: number, soleL: number, muscular: boolean): LegSpec {
   return { kind: slot === 'legF' ? 'fore' : biped ? 'bird' : 'hind', top, foot, legW, footType, soleL, muscular };
 }
+
+const merge = (limbs: Limb[]): Limb => ({ cones: limbs.flatMap((l) => l.cones), domes: limbs.flatMap((l) => l.domes) });
+
+/**
+ * Insect legs on one side (z sign of `side`): from the hip the thigh rises outwards at 45 deg to a knee above the body's
+ * flank, the shin drops steeply to a small round foot on the bed. `dir`: +1 reaches forward, -1 back, 0 straight out.
+ */
+export function insectLimb(hips: { hip: XY; dir: number }[], w: number, rise: number, bodyW: number, z: number): Limb {
+  const side = Math.sign(z) || 1, z0 = Math.abs(z) * 0.8;
+  const rHip = Math.max(LIMB_MIN_R, w * 0.55), rKnee = Math.max(LIMB_MIN_R, w * 0.45), rFoot = Math.max(LIMB_MIN_R, w * 0.4);
+  return merge(hips.map(({ hip: [hx, hy], dir }) => {
+    // the knee stands clear of the flank; the thigh rises at least as much as it reaches out (45 deg prints clean)
+    const out = bodyW / 2 + rKnee + rise * 0.35 - z0, dx = dir * rise * 0.5;
+    const up = Math.max(rise * 1.2, Math.hypot(out, dx) * 1.3);
+    const knee: V3 = [hx + dx, hy + up, side * (z0 + out)];
+    const foot: V3 = [knee[0] + dir * rise * 0.25, rFoot + 0.4, side * (z0 + out + rise * 0.35)];
+    return {
+      cones: [{ a: [hx, hy, side * z0], b: knee, ra: rHip, rb: rKnee }, { a: knee, b: foot, ra: rKnee, rb: rFoot }],
+      domes: [{ c: [foot[0], 0, foot[2]], r: [rFoot + 1, rFoot * 0.9, rFoot + 1] }],
+    };
+  }));
+}
+
+/** Caterpillar prolegs: short stubs out of the flank at every x, each on a round pad. */
+export function prolegLimb(xs: number[], z: number): Limb {
+  const side = Math.sign(z) || 1, zz = Math.abs(z);
+  return merge(xs.map((x) => ({
+    cones: [{ a: [x, 4.2, side * zz * 0.85], b: [x, 1.6, side * (zz + 0.4)], ra: 2.1, rb: 1.7 }],
+    domes: [{ c: [x, 0, side * (zz + 0.4)], r: [2.2, 1.7, 2] }],
+  })));
+}
+
+/**
+ * Octopus arms: eight tentacles lying on the bed around the hub, each a chain of round cones along the same curl as the
+ * old top-view outline (see octopusArms), thick at the hub and tapering to the tip. Their centres sit low, so the bed
+ * clips a flat underside off every arm.
+ */
+export function octopusLimb(cx: number, len: number, hub: number, arms: number): Limb {
+  const n = 10, cones: Cone[] = [];
+  const a0: XY = [hub * 0.5, 0], c: XY = [len * 0.7, len * 0.1], b: XY = [len, len * 0.42];
+  const at = (t: number): XY => { const u = 1 - t; return [u * u * a0[0] + 2 * u * t * c[0] + t * t * b[0], u * u * a0[1] + 2 * u * t * c[1] + t * t * b[1]]; };
+  const rad = (t: number): number => Math.max(1.1, 3.2 * (1 - t) + 1.1 * t);
+  for (let k = 0; k < arms; k++) {
+    const ang = ((k + 0.5) * 2 * Math.PI) / arms, cs = Math.cos(ang), sn = Math.sin(ang);
+    const pt = (t: number): V3 => { const [x, zz] = at(t), r = rad(t); return [cx + x * cs - zz * sn, r * 0.5, x * sn + zz * cs]; };
+    for (let i = 0; i < n; i++) cones.push({ a: pt(i / n), b: pt((i + 1) / n), ra: rad(i / n), rb: rad((i + 1) / n) });
+  }
+  return { cones, domes: [] };
+}

@@ -10,7 +10,7 @@ import { dimensions as D, type NodeId, type Rig } from '../rig';
 import { PRINT_RULES } from '../print/rules';
 import { ellipse, Path, polygon, taper, tube, type ToPx, type XY } from './path';
 import type { Pose } from './pose';
-import { legLimb, legSpecOf, limbOutline } from './limb';
+import { insectLimb, legLimb, legSpecOf, limbOutline, octopusLimb, prolegLimb } from './limb';
 
 /** skin/skinFar = body colour (c1); accent = c2; white/ink/glint = details; clip = not drawn. */
 export type SlotKind =
@@ -35,18 +35,17 @@ export type Shapes = Record<SlotId, string>;
 const p = (pose: Pose, id: NodeId): XY => pose.pos[id];
 const R = D.HEAD_RADIUS;
 
-/**
- * Insect leg from the hip: the thigh rises to a knee out to the side (`dir`: +1 forward, -1 back, 0 middle), the shin
- * drops steeply (>= 60 deg) to a small flat foot on the bed. Width w everywhere, so it prints as a bent rod.
- */
-function insectLeg(hip: XY, dir: number, w: number, n: { bodyG: number; soleL: number }): Path {
-  // out >= rise keeps the arch wide enough for the leg's width (a tighter bend would fold the outline)
-  const rise = Math.max(5, n.bodyG * 0.45), out = rise * (dir === 0 ? 1 : 1.25) + w;
-  const knee: XY = [hip[0] + out * (dir || 1), hip[1] + rise]; // control point: the drawn knee sits about halfway up
-  const foot: XY = [knee[0] + out * 0.5 * (dir || 1), 1];
-  const p = taper(hip, knee, foot, () => w, 12);
-  p.append(polygon([[foot[0] - 2.4, 0], [foot[0] + 2.4, 0], [foot[0] + 1.6, 2.2], [foot[0] - 1.6, 2.2]])); // flat foot
-  return p;
+/** Insect legs per slot: the hind pair in legB, the front and middle pairs in legF (see insectLimb). */
+export function insectHips(hipB: XY, shF: XY): { legB: { hip: XY; dir: number }[]; legF: { hip: XY; dir: number }[] } {
+  const mid: XY = [(hipB[0] + shF[0]) / 2, (hipB[1] + shF[1]) / 2];
+  return { legB: [{ hip: hipB, dir: -1 }], legF: [{ hip: shF, dir: 1 }, { hip: mid, dir: 0 }] };
+}
+export const insectLegW = (legW: number): number => Math.max(3.2, legW * 0.6);
+export const insectRise = (bodyG: number): number => Math.max(5, bodyG * 0.45);
+/** x of every caterpillar proleg along the flat belly. */
+export function prolegXs(torsoX: number, bodyL: number): number[] {
+  const cnt = Math.max(3, Math.round(bodyL / 10));
+  return Array.from({ length: cnt }, (_, i) => torsoX - bodyL * 0.4 + (bodyL * 0.8 * i) / (cnt - 1));
 }
 
 /** Bat-wing finger tips (t1, t2) and the scallop notch (n1) as fractions of the wing size. */
@@ -200,34 +199,20 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
       put('legFFar', limb('legF', [shF[0] + 3.2, shF[1]], [fF[0] + 3.2, fF[1]]));
     }
   } else if (n.plan === D.PLAN.insect) {
-    // six jointed legs: the knee rises above the hip, the shin drops steeply to a small flat foot; the front and
-    // middle pair share the front slot, the hind pair the back one
-    const mid: XY = [(hipB[0] + shF[0]) / 2, (hipB[1] + shF[1]) / 2];
-    const lw = Math.max(3.2, legW * 0.6);
-    const [nb, fb] = far((dx) => insectLeg([hipB[0] + dx, hipB[1]], -1, lw, n));
-    const [nf, ff] = far((dx) => insectLeg([shF[0] + dx, shF[1]], 1, lw, n).append(insectLeg([mid[0] + dx, mid[1]], 0, lw, n)));
+    // six jointed legs: the thigh rises outwards to a knee above the flank, the shin drops steeply to a round foot
+    const lw = insectLegW(legW), rise = insectRise(n.bodyG);
+    const [nb, fb] = far((dx) => limbOutline(insectLimb(insectHips([hipB[0] + dx, hipB[1]], [shF[0] + dx, shF[1]]).legB, lw, rise, n.bodyW, 1)));
+    const [nf, ff] = far((dx) => limbOutline(insectLimb(insectHips([hipB[0] + dx, hipB[1]], [shF[0] + dx, shF[1]]).legF, lw, rise, n.bodyW, 1)));
     put('legB', nb); put('legBFar', fb); put('legF', nf); put('legFFar', ff);
   } else if (n.plan === D.PLAN.caterpillar) {
     // stubby prolegs along the flat belly, peeking out of the flanks (drawn over the torso)
-    const [nf, ff] = far((dx) => {
-      const pl = new Path();
-      const cnt = Math.max(3, Math.round(n.bodyL / 10));
-      for (let i = 0; i < cnt; i++) {
-        const x = torso[0] - n.bodyL * 0.4 + (n.bodyL * 0.8 * i) / (cnt - 1) + dx;
-        pl.append(polygon([[x - 1.8, 0], [x + 1.8, 0], [x + 1.4, 3.2], [x - 1.4, 3.2]]));
-      }
-      return pl;
-    });
+    const [nf, ff] = far((dx) => limbOutline(prolegLimb(prolegXs(torso[0] + dx, n.bodyL), 1)));
     put('legF', nf); put('legFFar', ff);
   }
   // fish: no legs
   if (n.plan === D.PLAN.octopus) {
-    // side view of the arms lying on the bed: a low band from the farthest arm tip behind to the one in front
-    const arms = octopusArms(torso[0], n.armLen, n.hub);
-    let x0 = Infinity, x1 = -Infinity;
-    for (const poly of arms) for (const [x] of poly) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); }
-    const t = D.OCTOPUS.armMm;
-    put('arms', new Path().M(x0, 0).L(x1, 0).Q(x1 + 1.2, t * 0.5, x1 - 1, t).L(x0 + 1, t).Q(x0 - 1.2, t * 0.5, x0, 0).Z());
+    // side view of the eight tentacles lying on the bed (the same chains the solid is made of)
+    put('arms', limbOutline(octopusLimb(torso[0], n.armLen, n.hub, D.OCTOPUS.arms)));
   }
 
   // ---- torso: a plain round ellipsoid; shape is never bent to avoid supports ---------

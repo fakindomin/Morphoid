@@ -9,9 +9,9 @@
 import type { MorphotypeGenome } from '../genome';
 import { dimensions as D, type Rig } from '../rig';
 import { groupOfSlot, type PartGroup } from '../print/plan';
-import { EYES, WHISKER_TURN, octopusArms, STALK_W, STAND_MARGIN_MM, STAND_MM, WHISKER_FAN, WHISKER_PAD, WHISKER_W, whiskerLength, type SlotId, type SlotPaths } from './shapes';
+import { EYES, WHISKER_TURN, insectHips, insectLegW, insectRise, prolegXs, STALK_W, STAND_MARGIN_MM, STAND_MM, WHISKER_FAN, WHISKER_PAD, WHISKER_W, whiskerLength, type SlotId, type SlotPaths } from './shapes';
 import type { XY } from './path';
-import { legLimb, legSpecOf, type Limb } from './limb';
+import { insectLimb, legLimb, legSpecOf, octopusLimb, prolegLimb, type Limb } from './limb';
 import { edgesOf, sdPolys, type Edge } from '../bake/field';
 
 export type ColorKey = 'c1' | 'c1dark' | 'c2' | 'c2soft' | 'c3' | 'ink' | 'white';
@@ -122,11 +122,16 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig): P
     const [top, foot] = p.slot === 'legB' ? [rig.nodes.hipB, rig.nodes.footBL] : [rig.nodes.shoulderF, rig.nodes.footFL];
     p.limb = legLimb(legSpecOf(p.slot, biped, [top.x, top.y], [foot.x, foot.y], rig.dims.legWidth, g.legs!.foot!, rig.dims.soleLength, rig.dims.build === 2), p.z);
   }
-  for (const p of out) if (p.slot === 'arms') { // octopus arms lie flat on the bed around the hub
-    p.polys = octopusArms(rig.nodes.torso.x, D.OCTOPUS.armLen(g.legs!.length!), Math.max(6, rig.dims.bodyWidth * D.OCTOPUS.hub));
-    p.plane = 'xz';
-    p.z = D.OCTOPUS.armMm / 2;
+  for (const p of out) if (p.slot === 'arms') { // octopus tentacles lie on the bed around the hub
+    p.limb = octopusLimb(rig.nodes.torso.x, D.OCTOPUS.armLen(g.legs!.length!), Math.max(6, rig.dims.bodyWidth * D.OCTOPUS.hub), D.OCTOPUS.arms);
   }
+  // insects: six jointed legs reaching out sideways; caterpillars: stubby prolegs out of the flanks
+  if (plan === D.PLAN.insect) for (const p of out) {
+    if (p.slot !== 'legB' && p.slot !== 'legF') continue;
+    const n = rig.nodes, hips = insectHips([n.hipB.x, n.hipB.y], [n.shoulderF.x, n.shoulderF.y]);
+    p.limb = insectLimb(hips[p.slot], insectLegW(rig.dims.legWidth), insectRise(rig.dims.bodyGirth), rig.dims.bodyWidth, p.z);
+  }
+  if (plan === D.PLAN.caterpillar) for (const p of out) if (p.slot === 'legF') p.limb = prolegLimb(prolegXs(rig.nodes.torso.x, rig.dims.bodyLength), p.z);
   return out;
 }
 
