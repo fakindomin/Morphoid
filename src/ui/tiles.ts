@@ -11,11 +11,13 @@ export const TILES: TileDef[] = [
     { block: 'snout', field: 'reach', label: 'Wysunięcie pyska' },
     { block: 'ears', field: 'type', label: 'Kształt uszu' },
     { block: 'ears', field: 'scale', label: 'Wielkość uszu' },
-    { block: 'face', field: 'eyes', label: 'Wielkość oczu' },
+    { block: 'face', field: 'eyes', label: 'Oczy' },
   ] },
-  { id: 'horns', title: '2. Rogi', fields: [
+  { id: 'horns', title: '2. Rogi i czułki', fields: [
     { block: 'horns', field: 'type', label: 'Kształt rogów' },
     { block: 'horns', field: 'span', label: 'Wielkość rogów' },
+    { block: 'antennae', field: 'type', label: 'Czułki' },
+    { block: 'antennae', field: 'length', label: 'Długość czułków' },
   ] },
   { id: 'neck', title: '3. Szyja', fields: [
     { block: 'head', field: 'neck', label: 'Fasada szyi' },

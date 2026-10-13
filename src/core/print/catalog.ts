@@ -39,6 +39,8 @@ export const PARTS: readonly PartSpec[] = [
   { id: 'snout', blocks: ['snout'], slots: ['snout', 'nose'], repr3D: 'sweep', modular: false, note: 'zwężająca się kufa; nos jako kopułka' },
   { id: 'ears', blocks: ['ears'], slots: ['ear', 'earIn'], repr3D: 'plate', modular: false, note: 'płytka 1,6 mm; wnętrze jako zagłębienie koloru' },
   { id: 'horns', blocks: ['horns'], slots: ['horns'], repr3D: 'sweep', modular: false, note: 'rogi jako sweep, kąt nawisu <= 45°, czubek >= 1,2 mm' },
+  { id: 'antennae', blocks: ['antennae'], slots: ['antennae'], repr3D: 'plate', modular: false, note: 'para czułków 2 mm pochylonych do przodu <= 25°, z kulką albo pierzastym listkiem' },
+  { id: 'stalks', blocks: ['face'], slots: ['stalks'], repr3D: 'sweep', modular: false, note: 'szypułki oczu 2,4 mm, oko jako kula na czubku' },
   { id: 'crest', blocks: ['crest'], slots: ['tuft', 'mane', 'spines'], repr3D: 'cone-array', modular: false, note: 'kolce/czub z czubkiem >= 1,2 mm' },
   { id: 'wings', blocks: ['wings'], slots: ['wingNear', 'wingFar'], repr3D: 'plate', modular: true, note: 'płytki 1,6 mm po obu stronach; w trybie modułowym drukowane na płasko z czopem' },
   { id: 'tail', blocks: ['tail'], slots: ['tail'], repr3D: 'sweep', modular: false, note: 'sweep eliptyczny od nasady' },
@@ -60,13 +62,13 @@ export const RENDER_ONLY_SLOTS: readonly SlotId[] = ['shadow', 'torsoClip', 'bel
 /** Additive parts that form the support-free print silhouette (whiskers are printed separately). */
 export const PRINT_SOLID_SLOTS: readonly SlotId[] = [
   'tail', 'legBFar', 'legFFar', 'legB', 'torso', 'saddle', 'spines', 'legF', 'neck', 'mane', 'collar',
-  'ear', 'horns', 'tuft', 'head', 'snout', 'wingNear', 'wingFar', 'throat', 'finD', 'finP', 'arms',
+  'ear', 'horns', 'antennae', 'stalks', 'tuft', 'head', 'snout', 'wingNear', 'wingFar', 'throat', 'finD', 'finP', 'arms',
 ];
 
 export const SLOT_NAME_PL: Record<SlotId, string> = {
   shadow: 'cień', stand: 'podstawka', arms: 'macki', finD: 'płetwa grzbietowa', finP: 'płetwa piersiowa', wingFar: 'skrzydło', tail: 'ogon', legBFar: 'noga tylna', legFFar: 'noga przednia', legB: 'noga tylna',
   torso: 'brzuch/tułów', torsoClip: 'tułów', belly: 'brzuch', pattern: 'wzór', saddle: 'siodło', spines: 'kolce', legF: 'noga przednia',
-  neck: 'szyja', neckDecor: 'ozdoba szyi', mane: 'grzywa', collar: 'obroża', ear: 'ucho', earIn: 'ucho', horns: 'rogi', tuft: 'czub',
+  neck: 'szyja', neckDecor: 'ozdoba szyi', mane: 'grzywa', collar: 'obroża', ear: 'ucho', earIn: 'ucho', horns: 'rogi', antennae: 'czułki', stalks: 'szypułki oczu', tuft: 'czub',
   head: 'głowa', snout: 'pysk', wingNear: 'skrzydło', nose: 'nos', mouth: 'usta', teeth: 'zęby', whiskers: 'wąsy', eye: 'oko',
   pupil: 'źrenica', glint: 'odblask', brow: 'brew', bones: 'kości', throat: 'podbródek',
 };

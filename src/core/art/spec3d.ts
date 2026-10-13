@@ -9,7 +9,7 @@
 import type { MorphotypeGenome } from '../genome';
 import { dimensions as D, type Rig } from '../rig';
 import { groupOfSlot, type PartGroup } from '../print/plan';
-import { octopusArms, STAND_MARGIN_MM, STAND_MM, WHISKER_FAN, WHISKER_PAD, WHISKER_W, whiskerLength, type SlotId, type SlotPaths } from './shapes';
+import { EYES, octopusArms, STALK_W, STAND_MARGIN_MM, STAND_MM, WHISKER_FAN, WHISKER_PAD, WHISKER_W, whiskerLength, type SlotId, type SlotPaths } from './shapes';
 import type { XY } from './path';
 import { edgesOf, sdPolys, type Edge } from '../bake/field';
 
@@ -62,6 +62,8 @@ export const SPEC_3D: Record<SlotId, Spec | null> = {
   ear: { color: 'c1', mirror: true, z: (c) => c.headW * 0.28, t: () => 2.4, bevel: (t) => flat(t) },
   earIn: { color: 'c2soft', mirror: true, z: (c) => c.headW * 0.28 + 1.35, t: () => 0.3, bevel: () => 0.05 },
   horns: { color: 'c2', mirror: true, z: (c) => c.headW * 0.3, t: () => 3.2, bevel: (t) => round(0.3)(t) },
+  antennae: { color: 'c2', mirror: true, z: (c) => c.headW * 0.22, t: () => 2, bevel: (t) => round(0.35)(t) },
+  stalks: { color: 'c1', mirror: true, z: (c) => c.headW * 0.25, t: () => STALK_W, bevel: (t) => round(0.4)(t) },
   tuft: { color: 'c2', mirror: false, z: centre, t: () => 3.2, bevel: (t) => round(0.3)(t) },
   mane: { color: 'c2', mirror: false, z: centre, t: (c) => c.neckT * 0.6, bevel: (t) => round(0.3)(t) },
   finD: { color: 'c2', mirror: false, z: centre, t: () => 2.4, bevel: (t) => round(0.3)(t) },
@@ -105,6 +107,11 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig): P
   const head = out.find((p) => p.slot === 'head');
   if (head) for (const p of out) if (p.slot === 'ear') p.polys = seatOn(p, head);
   for (const p of out) if (p.slot === 'whiskers') whiskerTop(p, g, ctx);
+  if (g.face!.eyes === EYES.stalks) for (const p of out) { // eyes on stalks: a ball on top of each stalk, the pupil on its outer side
+    const zs = ctx.headW * 0.25 * p.side;
+    if (p.slot === 'eye') { p.z = zs; p.thickness = 4.4; p.bevel = 2.1; }
+    if (p.slot === 'pupil') p.z = zs + 2.2 * p.side;
+  }
   for (const p of out) if (p.slot === 'stand') standTop(p, g, rig);
   for (const p of out) if (p.slot === 'arms') { // octopus arms lie flat on the bed around the hub
     p.polys = octopusArms(rig.nodes.torso.x, D.OCTOPUS.armLen(g.legs!.length!), Math.max(6, rig.dims.bodyWidth * D.OCTOPUS.hub));

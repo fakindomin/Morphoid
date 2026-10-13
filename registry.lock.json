@@ -46,7 +46,8 @@
     "00": "none",
     "01": "wolf",
     "02": "fluffy",
-    "03": "fan"
+    "03": "fan",
+    "04": "feathers"
   },
   "U": {
     "00": "none"
@@ -55,12 +56,16 @@
     "00": "none",
     "01": "tuft",
     "02": "mane",
-    "03": "spines"
+    "03": "spines",
+    "04": "crystals",
+    "05": "plume"
   },
   "O": {
     "01": "small",
     "02": "normal",
-    "03": "big"
+    "03": "big",
+    "04": "many",
+    "05": "stalks"
   },
   "M": {
     "01": "calm",
@@ -86,7 +91,8 @@
   "D": {
     "00": "none",
     "01": "stripes",
-    "02": "spots"
+    "02": "spots",
+    "03": "glow"
   },
   "A": {
     "00": "none",
@@ -133,5 +139,10 @@
     "00": "none",
     "01": "round",
     "02": "stone"
+  },
+  "K": {
+    "00": "none",
+    "01": "ball",
+    "02": "feather"
   }
 }

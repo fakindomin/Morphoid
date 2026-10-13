@@ -25,6 +25,7 @@ export const HORN_SPAN = table([5, 7, 9, 12, 15, 19]);
 export const EAR_SIZE = table([5, 7, 9, 11, 14, 18]);
 export const SNOUT_REACH = table([4, 6, 8, 10, 13, 16]);
 export const CREST_SIZE = table([4, 6, 8, 10, 12, 15]);
+export const ANTENNA_LEN = table([6, 8, 10, 13, 16, 20]);
 
 /** Head ellipse radius (mm); the muzzle starts at the head's front edge. */
 export const HEAD_RADIUS = 9.5;

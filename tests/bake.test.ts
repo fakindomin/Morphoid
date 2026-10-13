@@ -236,3 +236,22 @@ describe('3MF for AMS: painted triangles', () => {
     }
   });
 });
+
+describe('cosmic extras', () => {
+  it('eye stalks, many eyes, antennae, crystals, a plume and a bird tail bake watertight, whole and modular', { timeout: 240000 }, () => {
+    const bad: string[] = [];
+    const cases: [string, (g: ReturnType<typeof defaultGenome>) => void][] = [
+      ['stalks + ball antennae + plume', (g) => { g.face!.eyes = 4; g.antennae!.type = 1; g.antennae!.length = 5; g.crest!.type = 5; g.crest!.scale = 5; }],
+      ['many eyes + feather antennae + crystals', (g) => { g.face!.eyes = 3; g.antennae!.type = 2; g.antennae!.length = 0; g.crest!.type = 4; g.crest!.scale = 5; }],
+      ['bird: tail feathers + plume', (g) => { g.plan!.type = 1; g.tail!.type = 4; g.tail!.length = 5; g.crest!.type = 5; g.crest!.scale = 0; }],
+    ];
+    for (const [label, set] of cases) {
+      const g = defaultGenome(); set(g);
+      for (const plan of [planWhole(), planModular()]) for (const p of bake(g, plan, 'draft').pieces) {
+        const v = p.validation;
+        if (!v.watertight || (p.id === 'body' && v.shells !== 1)) bad.push(`${label} ${p.id}: shells ${v.shells}, edges ${v.badEdges}`);
+      }
+    }
+    expect(bad).toEqual([]);
+  });
+});

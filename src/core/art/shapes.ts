@@ -20,9 +20,9 @@ export const SLOTS = [
   ['shadow', 'shadow'], ['stand', 'accent'], ['arms', 'skin'], ['wingFar', 'accentFar'], ['tail', 'skin'], ['legBFar', 'skinFar'], ['legFFar', 'skinFar'],
   ['legB', 'skin'], ['throat', 'skin'], ['torso', 'skin'], ['torsoClip', 'clip'], ['belly', 'belly'], ['pattern', 'pattern'],
   ['saddle', 'accent'], ['spines', 'accent'], ['finD', 'accent'], ['legF', 'skin'], ['finP', 'accent'], ['neck', 'skin'], ['neckDecor', 'skinFar'],
-  ['mane', 'accent'], ['collar', 'accent'], ['ear', 'skin'], ['earIn', 'accentSoft'], ['horns', 'accent'], ['tuft', 'accent'],
+  ['mane', 'accent'], ['collar', 'accent'], ['ear', 'skin'], ['earIn', 'accentSoft'], ['horns', 'accent'], ['antennae', 'accent'], ['tuft', 'accent'],
   ['head', 'skin'], ['snout', 'skin'], ['wingNear', 'accent'], ['nose', 'ink'],
-  ['mouth', 'groove'], ['teeth', 'white'], ['whiskers', 'skinFar'], ['eye', 'white'], ['pupil', 'ink'],
+  ['mouth', 'groove'], ['teeth', 'white'], ['whiskers', 'skinFar'], ['stalks', 'skin'], ['eye', 'white'], ['pupil', 'ink'],
   ['glint', 'glint'], ['brow', 'groove'], ['bones', 'bone'],
 ] as const satisfies readonly (readonly [string, SlotKind])[];
 
@@ -94,6 +94,15 @@ function earPaths(type: number, e: number, ex: number, ey: number): { outer: Pat
     inner: ellipse(ex - 1.5, ey + e * 0.9, e * 0.12, e * 0.66, 0.25),
   };
 }
+
+/** Eye variants (gene O): radius per size; 'many' = a cluster of small eyes, 'stalks' = one eye per side on a stalk. */
+export const EYES = { many: 3, stalks: 4 } as const;
+const EYE_R = [1.7, 2.4, 3.2, 1.6, 2.6];
+/** Eye stalk: width (>= 2 perimeters each side) and where it stands on the head; it leans forward ~20 deg. */
+export const STALK_W = 2.4;
+const ANT_W = 1.8;
+export const eyeStalkRoot = (head: XY, hs: { rx: number; ry: number }): XY => [head[0] + hs.rx * 0.2, head[1] + hs.ry - 1.5];
+export const eyeOnStalk = (head: XY, hs: { rx: number; ry: number }): XY => { const [x, y] = eyeStalkRoot(head, hs); return [x + 2.6, y + 7]; };
 
 /** Stand: plate thickness (mm) and how far it reaches beyond the feet. */
 export const STAND_MM = 4;
@@ -267,6 +276,11 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
         const x = torso[0] + (i - 2.5) * (n.bodyL / 6.2);
         pt.append(polygon([[x - 1.7, torso[1] + tRy + 2], [x + 1.7, torso[1] + tRy + 2], [x + 2.2, torso[1] - tRy - 2], [x - 1.2, torso[1] - tRy - 2]]));
       }
+    } else if (pattern === 3) {
+      // glowing spots: two rows of round photophores along the flank (c3, made for a glow-in-the-dark filament)
+      for (const [fy, cnt, r] of [[0.12, 5, 1.5], [-0.28, 4, 1.25]] as const) {
+        for (let i = 0; i < cnt; i++) pt.append(ellipse(torso[0] + ((i - (cnt - 1) / 2) / cnt) * n.bodyL * 0.78, torso[1] + fy * n.bodyG, r, r));
+      }
     } else {
       const pts: [number, number, number][] = [[-0.55, 0.35, 2], [-0.2, 0.55, 1.6], [0.2, 0.3, 2.2], [0.5, 0.5, 1.7], [-0.4, -0.1, 1.5], [0, -0.05, 2], [0.4, -0.2, 1.6]];
       for (const [fx, fy, r] of pts) pt.append(ellipse(torso[0] + fx * n.bodyL * 0.9, torso[1] + fy * n.bodyG, r, r * 0.85));
@@ -294,11 +308,22 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
     // ---- tail: leaves the rump backwards and up (>= 45 deg), tip is never thinner than TIP ----
     const ctrl: XY = [2 * tailMid[0] - (tailBase[0] + tailTip[0]) / 2, 2 * tailMid[1] - (tailBase[1] + tailTip[1]) / 2];
     const w0 = n.bodyG * 0.46;
+    if (tailType === 4) {
+      // bird tail: three long leaf-shaped feathers fanning up from the rump; the lowest one's lower edge is the spine
+      // (>= 45 deg), the others are turned further up, so none overhangs
+      const tp = new Path();
+      for (const [ang, k] of [[0, 1.1], [0.3, 1], [0.6, 0.85]] as const) {
+        const rot = (q: XY): XY => { const dx = (q[0] - tailBase[0]) * k, dy = (q[1] - tailBase[1]) * k; return [tailBase[0] + dx * Math.cos(-ang) - dy * Math.sin(-ang), tailBase[1] + dx * Math.sin(-ang) + dy * Math.cos(-ang)]; };
+        tp.append(taper(tailBase, rot(ctrl), rot(tailTip), (t) => Math.max(1.8, 2.4 + n.bodyG * 0.22 * Math.sin(Math.PI * Math.min(0.92, t))), 14, true));
+      }
+      put('tail', tp);
+    } else {
     const width = tailType === 1 ? (t: number) => Math.max(1.8, w0 * (1 - t * 0.9))
       : tailType === 2 ? (t: number) => Math.max(1.8, w0 * (1 - t) + n.bodyG * 0.95 * Math.sin(Math.PI * Math.min(0.98, t * 0.95 + 0.04)))
       : (t: number) => Math.max(1.8, w0 * (1 - t) + n.bodyG * 1.1 * t * t);
     // (one-sided: widths above are the FULL thickness measured upwards from the spine)
     put('tail', taper(tailBase, ctrl, tailTip, width, 14, true)); // lower edge = spine (>= 45 deg)
+    }
   }
 
   // ---- neck ---------------------------------------------------------------------
@@ -387,6 +412,17 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
     put('horns', horns);
   }
 
+  // ---- antennae (gene K): a pair of thin stalks leaning forward <= 25 deg, a ball or a feathery leaf on top ----------
+  const antType = g.antennae?.type ?? 0;
+  if (n.antS > 0.3 && antType > 0) {
+    const L = n.antS, a0: XY = [head[0] + hs.rx * 0.15, head[1] + hs.ry - 1.2];
+    const a1: XY = [a0[0] + L * 0.42, a0[1] + L];
+    const ant = taper(a0, [a0[0] + L * 0.1, a0[1] + L * 0.6], a1, () => ANT_W, 10);
+    if (antType === 1) ant.append(ellipse(a1[0], a1[1] + 0.6, 2.2, 2.2));
+    else ant.append(taper([a0[0] + L * 0.18, a0[1] + L * 0.45], [a0[0] + L * 0.3, a0[1] + L * 0.75], [a1[0] + 0.3, a1[1] + 1.5], (t) => Math.max(TIP, 4.2 * Math.sin(Math.PI * Math.min(0.9, t * 0.9 + 0.1))), 10));
+    put('antennae', ant);
+  }
+
   const crestType = g.crest!.type!;
   if (n.crestS > 0.3 && crestType > 0) {
     const c = n.crestS;
@@ -406,6 +442,27 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
         m.append(polygon([a, [b[0] - TIP / 2, b[1]], [b[0] + TIP / 2, b[1]], d2]));
       }
       put('mane', m);
+    } else if (crestType === 4) {
+      // crystals: clusters of pointed prisms along the back, the side ones leaning <= 30 deg
+      const s = new Path();
+      const x0 = neckBase[0], x1 = tailBase[0];
+      for (let i = 0; i < 3; i++) {
+        const x = x0 + ((x1 - x0) * (i + 0.5)) / 3, y = trunkTop(x) - 1;
+        const h = c * (1.15 - Math.abs(i - 1) * 0.25);
+        s.append(polygon([[x - 2, y], [x - 2, y + h * 0.7], [x - TIP / 2, y + h], [x + TIP / 2, y + h], [x + 2, y + h * 0.7], [x + 2, y]]));
+        s.append(spike(x - 1.5, trunkTop(x - 1.5) - 1, -1.6, 1.6, x - 1.5 - h * 0.3, trunkTop(x - 1.5) - 1 + h * 0.55));
+        s.append(spike(x + 1.5, trunkTop(x + 1.5) - 1, -1.6, 1.6, x + 1.5 + h * 0.3 - TIP, trunkTop(x + 1.5) - 1 + h * 0.5));
+      }
+      put('spines', s);
+    } else if (crestType === 5) {
+      // plume (a bird's crest): three curved feathers raking back from the top of the head, <= 40 deg from vertical
+      const base: XY = [head[0] + 0.5, head[1] + hs.ry - 1];
+      const pl = new Path();
+      for (const [dx, k, lean] of [[1.5, 1, 0.35], [0, 1.25, 0.55], [-1.5, 1.1, 0.75]] as const) {
+        const b0: XY = [base[0] + dx, base[1]], h = c * 1.3 * k;
+        pl.append(taper(b0, [b0[0] - h * lean * 0.3, b0[1] + h * 0.6], [b0[0] - h * lean, b0[1] + h], (t) => Math.max(TIP, 2.6 * (1 - t * 0.6)), 10));
+      }
+      put('tuft', pl);
     } else {
       const s = new Path();
       const x0 = neckBase[0], x1 = tailBase[0];
@@ -434,11 +491,19 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
 
   // ---- face -------------------------------------------------------------------------
   const face = g.face!;
-  const er2 = [1.7, 2.4, 3.2][face.eyes!]!;
+  const er2 = EYE_R[face.eyes!] ?? 2.4;
   const eye: XY = [head[0] + hs.rx * 0.32, head[1] + hs.ry * 0.25];
-  put('eye', ellipse(eye[0], eye[1], er2, er2 * 1.08));
-  put('pupil', ellipse(eye[0] + er2 * 0.22, eye[1] - er2 * 0.05, er2 * 0.62, er2 * 0.7));
-  put('glint', ellipse(eye[0] + er2 * 0.42, eye[1] + er2 * 0.32, er2 * 0.24, er2 * 0.24));
+  const eyes: [XY, number][] = face.eyes === EYES.many
+    ? [[eye, er2], [[head[0] - hs.rx * 0.08, head[1] + hs.ry * 0.5], er2 * 0.8], [[head[0] + hs.rx * 0.62, head[1] + hs.ry * 0.02], er2 * 0.75], [[head[0] + hs.rx * 0.05, head[1] + hs.ry * 0.05], er2 * 0.7]]
+    : face.eyes === EYES.stalks ? [[eyeOnStalk(head, hs), er2]] : [[eye, er2]];
+  if (face.eyes === EYES.stalks) put('stalks', tube(eyeStalkRoot(head, hs), eyes[0]![0], STALK_W, STALK_W));
+  const ew = new Path(), ep = new Path(), eg = new Path();
+  for (const [[x, y], r] of eyes) {
+    ew.append(ellipse(x, y, r, r * 1.08));
+    ep.append(ellipse(x + r * 0.22, y - r * 0.05, r * 0.62, r * 0.7));
+    eg.append(ellipse(x + r * 0.42, y + r * 0.32, r * 0.24, r * 0.24));
+  }
+  put('eye', ew); put('pupil', ep); put('glint', eg);
 
   // grooves are real-width ribbons (0.9 mm) so the drawing shows what will be engraved
   const G = PRINT_RULES.grooveWidth + 0.1;

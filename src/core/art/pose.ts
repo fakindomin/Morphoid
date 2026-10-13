@@ -13,11 +13,11 @@ export interface Nums {
   /** octopus: arm length and hub radius (mm) */
   armLen: number; hub: number;
   earS: number; hornS: number; wingS: number;
-  crestS: number; tailLen: number; soleL: number;
+  crestS: number; antS: number; tailLen: number; soleL: number;
 }
 export interface Pose { pos: PosMap; n: Nums }
 
-const typeSize = (g: MorphotypeGenome, block: 'ears' | 'horns' | 'wings' | 'crest', table: readonly number[], f: string): number =>
+const typeSize = (g: MorphotypeGenome, block: 'ears' | 'horns' | 'wings' | 'crest' | 'antennae', table: readonly number[], f: string): number =>
   g[block]!.type === 0 ? 0 : table[g[block]![f]!]!;
 
 export function targetPose(
@@ -41,7 +41,7 @@ export function targetPose(
       bodyL: rig.dims.bodyLength, bodyG: rig.dims.bodyGirth, legW: rig.dims.legWidth, build: rig.dims.build, plan: rig.dims.plan, tilt: rig.dims.tilt,
       armLen: D.OCTOPUS.armLen(g.legs!.length!), hub: Math.max(6, rig.dims.bodyWidth * D.OCTOPUS.hub),
       earS: typeSize(g, 'ears', D.EAR_SIZE, 'scale'), hornS: typeSize(g, 'horns', D.HORN_SPAN, 'span'),
-      wingS: typeSize(g, 'wings', D.WING_SPAN, 'scale'), crestS: typeSize(g, 'crest', D.CREST_SIZE, 'scale'),
+      wingS: typeSize(g, 'wings', D.WING_SPAN, 'scale'), crestS: typeSize(g, 'crest', D.CREST_SIZE, 'scale'), antS: typeSize(g, 'antennae', D.ANTENNA_LEN, 'length'),
       tailLen: rig.dims.tailLength, soleL: rig.dims.soleLength,
     },
   };

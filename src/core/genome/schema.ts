@@ -14,7 +14,7 @@ export const SIZE_CLASSES = 3; // N
 
 export type BlockId =
   | 'body' | 'legs' | 'head' | 'snout' | 'ears' | 'horns' | 'wings'
-  | 'tail' | 'crest' | 'face' | 'coat' | 'accessory' | 'palette' | 'build' | 'plan' | 'stand';
+  | 'tail' | 'crest' | 'face' | 'coat' | 'accessory' | 'palette' | 'build' | 'plan' | 'stand' | 'antennae';
 
 export interface EnumOption { id: string; label: string; retired?: boolean }
 export interface EnumField {
@@ -80,22 +80,22 @@ export const BLOCKS: readonly BlockDef[] = [
     s('scale', 'Wielkość'),
   ] },
   { id: 'tail', letter: 'T', label: 'Ogon', noneMeansEmpty: true, fields: [
-    e('type', [['none', 'Brak'], ['wolf', 'Wilczy'], ['fluffy', 'Puszysty'], ['fan', 'Wachlarz']], 1),
+    e('type', [['none', 'Brak'], ['wolf', 'Wilczy'], ['fluffy', 'Puszysty'], ['fan', 'Wachlarz'], ['feathers', 'Pióra ptaka']], 1),
     s('length', 'Długość'),
   ] },
   { id: 'crest', letter: 'C', label: 'Czub / Grzywa / Kolce', noneMeansEmpty: true, fields: [
-    e('type', [['none', 'Brak'], ['tuft', 'Czub'], ['mane', 'Grzywa'], ['spines', 'Kolce']]),
+    e('type', [['none', 'Brak'], ['tuft', 'Czub'], ['mane', 'Grzywa'], ['spines', 'Kolce'], ['crystals', 'Kryształy'], ['plume', 'Pióropusz']]),
     s('scale', 'Skala'),
   ] },
   { id: 'face', letter: 'D', label: 'Detale twarzy', fields: [
-    e('eyes', [['small', 'Małe'], ['normal', 'Zwykłe'], ['big', 'Duże']], 1),
+    e('eyes', [['small', 'Małe'], ['normal', 'Zwykłe'], ['big', 'Duże'], ['many', 'Wiele małych'], ['stalks', 'Na szypułkach']], 1),
     e('teeth', [['none', 'Brak'], ['fangs', 'Kły'], ['row', 'Rząd']]),
     e('whiskers', [['none', 'Brak'], ['short', 'Krótkie'], ['long', 'Długie']]),
     e('expression', [['calm', 'Spokojna'], ['grin', 'Uśmiech'], ['angry', 'Zła']]),
   ] },
   { id: 'coat', letter: 'K', label: 'Pokrycie i wzór', fields: [
     e('texture', [['smooth', 'Gładkie'], ['fur', 'Futro'], ['scales', 'Łuski'], ['armor', 'Pancerz']]),
-    e('pattern', [['none', 'Brak'], ['stripes', 'Pręgi'], ['spots', 'Cętki']]),
+    e('pattern', [['none', 'Brak'], ['stripes', 'Pręgi'], ['spots', 'Cętki'], ['glow', 'Świecące plamy']]),
   ] },
   { id: 'accessory', letter: 'X', label: 'Dodatki', noneMeansEmpty: true, fields: [
     e('type', [['none', 'Brak'], ['collar', 'Obroża'], ['saddle', 'Siodło']]),
@@ -112,6 +112,10 @@ export const BLOCKS: readonly BlockDef[] = [
   ] },
   { id: 'stand', letter: 'Q', label: 'Podstawka', noneMeansEmpty: true, fields: [
     e('type', [['none', 'Brak'], ['round', 'Okrągła'], ['stone', 'Kamień']]),
+  ] },
+  { id: 'antennae', letter: 'I', label: 'Czułki', noneMeansEmpty: true, fields: [
+    e('type', [['none', 'Brak'], ['ball', 'Z kulką'], ['feather', 'Pierzaste']]),
+    s('length', 'Długość'),
   ] },
 ] as const;
 
@@ -159,6 +163,7 @@ export const GENES: readonly GeneDef[] = [
   gene('J', 'Budowa', 'build', 'type'),
   gene('Y', 'Plan ciała', 'plan', 'type'),
   gene('Q', 'Podstawka', 'stand', 'type'),
+  gene('K', 'Czułki', 'antennae', 'type', 'length'),
 ];
 
 export const PREFIX = 'MPH2';
