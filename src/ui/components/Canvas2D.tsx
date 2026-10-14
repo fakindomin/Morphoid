@@ -164,7 +164,7 @@ export function Canvas2D({ showBones, breathing, frozen, onSocket, markers = [] 
           <clipPath id="silClip">
             {SIL_SLOTS.map(([id]) => <path key={id} ref={reg(id, 2)} d="" />)}
           </clipPath>
-          <linearGradient id="lightGrad" x1="0.15" y1="0" x2="0.35" y2="1">
+          <linearGradient id="lightGrad" x1="0.1" y1="0" x2="0.6" y2="1">
             <stop offset="0" className="light-hi" />
             <stop offset="0.45" className="light-mid" />
             <stop offset="1" className="light-lo" />
@@ -174,12 +174,12 @@ export function Canvas2D({ showBones, breathing, frozen, onSocket, markers = [] 
             <feGaussianBlur in="SourceGraphic" stdDeviation={2.8} result="b" />
             <feColorMatrix in="b" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 24 -11" result="body" />
             {/* form shading: a soft shade along every lower edge, a soft light along every upper edge */}
-            <feOffset in="body" dy={-9} result="up" />
+            <feOffset in="body" dx={-4} dy={-9} result="up" />
             <feGaussianBlur in="up" stdDeviation={5} result="upB" />
             <feComposite in="body" in2="upB" operator="out" result="lowBand" />
             <feFlood className="shade-flood" result="sc" />
             <feComposite in="sc" in2="lowBand" operator="in" result="shade" />
-            <feOffset in="body" dy={7} result="dn" />
+            <feOffset in="body" dx={3} dy={7} result="dn" />
             <feGaussianBlur in="dn" stdDeviation={4} result="dnB" />
             <feComposite in="body" in2="dnB" operator="out" result="hiBand" />
             <feFlood className="hi-flood" result="hc" />
@@ -188,12 +188,12 @@ export function Canvas2D({ showBones, breathing, frozen, onSocket, markers = [] 
           </filter>
           {/* the same form shading for the accent parts, without fusing them (horn tips stay sharp) */}
           <filter id="form" filterUnits="userSpaceOnUse" x={-40} y={-40} width={W + 80} height={H + 80}>
-            <feOffset in="SourceAlpha" dy={-6} result="up" />
+            <feOffset in="SourceAlpha" dx={-3} dy={-6} result="up" />
             <feGaussianBlur in="up" stdDeviation={3} result="upB" />
             <feComposite in="SourceAlpha" in2="upB" operator="out" result="lowBand" />
             <feFlood className="shade-flood" result="sc" />
             <feComposite in="sc" in2="lowBand" operator="in" result="shade" />
-            <feOffset in="SourceAlpha" dy={5} result="dn" />
+            <feOffset in="SourceAlpha" dx={2} dy={5} result="dn" />
             <feGaussianBlur in="dn" stdDeviation={2.5} result="dnB" />
             <feComposite in="SourceAlpha" in2="dnB" operator="out" result="hiBand" />
             <feFlood className="hi-flood" result="hc" />
@@ -203,10 +203,31 @@ export function Canvas2D({ showBones, breathing, frozen, onSocket, markers = [] 
           <filter id="gooOutline" filterUnits="userSpaceOnUse" x={-40} y={-40} width={W + 80} height={H + 80}>
             <feGaussianBlur in="SourceAlpha" stdDeviation={2.8} result="b" />
             <feColorMatrix in="b" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 24 -11" result="g" />
-            <feMorphology in="g" operator="dilate" radius={2.8} result="d" />
+            <feMorphology in="g" operator="dilate" radius={2} result="d" />
+            {/* the line swells on the shaded side, away from the light */}
+            <feOffset in="d" dx={1.3} dy={1.9} result="dS" />
+            <feMerge result="dd"><feMergeNode in="d" /><feMergeNode in="dS" /></feMerge>
             <feFlood className="ink-flood" result="ink" />
-            <feComposite in="ink" in2="d" operator="in" />
+            <feComposite in="ink" in2="dd" operator="in" />
           </filter>
+          {/* pencil hatching in the core shadow: the band along the lower-right edge of the whole silhouette */}
+          <pattern id="hatch" patternUnits="userSpaceOnUse" width={5} height={5} patternTransform="rotate(-35)">
+            <line className="hatch-line" x1={0} y1={0} x2={0} y2={5} />
+          </pattern>
+          <filter id="shadeBand" filterUnits="userSpaceOnUse" x={-40} y={-40} width={W + 80} height={H + 80}>
+            <feGaussianBlur in="SourceAlpha" stdDeviation={2.8} result="b" />
+            <feColorMatrix in="b" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 24 -11" result="body" />
+            <feOffset in="body" dx={-7} dy={-11} result="up" />
+            <feGaussianBlur in="up" stdDeviation={4} result="upB" />
+            <feComposite in="body" in2="upB" operator="out" result="band" />
+            <feFlood floodColor="#fff" result="w" />
+            <feComposite in="w" in2="band" operator="in" />
+          </filter>
+          <mask id="shadeMask" maskUnits="userSpaceOnUse" x={-W} y={-H} width={3 * W} height={3 * H}>
+            <g filter="url(#shadeBand)">
+              {SIL_SLOTS.map(([id]) => <path key={id} ref={reg(id, 5)} fill="#fff" d="" />)}
+            </g>
+          </mask>
           <radialGradient id="shadowGrad">
             <stop offset="0" className="shadow-in" />
             <stop offset="1" className="shadow-out" />
@@ -234,6 +255,7 @@ export function Canvas2D({ showBones, breathing, frozen, onSocket, markers = [] 
           ))}
         </g>
         <rect ref={lightRef} className="light" clipPath="url(#silClip)" fill="url(#lightGrad)" />
+        <rect className="hatch" x={0} y={0} width={W} height={H} fill="url(#hatch)" mask="url(#shadeMask)" />
         <g className="details">
           {LAYER_SLOTS('detail').map(([id, kind]) => <path key={id} ref={reg(id, 0)} className={`shape ${kind} s-${id}`} d="" />)}
         </g>

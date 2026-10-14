@@ -184,6 +184,11 @@ kbd { font: 10.5px ui-monospace, Menlo, monospace; padding: 1px 6px; border: 1px
 .shape.groove { fill: color-mix(in srgb, var(--c1) 35%, var(--ink)); stroke: none; }
 .shape.bone { fill: none; stroke: var(--bone-faint); stroke-width: 1.4; stroke-dasharray: 4 4; }
 .light { pointer-events: none; mix-blend-mode: soft-light; }
+.hatch { pointer-events: none; opacity: .5; }
+.hatch-line { stroke: color-mix(in srgb, var(--c1) 30%, var(--ink)); stroke-width: .8; }
+/* the far side sits deeper in shade: darker, with lighter lines */
+.layer-far { filter: brightness(.88) saturate(.9); }
+.layer-far .shape { stroke-width: .9; }
 .light-hi { stop-color: #fff; stop-opacity: .5; }
 .light-mid { stop-color: #fff; stop-opacity: 0; }
 .light-lo { stop-color: #000; stop-opacity: .35; }
