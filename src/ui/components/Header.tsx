@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react';
 import { studio, useStudioState } from '../studio';
 import { Logo } from './Logo';
-import { HeaderBake } from './BakeStatus';
 import { copyText, type ViewMode } from './RightColumn';
 
 export type Theme = 'dark' | 'light';
@@ -36,7 +35,6 @@ export function Header({ view, setView, theme, setTheme }: {
         </button>
       </div>
       <div className="topbar-right">
-        <HeaderBake />
         <div className="segment view-switch" role="group" aria-label="Widok">
           <button type="button" className={`seg-pill${view === '2d' ? ' active' : ''}`} onClick={() => setView('2d')}>2D Szkic</button>
           <button type="button" className={`seg-pill${view === '3d' ? ' active' : ''}`} onClick={() => setView('3d')}>3D Studio</button>

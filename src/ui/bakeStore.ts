@@ -21,10 +21,8 @@ export interface BakeJob {
   finishedCount: number;
 }
 
-/** Detail first: the finest grid unless the device is short of memory. */
-const defaultQuality = (): BakeQuality => {
-  try { const m = (navigator as Navigator & { deviceMemory?: number }).deviceMemory; return m !== undefined && m <= 2 ? 'standard' : 'fine'; } catch { return 'standard'; }
-};
+/** Prints come out at Standard (0.3 mm grid): fine enough for every detail, quick, and safe on any device's memory. */
+const defaultQuality = (): BakeQuality => 'standard';
 
 let job: BakeJob = {
   status: 'idle', quality: defaultQuality(), startedAt: 0, progress: null, result: null, signature: null,

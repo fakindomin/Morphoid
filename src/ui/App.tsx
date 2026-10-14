@@ -7,7 +7,7 @@ import { LeftColumn } from './components/LeftColumn';
 import { RadialMenu, useRadial } from './components/RadialMenu';
 import { RightColumn, type ViewMode } from './components/RightColumn';
 import { rigSize } from '../core/art/shapes';
-import { BakeToast, StatusBake } from './components/BakeStatus';
+import { StatusBake } from './components/BakeStatus';
 import { signatureOf, useBake } from './bakeStore';
 import { SupportNotice } from './components/SupportNotice';
 import { usePrintReport } from './printReport';
@@ -67,6 +67,16 @@ export function App() {
         <LeftColumn activeSocket={radial.state.open ? radial.state.socket : null} />
         <section className="blueprint">
           {notice && <SupportNotice key={notice.key} notice={notice} previousPlan={prevPlan.current} dismiss={dismiss} />}
+          {view === '2d' && (
+            <div className="canvas-tools">
+              <button type="button" className={`tool-btn${showBones ? ' on' : ''}`} aria-pressed={showBones} title="Pokaż kości" aria-label="Pokaż kości" onClick={() => setShowBones((b) => !b)}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><circle cx="5" cy="6" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="8" r="2" /><circle cx="12" cy="20" r="2" /><path d="M6.6 7.2l3.8 3.6M13.8 11.2l3.4-2M12 14v4" /></svg>
+              </button>
+              <button type="button" className={`tool-btn${breathing ? ' on' : ''}`} aria-pressed={breathing} title="Oddech (spacja)" aria-label="Oddech" onClick={() => setBreathing((b) => !b)}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M3 12c2.5-5 5.5-5 8 0s5.5 5 8 0" /><path d="M3 17c2.5-3 5.5-3 8 0s5.5 3 8 0" opacity=".5" /></svg>
+              </button>
+            </div>
+          )}
           <div className="hud-tag">{view === '2d' ? 'WIDOK Z BOKU · kliknij pomarańczowy punkt, aby zmienić część' : '3D STUDIO · obracaj myszą, kółko = zbliżenie'}</div>
           {view === '2d' ? (
             <Canvas2D showBones={showBones} breathing={breathing} frozen={radial.state.open} onSocket={onSocket} markers={markers} />
@@ -74,7 +84,7 @@ export function App() {
             <Viewport3D variant="main" explode={explode} baked={job.showBaked && job.result && job.signature === signatureOf(studio.code(), plan.separate) ? job.result : null} />
           )}
         </section>
-        <RightColumn explode={explode} setExplode={setExplode} view={view} showBones={showBones} setShowBones={setShowBones} breathing={breathing} setBreathing={setBreathing} />
+        <RightColumn explode={explode} setExplode={setExplode} view={view} />
       </main>
       <footer className="statusbar">
         <span className={rig.issues.length ? 'bad' : 'ok'}>
@@ -90,7 +100,6 @@ export function App() {
         <span className="spacer" />
         <span className="muted"><kbd>Spacja</kbd> pauza oddechu <kbd>Ctrl+Z</kbd> cofnij <kbd>Klik ●</kbd> koło wyboru</span>
       </footer>
-      <BakeToast />
       <RadialMenu ctl={radial} />
     </div>
   );

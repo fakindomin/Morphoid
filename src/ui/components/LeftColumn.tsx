@@ -2,8 +2,9 @@ import {
   SIZE_CLASSES, blockDef, stepToClass, type EnumField, type Op, type StepField,
 } from '../../core';
 import { PALETTES } from '../../core/palette';
+import { useEffect, useRef, useState } from 'react';
 import { studio, useStudioState } from '../studio';
-import { SOCKET_TILES, TILES, type TileDef, type TileField } from '../tiles';
+import { SOCKET_TILE, TILE_GROUPS, type TileDef, type TileField } from '../tiles';
 
 const CLASS_LABELS = ['1: Mały', '2: Średni', '3: Duży'];
 
@@ -81,19 +82,46 @@ function PaletteGrid() {
   );
 }
 
+/**
+ * The creature's parts as categories from head to tail, all closed at first. Opening one closes the one that was open,
+ * so the column never grows past the screen; clicking a part on the sketch opens its category and lights it up.
+ */
 export function LeftColumn({ activeSocket }: { activeSocket: string | null }) {
   const { genome } = useStudioState();
-  const highlight = activeSocket ? SOCKET_TILES[activeSocket] ?? [] : [];
+  const [open, setOpen] = useState<string | null>(null);
+  const hot = activeSocket ? SOCKET_TILE[activeSocket] ?? null : null;
+  const refs = useRef<Record<string, HTMLElement | null>>({});
+  useEffect(() => {
+    if (!hot) return;
+    setOpen(hot);
+    refs.current[hot]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [hot]);
+  let n = 0;
   return (
-    <aside className="column left">
-      {TILES.map((tile) => (
-        <section key={tile.id} className={`tile${highlight.includes(tile.id) ? ' active-module' : ''}`}>
-          <header className="tile-header">
-            <span className="tile-title">{tile.title}</span>
-            <span className="tile-status">{statusOf(tile, genome)}</span>
-          </header>
-          {tile.palette ? <PaletteGrid /> : tile.fields.map((tf) => <FieldControl key={`${tf.block}.${tf.field}`} tf={tf} />)}
-        </section>
+    <aside className="column left acc-column">
+      {TILE_GROUPS.map((grp) => (
+        <div key={grp.title} className="acc-group">
+          <p className="acc-group-title">{grp.title}</p>
+          {grp.tiles.map((tile) => {
+            const on = open === tile.id;
+            const num = ++n;
+            return (
+              <section key={tile.id} ref={(el) => { refs.current[tile.id] = el; }} className={`cat${on ? ' open' : ''}${hot === tile.id ? ' hot' : ''}`}>
+                <button type="button" className="cat-h" aria-expanded={on} onClick={() => setOpen(on ? null : tile.id)}>
+                  <span className="cat-n">{num}</span>
+                  <span className="cat-t">{tile.title}</span>
+                  <span className="cat-v">{statusOf(tile, genome)}</span>
+                  <i className="chev" aria-hidden />
+                </button>
+                {on && (
+                  <div className="cat-b">
+                    {tile.palette ? <PaletteGrid /> : tile.fields.map((tf) => <FieldControl key={`${tf.block}.${tf.field}`} tf={tf} />)}
+                  </div>
+                )}
+              </section>
+            );
+          })}
+        </div>
       ))}
     </aside>
   );
