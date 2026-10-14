@@ -62,6 +62,7 @@ export function ExportPanel() {
         <button type="button" className="btn-tile" onClick={() => bakeStore.start()}>{result ? '↻ Przygotuj ponownie' : '⚙ Przygotuj bryłę do druku'}</button>
       )}
       {job.status === 'error' && <div className="msg warn">Błąd: {job.error}</div>}
+      {job.notice && job.status !== 'error' && <div className="msg info">{job.notice}</div>}
       {result && (
         <div className={`bake-result${stale ? ' stale' : ''}`}>
           {stale && <div className="msg warn">Model się zmienił. Przygotuj bryłę ponownie, żeby pobrać aktualną.</div>}
