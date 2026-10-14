@@ -30,6 +30,8 @@ export interface MenuNode {
   op?: Op;
   /** Applied before `op` when the leaf is chosen (e.g. set type, then size). */
   pre?: Op;
+  /** What the slice's sketch shows: the creature with these edits, drawn around `previewBlock`'s part. */
+  preview?: { ops: Op[]; block: BlockId; field: string };
 }
 
 export function applyOp(g: MorphotypeGenome, op: Op): MorphotypeGenome {
@@ -61,28 +63,33 @@ function blockNode(block: BlockId, icon?: string): MenuNode {
     Array.from({ length: SIZE_CLASSES }, (_, c) => ({
       id: `${idPrefix}.size${c}`, label: SIZE_LABELS[c]!, icon: String(c + 1),
       op: { kind: 'size', block, field, cls: c } as Op, ...(pre ? { pre } : {}),
+      preview: { ops: [...(pre ? [pre] : []), { kind: 'size', block, field, cls: c } as Op], block, field: pre?.field ?? field },
     }));
-  const node: MenuNode = { id: block, label: def.label.toUpperCase(), ...(icon ? { icon } : {}), children: [] };
+  // a part's own slice shows the part as it is now
+  const node: MenuNode = { id: block, label: def.label.toUpperCase(), ...(icon ? { icon } : {}), children: [], preview: { ops: [], block, field: def.fields[0]!.name } };
 
   const first = enums[0];
   if (first && first.kind === 'enum' && enums.length === 1 && steps.length === 1) {
     const step = steps[0]!;
     node.children = first.options.flatMap((o, i) => (o.retired ? [] : [{ o, i }])).map(({ o, i }) => {
       const set: Op = { kind: 'set', block, field: first.name, value: i };
+      const preview = { ops: [set], block, field: first.name };
       if (o.id === 'none') {
-        return { id: `${block}.${o.id}`, label: o.label.toUpperCase(), op: set };
+        return { id: `${block}.${o.id}`, label: o.label.toUpperCase(), op: set, preview };
       }
-      return { id: `${block}.${o.id}`, label: o.label.toUpperCase(), children: sizeLeaves(`${block}.${o.id}`, step.name, set) };
+      return { id: `${block}.${o.id}`, label: o.label.toUpperCase(), preview, children: sizeLeaves(`${block}.${o.id}`, step.name, set) };
     });
     return node;
   }
   node.children = def.fields.filter((f) => f.name !== 'dir').map((f): MenuNode => {
     const id = `${block}.${f.name}`;
-    if (f.kind === 'step') return { id, label: f.label.toUpperCase(), children: sizeLeaves(id, f.name) };
+    const preview = { ops: [], block, field: f.name };
+    if (f.kind === 'step') return { id, label: f.label.toUpperCase(), preview, children: sizeLeaves(id, f.name) };
     return {
-      id, label: FIELD_LABELS[f.name] ?? f.name.toUpperCase(),
+      id, label: FIELD_LABELS[f.name] ?? f.name.toUpperCase(), preview,
       children: f.options.flatMap((o, i) => (o.retired ? [] : [{
         id: `${id}.${o.id}`, label: o.label.toUpperCase(), op: { kind: 'set', block, field: f.name, value: i } as Op,
+        preview: { ops: [{ kind: 'set', block, field: f.name, value: i } as Op], block, field: f.name },
       }])),
     };
   });

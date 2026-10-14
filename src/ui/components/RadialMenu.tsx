@@ -1,11 +1,14 @@
-import { useCallback, useEffect, useReducer, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import {
   closedMenu, isActive, reduceMenu, viewMenu,
   type MenuEvent, type MenuState, type Slice, type SocketId,
 } from '../../core';
 import { studio } from '../studio';
+import { makeThumb, type Thumb } from '../thumbs';
 
-const R_IN = 66, R_OUT = 132, R_MID = (R_IN + R_OUT) / 2, SIZE = 320;
+const R_IN = 66, R_OUT = 152, R_MID = (R_IN + R_OUT) / 2, SIZE = 360;
+/** Side (px) of an option's sketch inside its slice. */
+const THUMB = 54;
 const GAP = 0.03;
 
 export interface RadialController {
@@ -73,6 +76,17 @@ export function RadialMenu({ ctl }: { ctl: RadialController }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [state.open, dispatch]);
 
+  // every option's sketch: the part as this creature would get it (built once per menu level)
+  const thumbs = useMemo(() => {
+    const out: Record<string, Thumb> = {};
+    for (const sl of view?.slices ?? []) {
+      const pv = sl.node?.preview;
+      if (!pv) continue;
+      try { out[sl.id] = makeThumb(genome, pv.ops, pv.block, pv.field); } catch { /* a sketch that cannot be drawn shows the label only */ }
+    }
+    return out;
+  }, [view, genome]);
+
   if (!view) return null;
 
   const angleOf = (e: React.MouseEvent): number => {
@@ -98,8 +112,14 @@ export function RadialMenu({ ctl }: { ctl: RadialController }) {
             return (
               <g key={sl.id} className={`slice${sl.isBack ? ' back' : ''}${active ? ' active' : ''}`} onClick={(e) => click(e, sl)}>
                 <path d={slicePath(sl.start + GAP / 2, sl.end - GAP / 2)} />
-                {sl.icon && <text className="slice-icon" x={tx} y={ty - 7}>{sl.icon}</text>}
-                <text className="slice-label" x={tx} y={ty + (sl.icon ? 9 : 3)}>{sl.label}</text>
+                {thumbs[sl.id] ? (
+                  <svg className="slice-thumb" x={tx - THUMB / 2} y={ty - THUMB / 2 - 9} width={THUMB} height={THUMB} viewBox={thumbs[sl.id]!.viewBox}>
+                    {thumbs[sl.id]!.layers.map((l, i) => (
+                      <path key={i} d={l.d} style={{ fill: l.fill, stroke: l.stroke, strokeWidth: 0.7, opacity: l.opacity, strokeLinejoin: 'round', vectorEffect: 'non-scaling-stroke' }} />
+                    ))}
+                  </svg>
+                ) : sl.icon && <text className="slice-icon" x={tx} y={ty - 7}>{sl.icon}</text>}
+                <text className="slice-label" x={tx} y={ty + (thumbs[sl.id] ? 27 : sl.icon ? 9 : 3)}>{sl.label}</text>
               </g>
             );
           })}
