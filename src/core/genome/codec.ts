@@ -143,7 +143,7 @@ export function describeGene(genome: MorphotypeGenome, gd: GeneDef): string {
   const absent = variantId(block, name, v) === 0 && zeroBased(block, f);
   const sizes = absent ? [] : gd.sizes.map((sz) => {
     const sf = field(sz.block, sz.field), v2 = genome[sz.block]![sz.field]!;
-    return sf.kind === 'step' ? `${sf.label} ${v2 + 1}` : `Kierunek: ${sf.options[v2]?.label ?? '?'}`;
+    return sf.kind === 'step' ? `${sf.label} ${v2 + 1}` : `${sf.label ?? 'Kierunek'}: ${sf.options[v2]?.label ?? '?'}`;
   });
   return [`${gd.label}: ${variant}`, ...sizes].join(' · ');
 }

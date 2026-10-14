@@ -42,7 +42,7 @@ const SIZE_LABELS = ['1: Mały', '2: Średni', '3: Duży'];
 
 const FIELD_LABELS: Record<string, string> = {
   shape: 'KSZTAŁT', foot: 'STOPA', skull: 'CZASZKA', neck: 'FASADA SZYI',
-  type: 'RODZAJ', eyes: 'OCZY', teeth: 'ZĘBY', whiskers: 'WĄSY', whiskerDir: 'KIERUNEK WĄSÓW', expression: 'MINA',
+  type: 'RODZAJ', eyes: 'OCZY', teeth: 'ZĘBY', whiskers: 'WĄSY', whiskerDir: 'KIERUNEK WĄSÓW', eyeSet: 'OSADZENIE OCZU', expression: 'MINA',
   texture: 'FAKTURA', pattern: 'WZÓR', index: 'PALETA',
 };
 

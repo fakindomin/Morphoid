@@ -24,6 +24,8 @@ export interface EnumField {
   options: readonly EnumOption[];
   /** Value used by defaultGenome(). */
   def: number;
+  /** What the field sets, when it is written as a digit after a gene's sizes (default: "Kierunek"). */
+  label?: string;
 }
 export interface StepField {
   kind: 'step';
@@ -45,8 +47,8 @@ export interface BlockDef {
   noneMeansEmpty?: boolean;
 }
 
-const e = (name: string, opts: [string, string][], def = 0): EnumField =>
-  ({ kind: 'enum', name, def, options: opts.map(([id, label]) => ({ id, label })) });
+const e = (name: string, opts: [string, string][], def = 0, label?: string): EnumField =>
+  ({ kind: 'enum', name, def, options: opts.map(([id, label]) => ({ id, label })), ...(label ? { label } : {}) });
 const s = (name: string, label: string): StepField => ({ kind: 'step', name, label });
 
 export const BLOCKS: readonly BlockDef[] = [
@@ -96,6 +98,7 @@ export const BLOCKS: readonly BlockDef[] = [
     e('whiskers', [['none', 'Brak'], ['short', 'Krótkie'], ['long', 'Długie']]),
     e('whiskerDir', [['side', 'Na boki'], ['forward', 'Skośnie do przodu'], ['back', 'Skośnie do tyłu']]),
     e('expression', [['calm', 'Spokojna'], ['grin', 'Uśmiech'], ['angry', 'Zła']]),
+    e('eyeSet', [['bulging', 'Wyłupiaste'], ['deep', 'Osadzone głębiej']], 0, 'Osadzenie'),
   ] },
   { id: 'coat', letter: 'K', label: 'Pokrycie i wzór', fields: [
     e('texture', [['smooth', 'Gładkie'], ['fur', 'Futro'], ['scales', 'Łuski'], ['armor', 'Pancerz']]),
@@ -158,7 +161,7 @@ export const GENES: readonly GeneDef[] = [
   gene('T', 'Ogon', 'tail', 'type', 'length', 'dir'),
   gene('U', 'Końcówka ogona', null),
   gene('C', 'Grzywa / czub / kolce', 'crest', 'type', 'scale'),
-  gene('O', 'Oczy', 'face', 'eyes'),
+  gene('O', 'Oczy', 'face', 'eyes', 'eyeSet'),
   gene('M', 'Mina', 'face', 'expression'),
   gene('Z', 'Zęby', 'face', 'teeth'),
   gene('V', 'Wąsy', 'face', 'whiskers', 'whiskerDir'),

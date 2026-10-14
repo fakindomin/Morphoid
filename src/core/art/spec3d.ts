@@ -157,7 +157,7 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
     const zs = ctx.headW * 0.25 * p.side;
     if (p.slot === 'eye') p.z = zs;
   }
-  eyeballs(out, g.face!.eyes === EYES.stalks);
+  eyeballs(out, g.face!.eyes === EYES.stalks, g.face!.eyes === EYES.stalks ? EYE_OUT[0] : EYE_OUT[g.face!.eyeSet ?? 0] ?? EYE_OUT[0]);
   seatTeeth(out);
   // the inside of an ear is a real cup: the inner-ear outline is hollowed out of the ear's outer face
   for (const p of [...out]) if (p.slot === 'earIn') out.push({ ...p, id: `earCup${p.side > 0 ? '+' : '-'}`, thickness: EAR_CUP_MM * 2, bevel: EAR_CUP_MM * 0.8, carve: true, z: p.z + p.side * 0.25 });
@@ -530,8 +530,11 @@ function lipsAndNostrils(out: Part3D[], paths: SlotPaths, ctx: Ctx): void {
   }
 }
 
-/** How far an eyeball stands out of the head, as a share of its radius: most of the ball shows, like a real eye. */
-const EYE_OUT = 0.75;
+/**
+ * How far an eyeball stands out of the head, as a share of its radius: bulging eyes show most of the ball, like a
+ * real eye; deep-set ones sit in the head with only a cap of the ball showing between the lids.
+ */
+const EYE_OUT = [0.75, 0.3] as const;
 
 /** How deep (mm) a tooth's root sinks into the jaw it grows from. */
 const TOOTH_SEAT_MM = 0.5;
@@ -568,7 +571,7 @@ function seatTeeth(out: Part3D[]): void {
  * and pupil are painted on its front, and the eyelids are round folds rolled over the top and under the bottom of the
  * ball, following the arcs the 2D sketch draws (eyelids in shapes.ts).
  */
-function eyeballs(out: Part3D[], stalks: boolean): void {
+function eyeballs(out: Part3D[], stalks: boolean, eyeOut: number): void {
   const head = hostsOf(out, ['head'])[0];
   for (const eye of out.filter((p) => p.slot === 'eye')) {
     const side = eye.side || 1, cones: Cone[] = [], lidCones: Cone[] = [];
@@ -580,10 +583,10 @@ function eyeballs(out: Part3D[], stalks: boolean): void {
       // where the head's surface is at the eye (it curves away from the 2D outline's centre plane)
       let surf = Math.abs(eye.z) + eye.thickness / 2 - 0.8;
       if (!stalks && head) surf = Math.max(0, skinZ(head, cx, cy));
-      const zc = stalks ? eye.z : side * (surf + (EYE_OUT - 1) * r);
+      const zc = stalks ? eye.z : side * (surf + (eyeOut - 1) * r);
       cones.push({ a: [cx, cy, zc], b: [cx, cy, zc], ra: r, rb: r });
       front = Math.max(front, Math.abs(zc) + r);
-      for (const lid of eyelids(r)) {
+      for (const lid of eyelids(r, eyeOut < EYE_OUT[0])) {
         // the fold's centre line lies just above the ball, so the tube hugs it and reaches past its rim into the head
         const pts = lid.arc.map(([a, m, w]): [number, number, number, number] => {
           const R = r + 0.3 * w, proj = Math.min(0.98 * R, m), cosP = Math.sqrt(1 - (proj / R) ** 2);

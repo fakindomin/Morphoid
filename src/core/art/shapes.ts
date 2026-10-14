@@ -138,15 +138,19 @@ export const EYES = { many: 3, stalks: 4 } as const;
  * samples (angle round the eye, radius of the fold's centre line seen from the side, the fold's half width), thickest
  * in the middle and thinning towards the corners. The 2D sketch draws the band, spec3d rolls a tube along it.
  */
-export function eyelids(r: number): { arc: [number, number, number][]; upper: boolean }[] {
+/** Eye setting (gene O digit): bulging balls or deep-set ones. */
+export const EYE_SET = { bulging: 0, deep: 1 } as const;
+
+export function eyelids(r: number, deep = false): { arc: [number, number, number][]; upper: boolean }[] {
   const arc = (a0: number, a1: number, inner: number, outer: number): [number, number, number][] => Array.from({ length: 13 }, (_, i) => {
     const t = i / 12, a = a0 + (a1 - a0) * t, k = 0.3 + 0.7 * Math.sin(Math.PI * t);
     const w = ((outer - inner) / 2) * k; // the outer edge (where the fold meets the head) stays put, the lid edge thins
     return [a, r * (outer - w), r * w];
   });
   return [
-    { arc: arc(Math.PI * 1.06, -Math.PI * 0.12, 0.55, 1.2), upper: true },
-    { arc: arc(Math.PI * 1.08, Math.PI * 1.94, 0.82, 1.14), upper: false },
+    // deep-set eyes: heavier lids that hood the ball from above and close in from below
+    { arc: arc(Math.PI * 1.06, -Math.PI * 0.12, deep ? 0.35 : 0.55, deep ? 1.3 : 1.2), upper: true },
+    { arc: arc(Math.PI * 1.08, Math.PI * 1.94, deep ? 0.68 : 0.82, deep ? 1.2 : 1.14), upper: false },
   ];
 }
 const EYE_R = [1.7, 2.4, 3.2, 1.6, 2.6];
@@ -625,8 +629,8 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
   }
   put('eye', ew); put('iris', ei); put('pupil', ep); put('glint', eg);
   // eyelids: a heavy fold over the top of the eyeball and a thin one under it (the same arcs spec3d rolls round the ball)
-  const lids = new Path();
-  for (const [c, r] of eyes) for (const lid of eyelids(r)) {
+  const lids = new Path(), deepEyes = face.eyes !== EYES.stalks && face.eyeSet === EYE_SET.deep;
+  for (const [c, r] of eyes) for (const lid of eyelids(r, deepEyes)) {
     const at = (a: number, d: number): XY => [c[0] + Math.cos(a) * d, c[1] + Math.sin(a) * d * 1.08];
     const outer = lid.arc.map(([a, m, w]) => at(a, m + w)), inner = lid.arc.map(([a, m, w]) => at(a, m - w)).reverse();
     lids.append(polygon([...outer, ...inner]));
