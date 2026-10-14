@@ -10,6 +10,7 @@ import type { MorphotypeGenome } from '../genome';
 import { dimensions as D, type Rig } from '../rig';
 import { groupOfSlot, type PartGroup } from '../print/plan';
 import { COAT_LIMB, type Coat } from './coat';
+import { reliefSpec, rootOf, type Relief } from './relief';
 import { EYES, eyelids, LIP_R, WHISKER_TURN, insectHips, insectLegW, insectRise, prolegXs, roundTail, STALK_W, wingRibs, STAND_MARGIN_MM, STAND_MM, WHISKER_FAN, WHISKER_PAD, WHISKER_W, whiskerLength, type SlotId, type SlotPaths } from './shapes';
 import type { XY } from './path';
 import { typeSize } from './pose';
@@ -51,6 +52,8 @@ export interface Part3D {
   inset?: boolean;
   /** which face of a `dome` part is the round one (default: its side, away from the centre plane); +1 = up for a top-view part */
   domeSide?: 1 | -1;
+  /** growth rings or rays sunk into the surface (horns, fins, feathers), see relief.ts */
+  relief?: Relief;
   /** cut out of the solid instead of added (a nostril, the groove of a closed mouth); never painted, see paint.ts */
   carve?: boolean;
   /** raised 3D ribs fused onto the slab (wing bones, feather shafts), world mm */
@@ -69,6 +72,7 @@ const centre = (): number => 0;
 /** `null` = deliberately not a 3D solid (render-only shading, or the mirror image of another slot). */
 export const SPEC_3D: Record<SlotId, Spec | null> = {
   shadow: null, torsoClip: null, belly: null, glint: null, bones: null, blush: null, toes: null, // render-only
+  relief: null, // grooves sunk into the accessories (Part3D.relief), see relief.ts
   wingRibs: null, // drawn crests of the wing ribs; the ribs themselves are `ribs` on the wing, see buildParts3D
   legBFar: null, legFFar: null, wingFar: null,                          // mirror images, generated from the near slot
   torso: { color: 'c1', mirror: false, z: centre, t: (c) => c.W, bevel: (t) => round(0.48)(t) },
@@ -191,6 +195,13 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
     p.ribs = { cones: wingRibs(g.wings!.type!, [n.x, n.y], wingS).map((r) => ({ a: [r.a[0], r.a[1], zAt(r.ra)], b: [r.b[0], r.b[1], zAt(r.rb)], ra: r.ra, rb: r.rb })), domes: [] };
   }
   if (plan === D.PLAN.quadruped || biped) for (const p of out) if (p.slot === 'torso') p.widths = torsoWidths(p, rig);
+  // relief: rings round horns and antennae, rays across fins, feathers, a mane
+  for (const p of out) {
+    const r = p.limb || p.plane ? null : reliefSpec(p.slot, g);
+    if (!r) continue;
+    const n = rig.nodes[r.anchor];
+    p.relief = { kind: r.kind, pitch: r.pitch, depth: r.depth, root: rootOf(p.polys, [n.x, n.y]) };
+  }
   // coat texture: the torso and neck, a round tail and jointed legs (a leg's armour runs in rings); the head stays smooth
   const tex = g.coat?.texture ?? 0;
   if (tex > 0) for (const p of out) {

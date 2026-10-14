@@ -11,6 +11,8 @@ import { PRINT_RULES } from '../print/rules';
 import { ellipse, Path, polygon, taper, tube, type ToPx, type XY } from './path';
 import type { Pose } from './pose';
 import { coatPath } from './coat';
+import { reliefPath, reliefSpec, rootOf } from './relief';
+import { edgesOf, sdPolys } from '../bake/field';
 import { insectLimb, legLimb, legSpecOf, limbOutline, octopusLimb, prolegLimb, tailLimb, type Limb } from './limb';
 
 /** skin/skinFar = body colour (c1); accent = c2; white/ink/glint = details; clip = not drawn. */
@@ -26,7 +28,9 @@ export type SlotKind =
   /** lips along the jaws' edges, a nostril in the nose */
   | 'lip' | 'nostril'
   /** claws and hooves */
-  | 'claw';
+  | 'claw'
+  /** grooves of the accessories' relief (rings, rays), see relief.ts */
+  | 'relief';
 
 export const SLOTS = [
   ['shadow', 'shadow'], ['stand', 'accent'], ['arms', 'skin'], ['wingFar', 'accentFar'], ['tail', 'skin'], ['legBFar', 'skinFar'], ['legFFar', 'skinFar'],
@@ -34,7 +38,7 @@ export const SLOTS = [
   ['saddle', 'accent'], ['spines', 'accent'], ['finD', 'accent'], ['legF', 'skin'], ['finP', 'accent'], ['neck', 'skin'], ['neckDecor', 'skinFar'],
   ['mane', 'accent'], ['collar', 'accent'], ['ear', 'skin'], ['earIn', 'accentSoft'], ['horns', 'accent'], ['antennae', 'accent'], ['tuft', 'accent'],
   ['head', 'skin'], ['snout', 'skin'], ['wingNear', 'accent'], ['nose', 'ink'],
-  ['maw', 'ink'], ['tongue', 'tongue'], ['mouth', 'groove'], ['lips', 'lip'], ['nostrils', 'nostril'], ['teeth', 'white'], ['whiskers', 'skinFar'], ['stalks', 'skin'], ['blush', 'blush'], ['toes', 'groove'], ['claws', 'claw'], ['eye', 'white'], ['iris', 'iris'], ['pupil', 'ink'],
+  ['maw', 'ink'], ['tongue', 'tongue'], ['mouth', 'groove'], ['lips', 'lip'], ['nostrils', 'nostril'], ['teeth', 'white'], ['whiskers', 'skinFar'], ['stalks', 'skin'], ['blush', 'blush'], ['toes', 'groove'], ['claws', 'claw'], ['relief', 'relief'], ['eye', 'white'], ['iris', 'iris'], ['pupil', 'ink'],
   ['glint', 'glint'], ['lids', 'lid'], ['brow', 'groove'], ['wingRibs', 'groove'], ['bones', 'bone'],
 ] as const satisfies readonly (readonly [string, SlotKind])[];
 
@@ -717,6 +721,23 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
     }
     put('bones', b);
   }
+  // ---- relief on the accessories (rings, rays), as the bake sinks it into them ----------------
+  const hide = [out.head, out.snout, out.neck, out.torso].map((x) => x.flatten(8)).filter((x) => x.length);
+  const hideE = hide.map(edgesOf);
+  const rel = new Path();
+  for (const slot of ['horns', 'antennae', 'tuft', 'mane', 'finD', 'finP', 'wingNear', 'tail'] as const) {
+    const spec = reliefSpec(slot, g), polys = out[slot].flatten(12);
+    if (!spec || !polys.length || (slot === 'tail' && n.plan !== D.PLAN.fish && tailType !== 3 && tailType !== 4)) continue;
+    const e = edgesOf(polys), root = rootOf(polys, p(pose, spec.anchor));
+    let reach = 0;
+    for (const poly of polys) for (const q of poly) reach = Math.max(reach, Math.hypot(q[0] - root[0], q[1] - root[1]));
+    // grooves show on the part itself, not where it is tucked behind the head or body
+    const behind = slot === 'horns' || slot === 'antennae' || slot === 'tuft' || slot === 'mane' || slot === 'finD';
+    const inside = (q: XY): boolean => sdPolys(e, polys, q[0], q[1]) < -0.25 && (!behind || hide.every((hp, i) => sdPolys(hideE[i]!, hp, q[0], q[1]) > 0));
+    rel.append(reliefPath({ ...spec, root }, inside, reach));
+  }
+  put('relief', rel);
+
   return out;
 }
 

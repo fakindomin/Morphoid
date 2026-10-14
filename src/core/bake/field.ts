@@ -8,6 +8,7 @@ import type { XY } from '../art/path';
 import type { Grid3 } from './surfacenets';
 import { limbBox, limbField, limbSd, type Limb } from '../art/limb';
 import { coatDepth, type Coat } from '../art/coat';
+import { reliefDepth } from '../art/relief';
 
 export const BIG = 6; // mm, "far away" distance written into empty space
 
@@ -179,7 +180,7 @@ export function addPart(g: Grid3, part: Part3D, k: number): void {
     const px = wx > 0 ? wx : 0, py = wy > 0 ? wy : 0;
     return Math.min(Math.max(wx, wy), 0) + Math.sqrt(px * px + py * py) - r;
   };
-  const coat = top ? undefined : part.coat;
+  const coat = top ? undefined : part.coat, relief = top ? undefined : part.relief;
   const vMax = v1 - v0;
   for (let w = w0; w <= w1; w++) {
     const wz = wo + w * h - part.z;
@@ -196,6 +197,7 @@ export function addPart(g: Grid3, part: Part3D, k: number): void {
         const gl = Math.hypot(gx, gy, gz) || 1;
         d3 += coatDepth(coat, x, vo + v * h, wz + part.z, gx / gl, gy / gl, gz / gl);
       }
+      if (relief && Math.abs(d3) < 1.2) d3 += reliefDepth(relief, x, vo + v * h);
       const idx = top ? (v * ny + w) * nx + i : (w * ny + v) * nx + i;
       const cur = g.data[idx]!;
       if (part.carve) { if (d3 < k) g.data[idx] = -smin(-cur, d3, k); continue; } // a hollow cut into the solid
