@@ -3,7 +3,8 @@ import type { MorphotypeGenome } from '../core/genome';
 import { solveRig, type Rig } from '../core/rig';
 import { targetPose } from '../core/art/pose';
 import { buildPaths, type SlotPaths } from '../core/art/shapes';
-import { analyzePrint, fitPlan, type PrintPlan, type PrintReport } from '../core/print';
+import { analyzePrint, fitPlan, touchIssues, type PrintPlan, type PrintReport } from '../core/print';
+import { appendageContacts, buildParts3D } from '../core/art/spec3d';
 import { serialize } from '../core/genome';
 
 /** Rest-pose geometry in mm: exactly what gets printed (no breathing, no mouse). */
@@ -19,7 +20,9 @@ export function reportFor(g: MorphotypeGenome, plan: PrintPlan): PrintReport {
   const hit = cache.get(key);
   if (hit) return hit;
   const { rig, paths } = restGeometry(g);
-  const rep = analyzePrint(paths, rig, plan);
+  const base = analyzePrint(paths, rig, plan);
+  const touch = touchIssues(appendageContacts(buildParts3D(paths, g, rig)));
+  const rep: PrintReport = touch.length ? { ...base, issues: [...base.issues, ...touch], level: base.level === 'green' || base.level === 'blue' ? 'yellow' : base.level } : base;
   if (cache.size > 200) cache.clear();
   cache.set(key, rep);
   return rep;

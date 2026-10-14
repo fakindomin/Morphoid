@@ -15,7 +15,7 @@ import { EYES, eyelids, LIP_R, WHISKER_TURN, insectHips, insectLegW, insectRise,
 import type { XY } from './path';
 import { typeSize } from './pose';
 import { insectLimb, legLimb, legSpecOf, octopusLimb, prolegLimb, type Cone, type Dome, type Limb } from './limb';
-import { edgesOf, sdPolys, slabDist, type Edge } from '../bake/field';
+import { blendGroup, edgesOf, sdPolys, slabDist, type Edge } from '../bake/field';
 
 export type ColorKey = 'c1' | 'c1dark' | 'c2' | 'c2soft' | 'c3' | 'ink' | 'white';
 
@@ -188,7 +188,7 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
     if (tl) p.limb = tl;
   }
   if (plan === D.PLAN.caterpillar) for (const p of out) if (p.slot === 'legF') p.limb = prolegLimb(prolegXs(rig.nodes.torso.x, rig.dims.bodyLength), p.z);
-  wingsClearEars(out, ctx.W);
+  separateAppendages(out); // appendages of different kinds never grow into each other
   // wing ribs stand on the OUTER face (the inner one stays flat: the wing prints lying on it)
   const wingS = typeSize(g, 'wings', D.WING_SPAN, 'scale');
   if (g.wings!.type! > 0 && wingS > 0.5) for (const p of out) if (p.slot === 'wingNear') {
@@ -285,37 +285,173 @@ function standTop(p: Part3D, g: MorphotypeGenome, rig: Rig): void {
  * Whiskers stick out sideways: the part becomes a top-view plate (x, z) at the height of their root in the side view,
  * three strands fanning out of the muzzle side; for print, a pad half sunk into the muzzle holds them together.
  */
-/** The smallest air gap (mm) between a wing and the ear beside it. */
-const WING_EAR_GAP_MM = 1.6;
+/** The smallest air gap (mm) between two appendages of different kinds that sit side by side. */
+export const APPENDAGE_GAP_MM = 1.2;
+/** Two outlines closer than this in the side view can meet in 3D (the body blend radius, bake BLEND_MM, plus the gap). */
+const SIDE_NEAR_MM = 2.4 + APPENDAGE_GAP_MM;
+/** How thin a horn, antenna or wing may get to make room on a crowded head. */
+const THIN_MM = 1.8;
+/** The gap a crowded head falls back to before giving up. */
+const TIGHT_GAP_MM = 0.6;
+/** Which appendage gives way first when two touch (higher moves first); central ones (crest, fin, mane) never move. */
+/** Tie-break when two sit at the same depth: the one with the higher value goes outside. */
+const GIVE: Partial<Record<number, number>> = { 2: 6, 4: 5, 3: 4, 8: 3, 1: 2 };
+
+/** One appendage on one side (an ear with its cup, a wing); `reach` is how far out its outer face may go. */
+interface Unit { grp: number; side: -1 | 0 | 1; parts: Part3D[]; reach?: number }
+const span = (u: Unit): [number, number] => {
+  let lo = Infinity, hi = -Infinity;
+  for (const p of u.parts) if (!p.carve) { const c = p.z * (u.side || 1); lo = Math.min(lo, c - p.thickness / 2); hi = Math.max(hi, c + p.thickness / 2); }
+  return [lo, hi];
+};
+
+/** Distance between two sets of side-view outlines (negative where they overlap), from the vertices of each to the other. */
+export function outlineGap(a: XY[][], b: XY[][]): number {
+  const ea = edgesOf(a), eb = edgesOf(b);
+  let d = Infinity;
+  for (const poly of a) for (const [x, y] of poly) d = Math.min(d, sdPolys(eb, b, x, y));
+  for (const poly of b) for (const [x, y] of poly) d = Math.min(d, sdPolys(ea, a, x, y));
+  return d;
+}
+
+/** Pairs of appendage units that overlap (or nearly) in the side view: only these can touch in 3D. */
+export function appendageUnits(out: Part3D[]): Unit[] {
+  const units = new Map<string, Unit>();
+  for (const p of out) {
+    const grp = blendGroup(p.slot);
+    if (!grp || p.plane || p.limb) continue;
+    const key = `${grp}:${p.side}`;
+    const u = units.get(key) ?? { grp, side: p.side, parts: [] };
+    u.parts.push(p);
+    units.set(key, u);
+  }
+  return [...units.values()];
+}
+
+/** The air gap in Z between two units whose outlines meet in the side view, or null when they cannot touch. */
+export function unitGap(u: Unit, v: Unit): number | null {
+  if (u.side && v.side && u.side !== v.side) return null;
+  if (outlineGap(solid(u), solid(v)) > SIDE_NEAR_MM) return null;
+  const [a0, a1] = span(u), [b0, b1] = span(v);
+  if (!u.side || !v.side) { // one sits on the centre plane: the gap is from its half-thickness to the other's inner face
+    const [c, s] = u.side ? [v, u] : [u, v];
+    const hw = span(c)[1];
+    return span(s)[0] - hw;
+  }
+  return Math.max(b0 - a1, a0 - b1);
+}
 
 /**
- * A wing that rises right behind an ear shares its Z band with it, so in 3D the two grow into one plate. When they
- * meet (or nearly meet) in the side view, the wing moves out sideways until it clears the ear, while its root stays
- * buried in the body's flank (never past 1.5 mm inside the widest torso half-width); the ear moves in for the rest.
+ * Appendages of different kinds (an ear and a wing, a horn and an antenna, a horn and a crest) should not touch. Only
+ * those whose outlines meet (or nearly meet) in the side view can touch in 3D; on each side those are packed across Z
+ * like books on a shelf: in their current order, each one at least APPENDAGE_GAP_MM beyond its inner neighbours and
+ * past any crest on the centre plane, then pulled back where its root would leave the head or body (see reachOut). A part that already sits clear never moves. When a small head simply has no room for all of them, the
+ * rest still touch: appendageContacts reports those. 2D is a side view, so it does not change.
  */
-function wingsClearEars(out: Part3D[], bodyW: number): void {
-  const box = (p: Part3D): [number, number, number, number] => {
-    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
-    for (const poly of p.polys) for (const [x, y] of poly) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
-    return [x0, x1, y0, y1];
-  };
-  const near = 2.4 + WING_EAR_GAP_MM; // the body blend radius (bake BLEND_MM) plus the gap
-  for (const w of out) if (w.slot === 'wingNear' && w.side) {
-    const [wx0, wx1, wy0, wy1] = box(w);
-    let need = 0;
-    for (const e of out) if (e.slot === 'ear' && e.side === w.side) {
-      const [ex0, ex1, ey0, ey1] = box(e);
-      if (ex0 > wx1 + near || wx0 > ex1 + near || ey0 > wy1 + near || wy0 > ey1 + near) continue;
-      need = Math.max(need, Math.abs(e.z) + e.thickness / 2 + WING_EAR_GAP_MM - (Math.abs(w.z) - w.thickness / 2));
-    }
-    if (need <= 0) continue;
-    const room = bodyW * 0.5 - 1.5 - (Math.abs(w.z) - w.thickness / 2);
-    const push = Math.min(need, Math.max(0, room));
-    w.z += w.side * push;
-    // whatever the wing could not take, the ear gives: it moves in towards the middle of the head (with its cup)
-    const rest = need - push;
-    if (rest > 0) for (const e of out) if ((e.slot === 'ear' || e.slot === 'earIn') && e.side === w.side) e.z -= e.side * rest;
+function separateAppendages(out: Part3D[]): void {
+  const units = appendageUnits(out);
+  const near = new Map<Unit, Set<Unit>>(units.map((u) => [u, new Set()]));
+  for (let i = 0; i < units.length; i++) for (let j = i + 1; j < units.length; j++) {
+    const u = units[i]!, v = units[j]!;
+    if (u.side && v.side && u.side !== v.side) continue;
+    if (outlineGap(solid(u), solid(v)) > SIDE_NEAR_MM) continue;
+    near.get(u)!.add(v); near.get(v)!.add(u);
   }
+  // how far out each unit may slide while its root stays buried in the head or body
+  const bodies = out.filter((p) => BODY_SLOTS.has(p.slot) && !p.limb && !p.plane).map((p) => ({ p, e: edgesOf(p.polys) }));
+  for (const u of units) if (u.side && near.get(u)!.size) u.reach = span(u)[1] + reachOut(u, bodies);
+  for (const side of [1, -1] as const) {
+    const row = units.filter((u) => u.side === side && near.get(u)!.size);
+    if (!row.length) continue;
+    const span0 = new Map(row.map((u) => [u, span(u)] as const));
+    const at = new Map<Unit, [number, number]>(); // [inner, outer] in |z|
+    const width = (u: Unit): number => at.get(u)![1] - at.get(u)![0];
+    const move = (u: Unit, inner: number): void => { const w = width(u); at.set(u, [inner, inner + w]); };
+    const mid = (u: Unit): number => (span0.get(u)![0] + span0.get(u)![1]) / 2;
+    row.sort((u, v) => mid(u) - mid(v) || (GIVE[u.grp] ?? 0) - (GIVE[v.grp] ?? 0));
+    // alternate: push outwards past the crest and inner neighbours, then pull inwards within reach and under outer
+    // neighbours; when the row fits, this settles with every part as close to where it was as the gaps allow
+    const pack = (gap: number, slim: (u: Unit) => number): boolean => {
+      for (const u of row) { const w = slim(u); at.set(u, [mid(u) - w / 2, mid(u) + w / 2]); }
+      const out = (): void => row.forEach((u, k) => {
+        let lo = 0.4;
+        for (const c of near.get(u)!) if (!c.side) lo = Math.max(lo, span(c)[1] + gap);
+        for (const v of row.slice(0, k)) if (near.get(u)!.has(v)) lo = Math.max(lo, at.get(v)![1] + gap);
+        if (at.get(u)![0] < lo) move(u, lo);
+      });
+      for (let it = 0; it < 6; it++) {
+        out();
+        for (let k = row.length - 1; k >= 0; k--) {
+          const u = row[k]!;
+          let hi = u.reach!;
+          for (const v of row.slice(k + 1)) if (near.get(u)!.has(v)) hi = Math.min(hi, at.get(v)![0] - gap);
+          if (at.get(u)![1] > hi) move(u, hi - width(u));
+        }
+      }
+      out(); // the last inward pull may have broken an inner gap: only the reach may be broken now
+      return row.every((u) => at.get(u)![1] <= u.reach! + 1e-6);
+    };
+    const full = (u: Unit): number => span0.get(u)![1] - span0.get(u)![0];
+    // a single plate (horn, antenna, wing) may slim down to THIN_MM to make room on a crowded head
+    const slim = (u: Unit): number => u.parts.length === 1 ? Math.min(full(u), THIN_MM) : full(u);
+    const ok = pack(APPENDAGE_GAP_MM, full) || pack(APPENDAGE_GAP_MM, slim) || pack(TIGHT_GAP_MM, slim);
+    // still no room: everything stays within reach and as far apart as it fits; the parts that still touch are
+    // reported by appendageContacts
+    if (!ok) for (const u of row) if (at.get(u)![1] > u.reach!) move(u, Math.max(0.4, u.reach! - width(u)));
+    for (const u of row) if (u.parts.length === 1 && width(u) < full(u) - 1e-6) {
+      const p = u.parts[0]!, t = width(u);
+      p.thickness = t;
+      p.bevel = Math.min(p.bevel, t / 2 - 0.01);
+      if (p.dome) p.dome = Math.min(p.dome, t * 0.75);
+    }
+    for (const u of row) { const dz = (at.get(u)![0] + at.get(u)![1]) / 2 - (span(u)[0] + span(u)[1]) / 2; for (const p of u.parts) p.z += side * dz; }
+  }
+}
+const solid = (u: Unit): XY[][] => u.parts.flatMap((p) => p.carve ? [] : p.polys);
+
+export interface Contact { a: SlotId; b: SlotId; gap: number; at: XY }
+
+/**
+ * Appendages of different kinds that still touch (or nearly touch) in 3D after separateAppendages: a small head with
+ * no room for an ear, a horn and an antenna side by side. One entry per pair (the left and right sides are mirrors).
+ */
+export function appendageContacts(out: Part3D[]): Contact[] {
+  const units = appendageUnits(out), found = new Map<string, Contact>();
+  const centre = (u: Unit): XY => {
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const poly of solid(u)) for (const [x, y] of poly) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+    return [(x0 + x1) / 2, (y0 + y1) / 2];
+  };
+  for (let i = 0; i < units.length; i++) for (let j = i + 1; j < units.length; j++) {
+    const u = units[i]!, v = units[j]!, gap = unitGap(u, v);
+    if (gap === null || gap >= TIGHT_GAP_MM - 0.05) continue;
+    const [a, b] = [u.parts[0]!.slot, v.parts[0]!.slot].sort() as [SlotId, SlotId];
+    const [cu, cv] = [centre(u), centre(v)];
+    const key = `${a}/${b}`;
+    if (!found.has(key) || gap < found.get(key)!.gap) found.set(key, { a, b, gap, at: [(cu[0] + cv[0]) / 2, (cu[1] + cv[1]) / 2] });
+  }
+  return [...found.values()];
+}
+
+const BODY_SLOTS = new Set<string>(['head', 'torso', 'neck', 'snout']);
+/** A moved appendage still counts as attached when this many points of its inner face lie this deep in the body. */
+const ROOT_POINTS = 6, ROOT_DEPTH_MM = 0.6;
+
+/** The farthest (mm, in steps of 0.2) a unit can slide outwards with its root still buried in the head or body. */
+function reachOut(u: Unit, bodies: { p: Part3D; e: Edge[] }[]): number {
+  const pts: XY[] = [];
+  for (const poly of solid(u)) for (let k = 0; k < poly.length; k += 2) pts.push(poly[k]!);
+  const inner = span(u)[0] + 0.3;
+  const buried = (dz: number): boolean => {
+    const z = (u.side || 1) * (inner + dz);
+    let n = 0;
+    for (const [x, y] of pts) if (bodies.some(({ p, e }) => slabSd(p, e, x, y, z) < -ROOT_DEPTH_MM) && ++n >= ROOT_POINTS) return true;
+    return false;
+  };
+  if (!buried(0)) return 0;
+  let dz = 0;
+  while (dz < 12 && buried(dz + 0.2)) dz += 0.2;
+  return dz;
 }
 
 /** How deep (mm) the cup inside an ear is. */

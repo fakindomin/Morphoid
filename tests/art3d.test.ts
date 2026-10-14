@@ -3,7 +3,8 @@ import { defaultGenome, mulberry32, randomGenome } from '../src/core/genome';
 import { solveRig } from '../src/core/rig';
 import { targetPose } from '../src/core/art/pose';
 import { buildPaths, SLOTS } from '../src/core/art/shapes';
-import { buildParts3D, SPEC_3D } from '../src/core/art/spec3d';
+import { appendageContacts, appendageUnits, buildParts3D, SPEC_3D, unitGap } from '../src/core/art/spec3d';
+import { parse } from '../src/core/genome/codec';
 
 const parts = (g: ReturnType<typeof defaultGenome>) => {
   const rig = solveRig(g);
@@ -75,5 +76,33 @@ describe('3D contract: elements sit on what they stand on', () => {
       if (worst >= 0.4) bad.push(`skull ${skull} ears ${type} size ${scale + 1}: ${worst.toFixed(1)} mm of the base in the air`);
     }
     expect(bad).toEqual([]);
+  });
+});
+
+describe('3D contract: appendages of different kinds do not grow into each other', () => {
+  it('the wing and the ear of a reported creature stay apart', () => {
+    const r = parse('MPH2:B01.25:L03.5:N02.1:H02:S01.1:E03.51:R01.51:W01.6:T04.32:U00:C04.5:O05:M01:Z02:V00.0:F01:D00:A01:G00:P00:J03:Y05:Q02:K02.11#7F');
+    if (!r.ok) throw new Error(r.message);
+    const g = r.genome;
+    const touching = appendageContacts(parts(g).parts).map((c) => `${c.a}/${c.b}`);
+    expect(touching).not.toContain('ear/wingNear');
+  });
+
+  it('most neighbours are set apart; the rest are reported, and nothing is pushed off its host', () => {
+    const rnd = mulberry32(5);
+    let close = 0, touch = 0;
+    for (let i = 0; i < 120; i++) {
+      const g = randomGenome(rnd);
+      const ps = parts(g).parts, units = appendageUnits(ps);
+      for (let a = 0; a < units.length; a++) for (let b = a + 1; b < units.length; b++) {
+        const gap = unitGap(units[a]!, units[b]!);
+        if (gap === null) continue;
+        close++;
+        if (gap < 0.55) touch++;
+      }
+      const reported = appendageContacts(ps).length;
+      expect(reported > 0 || !units.some((u, a) => units.some((v, b) => b > a && (unitGap(u, v) ?? 9) < 0.55))).toBe(true);
+    }
+    expect(touch / close).toBeLessThan(0.45);
   });
 });

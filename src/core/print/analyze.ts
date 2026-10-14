@@ -10,6 +10,7 @@
  *   PEG       a separate part too small to carry a mounting peg
  *   SOLE      too little flat area under the feet
  *   BALANCE   the finished figurine would tip over: its centre of mass is not above the soles (or the stand)
+ *   TOUCH     two appendages (an ear and a horn) grow into each other in 3D: no room on the head to set them apart
  * Severity: error = will not print as planned; warn = prints with care / minor supports.
  */
 import type { Rig } from '../rig';
@@ -20,7 +21,7 @@ import { GROUPS, PRINTERS, groupOfSlot, isSeparate, type GroupDef, type PartGrou
 import { PRINT_RULES as R } from './rules';
 import { balanceOf } from './balance';
 
-export type PrintIssueCode = 'OVERHANG' | 'BRIDGE' | 'FLOATING' | 'THIN' | 'SLIT' | 'PEG' | 'SOLE' | 'BED' | 'BALANCE';
+export type PrintIssueCode = 'OVERHANG' | 'BRIDGE' | 'FLOATING' | 'THIN' | 'SLIT' | 'PEG' | 'SOLE' | 'BED' | 'BALANCE' | 'TOUCH';
 export type Severity = 'info' | 'support' | 'warn' | 'error';
 
 export interface PrintIssue {
@@ -153,6 +154,15 @@ function withWhiskerPad(polys: XY[][]): XY[][] {
   const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, pad: XY[] = [];
   for (let i = 0; i < 24; i++) { const a = (i / 24) * Math.PI * 2; pad.push([cx + Math.cos(a) * WHISKER_PAD[0], cy + Math.sin(a) * 1.6]); }
   return [pad, ...polys.slice(1)];
+}
+
+/** Appendages that grow into each other in 3D (see appendageContacts): one warning naming every pair, at the first. */
+export function touchIssues(contacts: { a: SlotId; b: SlotId; at: XY }[]): PrintIssue[] {
+  if (!contacts.length) return [];
+  const pairs = contacts.map(({ a, b }) => `${SLOT_NAME_PL[a]} i ${SLOT_NAME_PL[b]}`);
+  const [first] = contacts;
+  return [{ code: 'TOUCH', severity: 'warn', piece: 'body', part: SLOT_NAME_PL[first!.a], slot: first!.a, fix: null, at: [first!.at[0], first!.at[1]], size: contacts.length,
+    message: `Zrastają się w 3D: ${pairs.join('; ')}. Brakuje miejsca, żeby je rozsunąć: zmniejsz któryś element, zmień jego kierunek albo wybierz większą głowę.` }];
 }
 
 export function analyzePrint(paths: SlotPaths, rig: Rig, plan: PrintPlan): PrintReport {
