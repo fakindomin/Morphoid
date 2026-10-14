@@ -5,6 +5,8 @@ import type { BakeResult } from '../../core/bake/bake';
 import { reportFor } from '../printReport';
 import { buildBakedModel } from '../three/bakedModel';
 import { buildModel, type Model } from '../three/model';
+import { buildSolidModel } from '../three/solidModel';
+import { previewStore, usePreview } from '../previewStore';
 import { studio } from '../studio';
 
 interface Props {
@@ -24,6 +26,7 @@ export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
   const explodeRef = useRef(explode);
   explodeRef.current = explode;
   const [failed, setFailed] = useState(false);
+  const preview = usePreview();
 
   useEffect(() => {
     const el = host.current;
@@ -70,10 +73,19 @@ export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
       camera.position.set(c.x + d * 0.5, c.y + d * 0.42, -d * 0.85);
       controls.update();
     };
+    // what is on screen: the print bake if one matches, else the preview solid (also a slightly stale one while the
+    // next is being built), else the quick outline slabs (first load, and the exploded view of separate pieces)
+    let shown: unknown = null, shownPalette = -1;
     const rebuild = (): void => {
       const { genome, plan } = studio.getState();
-      const b = bakedRef.current;
-      const next = b ? buildBakedModel(b, genome.palette!.index!) : buildModel(genome, plan, reportFor(genome, plan));
+      const b = bakedRef.current, p = previewStore.get();
+      const solid = !b && explodeRef.current < 0.02 ? p.solid : null;
+      const what = b ?? solid ?? `slabs:${studio.code()}:${plan.separate.join(',')}`;
+      if (what === shown && genome.palette!.index! === shownPalette && model) return;
+      shown = what; shownPalette = genome.palette!.index!;
+      const next = b ? buildBakedModel(b, genome.palette!.index!)
+        : solid ? buildSolidModel(solid, genome.palette!.index!)
+        : buildModel(genome, plan, reportFor(genome, plan));
       if (model) { scene.remove(model.root); model.dispose(); }
       model = next;
       scene.add(model.root);
@@ -83,11 +95,12 @@ export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
     rebuild();
 
     let pending = false;
-    const unsub = studio.subscribe(() => {
+    const later = (): void => {
       if (pending) return;
       pending = true;
       requestAnimationFrame(() => { pending = false; rebuild(); });
-    });
+    };
+    const unsubs = [studio.subscribe(later), previewStore.subscribe(later), previewStore.attach()];
 
     const resize = (): void => {
       const w = el.clientWidth || 1, h = el.clientHeight || 1;
@@ -104,17 +117,18 @@ export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
     api.current = { explode: (f) => model?.explode(f), resetView: () => { controls.autoRotate = true; frame(); }, rebuild };
 
     return () => {
-      cancelAnimationFrame(raf); unsub(); ro.disconnect(); controls.dispose();
+      cancelAnimationFrame(raf); unsubs.forEach((u) => u()); ro.disconnect(); controls.dispose();
       model?.dispose(); renderer.dispose(); renderer.domElement.remove(); api.current = null;
     };
   }, [variant]);
 
-  useEffect(() => { api.current?.explode(explode); }, [explode]);
+  useEffect(() => { api.current?.rebuild(); api.current?.explode(explode); }, [explode]);
   useEffect(() => { api.current?.rebuild(); }, [baked]);
 
   if (failed) return <div className="viewport3d-fail">Przeglądarka nie udostępnia WebGL, więc podgląd 3D jest niedostępny.</div>;
   return (
     <div className={`viewport3d ${variant}`} ref={host}>
+      {variant === 'main' && preview.busy && !baked && explode < 0.02 && <div className="viewport-busy">Przeliczam bryłę…</div>}
       {variant === 'main' && (
         <button type="button" className="btn-mini viewport-reset" onClick={() => api.current?.resetView()}>Wyśrodkuj widok</button>
       )}

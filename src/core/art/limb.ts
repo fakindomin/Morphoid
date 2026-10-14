@@ -146,6 +146,37 @@ export function limbSd(l: Limb, x: number, y: number, z: number): number {
   return Math.max(d, -y);
 }
 
+/**
+ * limbSd sampled on a block of grid points (x = ox + i h, i in [0, nx), likewise y and z), exact wherever it lies within
+ * `reach` of the limb. A limb of many cones (eight tentacles) would test every cone at every point; here each cone only
+ * fills the points near it. Points farther than `reach` from every part get Infinity.
+ */
+export function limbField(l: Limb, ox: number, oy: number, oz: number, h: number, nx: number, ny: number, nz: number, reach: number): Float32Array {
+  const out = new Float32Array(nx * ny * nz).fill(Infinity);
+  const span = (lo: number, hi: number, o: number, n: number): [number, number] =>
+    [Math.max(0, Math.floor((lo - o) / h)), Math.min(n - 1, Math.ceil((hi - o) / h))];
+  const each = (lo: V3, hi: V3, f: (idx: number, x: number, y: number, z: number) => void): void => {
+    const [i0, i1] = span(lo[0], hi[0], ox, nx), [j0, j1] = span(lo[1], hi[1], oy, ny), [k0, k1] = span(lo[2], hi[2], oz, nz);
+    for (let k = k0; k <= k1; k++) for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) f((k * ny + j) * nx + i, ox + i * h, oy + j * h, oz + k * h);
+  };
+  for (const c of l.cones) {
+    const r = Math.max(c.ra, c.rb) + reach + PAW_BLEND;
+    each([Math.min(c.a[0], c.b[0]) - r, Math.min(c.a[1], c.b[1]) - r, Math.min(c.a[2], c.b[2]) - r],
+      [Math.max(c.a[0], c.b[0]) + r, Math.max(c.a[1], c.b[1]) + r, Math.max(c.a[2], c.b[2]) + r],
+      (idx, x, y, z) => { const d = sdRoundCone(x, y, z, c); if (d < out[idx]!) out[idx] = d; });
+  }
+  for (const m of l.domes) {
+    const r = reach + PAW_BLEND;
+    each([m.c[0] - m.r[0] - r, m.c[1] - m.r[1] - r, m.c[2] - m.r[2] - r], [m.c[0] + m.r[0] + r, m.c[1] + m.r[1] + r, m.c[2] + m.r[2] + r],
+      (idx, x, y, z) => { out[idx] = smin(out[idx]!, sdEllipsoid(x, y, z, m), PAW_BLEND); });
+  }
+  for (let k = 0; k < nz; k++) for (let j = 0; j < ny; j++) {
+    const y = oy + j * h;
+    for (let i = 0, idx = (k * ny + j) * nx; i < nx; i++, idx++) if (out[idx]! < -y) out[idx] = -y;
+  }
+  return out;
+}
+
 export function limbBox(l: Limb): { lo: V3; hi: V3 } {
   const lo: V3 = [Infinity, Infinity, Infinity], hi: V3 = [-Infinity, -Infinity, -Infinity];
   const grow = (p: V3, r: V3): void => {

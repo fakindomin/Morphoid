@@ -46,11 +46,16 @@ function partSd(s: Shape, x: number, y: number, z: number): number {
  * (painted c3 on the torso).
  */
 export function paintMesh(mesh: Mesh, solids: Part3D[], decals: Part3D[], pattern: XY[][] = []): Uint8Array {
+  const keys = paintKeys(mesh, solids, decals, pattern), out = new Uint8Array(keys.length);
+  keys.forEach((k, t) => { out[t] = FILAMENT_OF[k]; });
+  return out;
+}
+
+/** The drawing's colour (every shade, not just the filament) of every triangle: the 3D preview paints with these. */
+export function paintKeys(mesh: Mesh, solids: Part3D[], decals: Part3D[], pattern: XY[][] = []): ColorKey[] {
   const P = mesh.positions, I = mesh.indices, nt = I.length / 3;
-  const out = new Uint8Array(nt);
-  const solid = solids.map((p) => shapeOf(p, REACH_MM));
-  const decal = decals.map((p) => shapeOf(p, DECAL_Z_MM));
-  const patEdges = pattern.length ? edgesOf(pattern) : [];
+  const out: ColorKey[] = new Array(nt);
+  const colorAt = painter(solids, decals, pattern);
   for (let t = 0; t < nt; t++) {
     const a = 3 * I[3 * t]!, b = 3 * I[3 * t + 1]!, c = 3 * I[3 * t + 2]!;
     const x = (P[a]! + P[b]! + P[c]!) / 3, y = (P[a + 1]! + P[b + 1]! + P[c + 1]!) / 3, z = (P[a + 2]! + P[b + 2]! + P[c + 2]!) / 3;
@@ -58,6 +63,20 @@ export function paintMesh(mesh: Mesh, solids: Part3D[], decals: Part3D[], patter
     const ux = P[b]! - P[a]!, uy = P[b + 1]! - P[a + 1]!, vx = P[c]! - P[a]!, vy = P[c + 1]! - P[a + 1]!;
     const ex = P[b + 2]! - P[a + 2]!, ez = P[c + 2]! - P[a + 2]!;
     const nz = ux * vy - uy * vx, nlen = Math.hypot(nz, uy * ez - ex * vy, ex * vx - ux * ez) || 1;
+    out[t] = colorAt(x, y, z, nz / nlen);
+  }
+  return out;
+}
+
+/**
+ * The colour at a surface point (model mm) whose unit normal has z component `nz`: the closest solid element, the
+ * pattern on the torso, and the colour regions drawn over them.
+ */
+export function painter(solids: Part3D[], decals: Part3D[], pattern: XY[][] = []): (x: number, y: number, z: number, nz: number) => ColorKey {
+  const solid = solids.map((p) => shapeOf(p, REACH_MM));
+  const decal = decals.map((p) => shapeOf(p, DECAL_Z_MM));
+  const patEdges = pattern.length ? edgesOf(pattern) : [];
+  return (x, y, z, nz) => {
     let color: ColorKey = solids[0]?.color ?? 'c1', best = Infinity, near: Part3D | null = null;
     for (const s of solid) {
       if (!within(s, x, y, z)) continue;
@@ -69,10 +88,9 @@ export function paintMesh(mesh: Mesh, solids: Part3D[], decals: Part3D[], patter
     for (const s of decal) {
       if (!within(s, x, y, z)) continue;
       const side = s.part.side || Math.sign(s.part.z) || Math.sign(z);
-      if (nz * side / nlen < 0.2) continue;
+      if (nz * side < 0.2) continue;
       if (sdPolys(s.edges, s.part.polys, x, y) < 0) color = s.part.color;
     }
-    out[t] = FILAMENT_OF[color];
-  }
-  return out;
+    return color;
+  };
 }

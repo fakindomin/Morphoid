@@ -6,7 +6,7 @@
 import type { Part3D } from '../art/spec3d';
 import type { XY } from '../art/path';
 import type { Grid3 } from './surfacenets';
-import { limbBox, limbSd, type Limb } from '../art/limb';
+import { limbBox, limbField, limbSd, type Limb } from '../art/limb';
 import { coatDepth, type Coat } from '../art/coat';
 
 export const BIG = 6; // mm, "far away" distance written into empty space
@@ -212,10 +212,14 @@ function addLimb(g: Grid3, limb: Limb, k: number, coat?: Coat): void {
   const i0 = Math.max(0, Math.floor((lo[0] - pad - g.ox) / h)), i1 = Math.min(nx - 1, Math.ceil((hi[0] + pad - g.ox) / h));
   const j0 = Math.max(0, Math.floor((lo[1] - pad - g.oy) / h)), j1 = Math.min(ny - 1, Math.ceil((hi[1] + pad - g.oy) / h));
   const k0 = Math.max(0, Math.floor((lo[2] - pad - g.oz) / h)), k1 = Math.min(nz - 1, Math.ceil((hi[2] + pad - g.oz) / h));
+  if (i1 < i0 || j1 < j0 || k1 < k0) return;
+  const bx = i1 - i0 + 1, by = j1 - j0 + 1;
+  const field = limbField(limb, g.ox + i0 * h, g.oy + j0 * h, g.oz + k0 * h, h, bx, by, k1 - k0 + 1, pad);
   for (let kk = k0; kk <= k1; kk++) for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+    let d3 = field[((kk - k0) * by + (j - j0)) * bx + (i - i0)]!;
+    if (d3 === Infinity) continue;
     const idx = (kk * ny + j) * nx + i, cur = g.data[idx]!;
     const x = g.ox + i * h, y = g.oy + j * h, z = g.oz + kk * h;
-    let d3 = limbSd(limb, x, y, z);
     if (coat && Math.abs(d3) < 1.5) d3 += limbCoat(limb, coat, x, y, z, h);
     if (d3 > cur + k) continue;
     g.data[idx] = smin(cur, d3, k);

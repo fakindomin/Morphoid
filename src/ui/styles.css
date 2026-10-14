@@ -276,6 +276,7 @@ kbd { font: 10.5px ui-monospace, Menlo, monospace; padding: 1px 6px; border: 1px
 .viewport3d.mini { height: 150px; border-radius: 10px; background: var(--bg-input); border: 1px solid var(--border); overflow: hidden; pointer-events: none; }
 .viewport3d canvas { outline: none; }
 .viewport-reset { position: absolute; right: 14px; top: 14px; }
+.viewport-busy { position: absolute; left: 14px; bottom: 14px; font: 11px/1 var(--mono, monospace); color: var(--muted); letter-spacing: .04em; pointer-events: none; }
 .viewport3d-fail { padding: 24px; color: var(--muted); font-size: 13px; text-align: center; }
 
 /* ---- export ---- */

@@ -282,3 +282,15 @@ describe('cosmic extras', () => {
     expect(bad).toEqual([]);
   });
 });
+
+describe('preview solid', () => {
+  it('is the fused solid, painted triangle by triangle with smooth normals', { timeout: 30000 }, async () => {
+    const { previewSolid } = await import('../src/core/bake/preview');
+    const s = previewSolid(defaultGenome(), 0.7);
+    const nt = s.indices.length / 3;
+    expect(nt).toBeGreaterThan(5000);
+    expect(s.colors.length).toBe(nt);
+    expect(s.normals.length).toBe(s.positions.length);
+    expect(new Set(s.colors).has('white')).toBe(true); // eye whites
+  });
+});

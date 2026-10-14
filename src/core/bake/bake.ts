@@ -23,7 +23,7 @@ export const BLEND_MM = 2.4;
 /** Parts thinner than this are colour regions / engraving (3MF), not geometry. */
 export const MIN_SOLID_MM = 0.8;
 /** Blend radius of a crisp part (teeth, tongue): small, so it does not swell into its neighbours. */
-const INSET_BLEND_MM = 0.5;
+export const INSET_BLEND_MM = 0.5;
 /** How far skin smoothing may move a vertex, in voxels (see smooth.ts). */
 export const SMOOTH_MOVE = 0.9;
 

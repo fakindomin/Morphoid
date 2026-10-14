@@ -153,15 +153,20 @@ function coatMaterial(base: THREE.MeshStandardMaterial, pat: { polys: [number, n
   return mat;
 }
 
+/** The preview's colour of every colour key in a palette (shades of the palette colours, ink, white). */
+export function previewColors(palette: number): Record<ColorKey, THREE.Color> {
+  const [hc1, hc2, hc3] = PALETTES[palette]!;
+  return {
+    c1: new THREE.Color(hc1), c1dark: mix(hc1, '#000000', 0.35), c2: new THREE.Color(hc2), c2soft: mix(hc2, '#ffffff', 0.45),
+    c3: new THREE.Color(hc3), ink: new THREE.Color('#1d2335'), white: new THREE.Color('#ffffff'),
+  };
+}
+
 export function buildModel(genome: MorphotypeGenome, plan: PrintPlan, report: PrintReport): Model {
   const rig = solveRig(genome);
   const paths = buildPaths(targetPose(rig, genome, 0, false, { x: 0, y: 0 }), genome, rig, false);
   const parts = buildParts3D(paths, genome, rig);
-  const [hc1, hc2, hc3] = PALETTES[genome.palette!.index!]!;
-  const colors: Record<ColorKey, THREE.Color> = {
-    c1: new THREE.Color(hc1), c1dark: mix(hc1, '#000000', 0.35), c2: new THREE.Color(hc2), c2soft: mix(hc2, '#ffffff', 0.45),
-    c3: new THREE.Color(hc3), ink: new THREE.Color('#1d2335'), white: new THREE.Color('#ffffff'),
-  };
+  const colors = previewColors(genome.palette!.index!);
   const mats = new Map<ColorKey, THREE.MeshStandardMaterial>();
   const matFor = (k: ColorKey): THREE.MeshStandardMaterial => {
     let m = mats.get(k);
