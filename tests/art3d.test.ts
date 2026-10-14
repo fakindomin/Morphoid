@@ -6,6 +6,7 @@ import { buildPaths, SLOTS } from '../src/core/art/shapes';
 import { appendageContacts, appendageUnits, buildParts3D, SPEC_3D, unitGap } from '../src/core/art/spec3d';
 import { parse } from '../src/core/genome/codec';
 import { hostsOf, slabSd } from '../src/core/art/mounts';
+import { sdPolys } from '../src/core/bake/field';
 import { EYES } from '../src/core/art/shapes';
 
 const parts = (g: ReturnType<typeof defaultGenome>) => {
@@ -110,9 +111,9 @@ describe('3D contract: appendages of different kinds do not grow into each other
 });
 
 describe('mount points: small elements sit on the real skin of the head and Pysk', () => {
-  it('every whisker root and every eyeball is buried in the head or Pysk', () => {
+  it('every whisker root, tooth and eyeball is buried in the head or Pysk', () => {
     const rnd = mulberry32(41);
-    let whiskers = 0, eyes = 0;
+    let whiskers = 0, eyes = 0, teeth = 0;
     for (let i = 0; i < 300; i++) {
       const g = randomGenome(rnd);
       const { rig, parts: ps } = parts(g);
@@ -125,6 +126,16 @@ describe('mount points: small elements sit on the real skin of the head and Pysk
           expect(depth(x, p.z, z), `${rig.code}: ${p.id} root floats`).toBeLessThan(-0.3);
           whiskers++;
         }
+        if (p.slot === 'teeth' && p.side) {
+          // the tooth's root: its point nearest the jaws, where the tooth's inner face must be in the jaw
+          let root = p.polys[0]![0]!, best = Infinity;
+          for (const [x, y] of p.polys[0]!) for (const h of hosts) { const d = sdPolys(h.e, h.p.polys, x, y); if (d < best) { best = d; root = [x, y]; } }
+          const zin = p.z - p.side * (p.thickness / 2 - 0.2);
+          let inJaw = false;
+          for (let k = 0; k <= 20 && !inJaw; k++) { const [x, y] = p.polys[0]![Math.floor((k / 20) * (p.polys[0]!.length - 1))]!; inJaw = depth(x, y, zin) < 0; }
+          expect(inJaw || depth(root[0], root[1], zin) < 0, `${rig.code}: ${p.id} tooth off the jaw`).toBe(true);
+          teeth++;
+        }
         if (p.slot === 'eye' && g.face!.eyes !== EYES.stalks) for (const c of p.limb?.cones ?? []) {
           expect(depth(c.a[0], c.a[1], c.a[2]), `${rig.code}: ${p.id} ball off the head`).toBeLessThan(0);
           eyes++;
@@ -133,6 +144,7 @@ describe('mount points: small elements sit on the real skin of the head and Pysk
     }
     expect(whiskers).toBeGreaterThan(30);
     expect(eyes).toBeGreaterThan(100);
+    expect(teeth).toBeGreaterThan(30);
   });
 
   it('the whiskers of the reported creature start inside its Pysk', () => {

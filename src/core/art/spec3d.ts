@@ -533,15 +533,10 @@ function lipsAndNostrils(out: Part3D[], paths: SlotPaths, ctx: Ctx): void {
 /** How far an eyeball stands out of the head, as a share of its radius: most of the ball shows, like a real eye. */
 const EYE_OUT = 0.75;
 
-/**
- * Eyes as real balls: every eye outline becomes a sphere that stands out of the head (or sits on its stalk), the iris
- * and pupil are painted on its front, and the eyelids are round folds rolled over the top and under the bottom of the
- * ball, following the arcs the 2D sketch draws (eyelids in shapes.ts).
- */
 /** How deep (mm) a tooth's root sinks into the jaw it grows from. */
 const TOOTH_SEAT_MM = 0.5;
-/** How far in from the rim (mm) the jaw's width is measured for a tooth. */
-const TOOTH_IN_MM = 1.5;
+/** How far in from the rim (mm) a tooth's mount sits. */
+const TOOTH_IN_MM = 0.8;
 
 /**
  * Teeth sit on the rims of the jaws, but the muzzle is rounded across Z: at the rim it is narrower than its full
@@ -556,19 +551,23 @@ function seatTeeth(out: Part3D[]): void {
       let root: XY | null = null, best = Infinity;
       for (const [x, y] of poly) for (const { p, e } of jaws) { const d = sdPolys(e, p.polys, x, y); if (d < best) { best = d; root = [x, y]; } }
       if (!root) return null;
-      // the jaw's width a little way in from the rim, along the outline's inward normal
-      const jaw = jaws.reduce((a, b) => sdPolys(b.e, b.p.polys, root![0], root![1]) < sdPolys(a.e, a.p.polys, root![0], root![1]) ? b : a);
-      const sd = (x: number, y: number): number => sdPolys(jaw.e, jaw.p.polys, x, y);
-      const gx = sd(root[0] + 0.1, root[1]) - sd(root[0] - 0.1, root[1]), gy = sd(root[0], root[1] + 0.1) - sd(root[0], root[1] - 0.1), gl = Math.hypot(gx, gy) || 1;
-      const [qx, qy] = [root[0] - (gx / gl) * TOOTH_IN_MM, root[1] - (gy / gl) * TOOTH_IN_MM];
-      // the tooth's mount: the jaw's skin there, the root TOOTH_SEAT_MM inside it
-      const z = Math.min(Math.abs(t.z) + t.thickness / 2, skinZ(jaw, qx, qy, TOOTH_SEAT_MM));
+      // the tooth's mount: on the jaw's rim at its root, a little way in, the root TOOTH_SEAT_MM inside the skin
+      // (measured near the rim: further in, a rounded jaw is much wider than where the tooth actually grows)
+      const m = mountAt(jaws, root[0], root[1], TOOTH_IN_MM, TOOTH_SEAT_MM);
+      // (and no wider than the jaw at the root itself, so the tooth never stands out past the lip)
+      const rim = Math.max(...jaws.map((j) => skinZ(j, root![0], root![1])));
+      const z = Math.min(Math.abs(t.z) + t.thickness / 2, m?.z ?? 0, rim);
       return { ...t, id: `${t.id}${k}`, polys: [poly], z: t.side * Math.max(t.thickness / 2, z - t.thickness / 2) };
     });
     out.splice(out.indexOf(t), 1, ...teeth.filter((x): x is Part3D => !!x));
   }
 }
 
+/**
+ * Eyes as real balls: every eye outline becomes a sphere that stands out of the head (or sits on its stalk), the iris
+ * and pupil are painted on its front, and the eyelids are round folds rolled over the top and under the bottom of the
+ * ball, following the arcs the 2D sketch draws (eyelids in shapes.ts).
+ */
 function eyeballs(out: Part3D[], stalks: boolean): void {
   const head = hostsOf(out, ['head'])[0];
   for (const eye of out.filter((p) => p.slot === 'eye')) {
