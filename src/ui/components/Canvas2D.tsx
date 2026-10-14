@@ -12,6 +12,8 @@ const to = (x: number, y: number) => [CX - x * SCALE, GROUND - y * SCALE] as con
 const SOLID: readonly SlotKind[] = ['skin', 'skinFar', 'accent', 'accentFar', 'accentSoft', 'white'];
 /** Small details drawn above the shading (eyes, mouth, nose), so the light does not tint them. */
 const DETAIL: readonly SlotKind[] = ['white', 'iris', 'ink', 'glint', 'groove', 'blush'];
+/** Parts drawn in front of the coated ones that hide their texture (the near front leg covers the torso). */
+const COAT_CUT = ['legF', 'head', 'snout', 'ear', 'stalks'] as const;
 const SIL_SLOTS = SLOTS.filter(([, kind]) => SOLID.includes(kind));
 /**
  * Paint layers, back to front. The skin-coloured parts are fused into one smooth body (the 2D twin of the bake's
@@ -148,6 +150,17 @@ export function Canvas2D({ showBones, breathing, frozen, onSocket, markers = [] 
           <clipPath id="torsoClip">
             <path ref={reg('torsoClip', 0)} d="" />
           </clipPath>
+          {/* the coat texture shows only on the parts that carry it in 3D, and not where a part in front hides them */}
+          <mask id="coatMask" maskUnits="userSpaceOnUse" x={-W} y={-H} width={3 * W} height={3 * H}>
+            <path ref={reg('coatOn', 3)} fill="#fff" d="" />
+            {COAT_CUT.map((id) => <path key={id} ref={reg(id, 3)} fill="#000" d="" />)}
+          </mask>
+          <mask id="coatLegMask" maskUnits="userSpaceOnUse" x={-W} y={-H} width={3 * W} height={3 * H}>
+            <path ref={reg('coatLegB', 3)} fill="#fff" d="" />
+            <path ref={reg('torso', 4)} fill="#000" d="" />
+            <path ref={reg('coatLegF', 3)} fill="#fff" d="" />
+            {COAT_CUT.filter((id) => id !== 'legF').map((id) => <path key={id} ref={reg(id, 4)} fill="#000" d="" />)}
+          </mask>
           <clipPath id="silClip">
             {SIL_SLOTS.map(([id]) => <path key={id} ref={reg(id, 2)} d="" />)}
           </clipPath>
@@ -214,7 +227,8 @@ export function Canvas2D({ showBones, breathing, frozen, onSocket, markers = [] 
             <g key={layer} className={`layer-${layer}`} filter={layer === 'skin' ? 'url(#goo)' : layer === 'far' ? undefined : 'url(#form)'}>
               {LAYER_SLOTS(layer).map(([id, kind]) => (
                 <path key={id} ref={reg(id, 0)} className={`shape ${kind} s-${id}`} d=""
-                  clipPath={id === 'pattern' || id === 'coat' || id === 'belly' ? 'url(#torsoClip)' : undefined} />
+                  clipPath={id === 'pattern' || id === 'belly' ? 'url(#torsoClip)' : undefined}
+                  mask={id === 'coat' ? 'url(#coatMask)' : id === 'coatLegs' ? 'url(#coatLegMask)' : undefined} />
               ))}
             </g>
           ))}

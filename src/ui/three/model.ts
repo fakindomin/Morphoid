@@ -86,10 +86,11 @@ function geometryFor(p: Part3D): THREE.BufferGeometry[] {
 }
 
 /**
- * The torso's material: the coat pattern painted on as a colour region (planar projection of the 2D pattern), and the
- * coat texture (fur, scales, armour) as a bump from the same height function the bake sinks into the solid.
+ * A coated part's material: the torso's coat pattern painted on as a colour region (planar projection of the 2D
+ * pattern), and the coat texture (fur, scales, armour) as a bump from the same height function the bake sinks into the
+ * solid. z: where the mesh sits along Z (a slab is built around z = 0, a limb is already in world mm).
  */
-function torsoMaterial(base: THREE.MeshStandardMaterial, pat: { polys: [number, number][][]; box: THREE.Box2; color: THREE.Color } | null, coat: Coat | undefined, z: number): THREE.MeshStandardMaterial {
+function coatMaterial(base: THREE.MeshStandardMaterial, pat: { polys: [number, number][][]; box: THREE.Box2; color: THREE.Color } | null, coat: Coat | undefined, z: number): THREE.MeshStandardMaterial {
   const mat = base.clone();
   let tex: THREE.CanvasTexture | null = null;
   let w = 1, h = 1;
@@ -134,11 +135,12 @@ function torsoMaterial(base: THREE.MeshStandardMaterial, pat: { polys: [number, 
     }
     if (coat) {
       shader.uniforms.coatU = { value: new THREE.Vector4(coat.kind, coat.cx, coat.cy, coat.tilt) };
-      head += ' uniform vec4 coatU;' + COAT_GLSL;
+      shader.uniforms.coatV = { value: new THREE.Vector2(coat.depth, coat.bands === 'v' ? 1 : 0) };
+      head += ' uniform vec4 coatU; uniform vec2 coatV;' + COAT_GLSL;
       // bump mapping (as three's bumpmap chunk): tilt the normal by the screen-space slope of the relief
       frag = frag.replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         {
-          float hh = -coatDepth(coatU, vCoatP, normalize(vCoatN)) * ${COAT_BUMP.toFixed(2)};
+          float hh = -coatDepth(coatU, coatV, vCoatP, normalize(vCoatN)) * ${COAT_BUMP.toFixed(2)};
           vec3 sp = -vViewPosition, sx = dFdx(sp), sy = dFdy(sp);
           vec3 r1 = cross(sy, normal), r2 = cross(normal, sx);
           float det = dot(sx, r1);
@@ -193,7 +195,8 @@ export function buildModel(genome: MorphotypeGenome, plan: PrintPlan, report: Pr
     const key = piece === 'body' ? 'body' : `${piece}:${side}`;
     const holder = container(key, off);
     let material = matFor(part.color);
-    if (part.slot === 'torso' && (box2 || part.coat)) material = torsoMaterial(material, box2 ? { polys: patPolys, box: box2, color: colors.c3 } : null, part.coat, part.z);
+    const pat = part.slot === 'torso' && box2 ? { polys: patPolys, box: box2, color: colors.c3 } : null;
+    if (pat || part.coat) material = coatMaterial(material, pat, part.coat, part.limb ? 0 : part.z);
     for (const geo of geometryFor(part)) {
       geometries.push(geo);
       const mesh = new THREE.Mesh(geo, material);

@@ -7,7 +7,7 @@ import type { Part3D } from '../art/spec3d';
 import type { XY } from '../art/path';
 import type { Grid3 } from './surfacenets';
 import { limbBox, limbSd, type Limb } from '../art/limb';
-import { coatDepth } from '../art/coat';
+import { coatDepth, type Coat } from '../art/coat';
 
 export const BIG = 6; // mm, "far away" distance written into empty space
 
@@ -153,7 +153,7 @@ export function slabDist(p: Part3D, sd: number, w: number, x?: number): number {
 /** Fuse a part into the grid with a smooth union. */
 export function addPart(g: Grid3, part: Part3D, k: number): void {
   const { h, nx, ny, nz } = g;
-  if (part.limb) { addLimb(g, part.limb, k); return; }
+  if (part.limb) { addLimb(g, part.limb, k, part.coat); return; }
   if (part.ribs) addLimb(g, part.ribs, k);
   const edges = edgesOf(part.polys);
   if (!edges.length) return;
@@ -205,7 +205,7 @@ export function addPart(g: Grid3, part: Part3D, k: number): void {
 }
 
 /** Fuse a true 3D part (a jointed leg) into the grid with a smooth union. */
-function addLimb(g: Grid3, limb: Limb, k: number): void {
+function addLimb(g: Grid3, limb: Limb, k: number, coat?: Coat): void {
   const { h, nx, ny, nz } = g;
   const pad = k + 2 * h;
   const { lo, hi } = limbBox(limb);
@@ -214,10 +214,26 @@ function addLimb(g: Grid3, limb: Limb, k: number): void {
   const k0 = Math.max(0, Math.floor((lo[2] - pad - g.oz) / h)), k1 = Math.min(nz - 1, Math.ceil((hi[2] + pad - g.oz) / h));
   for (let kk = k0; kk <= k1; kk++) for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
     const idx = (kk * ny + j) * nx + i, cur = g.data[idx]!;
-    const d3 = limbSd(limb, g.ox + i * h, g.oy + j * h, g.oz + kk * h);
+    const x = g.ox + i * h, y = g.oy + j * h, z = g.oz + kk * h;
+    let d3 = limbSd(limb, x, y, z);
+    if (coat && Math.abs(d3) < 1.5) d3 += limbCoat(limb, coat, x, y, z, h);
     if (d3 > cur + k) continue;
     g.data[idx] = smin(cur, d3, k);
   }
+}
+
+/**
+ * The coat relief on a round limb, along its surface normal. It fades out where the limb is thin (a tail's tip), so a
+ * groove never eats into the narrow core: the limb's depth below the surface is probed 1.5 mm in.
+ */
+function limbCoat(limb: Limb, coat: Coat, x: number, y: number, z: number, h: number): number {
+  const gx = limbSd(limb, x + h, y, z) - limbSd(limb, x - h, y, z);
+  const gy = limbSd(limb, x, y + h, z) - limbSd(limb, x, y - h, z);
+  const gz = limbSd(limb, x, y, z + h) - limbSd(limb, x, y, z - h);
+  const gl = Math.hypot(gx, gy, gz) || 1, nx = gx / gl, ny = gy / gl, nz = gz / gl;
+  const d0 = limbSd(limb, x, y, z), core = -limbSd(limb, x - nx * (1.5 + d0), y - ny * (1.5 + d0), z - nz * (1.5 + d0));
+  const thick = Math.min(1, Math.max(0, (core - 0.3) / 1.2));
+  return thick * coatDepth(coat, x, y, z, nx, ny, nz);
 }
 
 /** Remove the slab |z| < z0 (the gap between a pair of wings: their inner faces stay flat). */

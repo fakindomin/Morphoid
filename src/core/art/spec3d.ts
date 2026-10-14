@@ -9,7 +9,7 @@
 import type { MorphotypeGenome } from '../genome';
 import { dimensions as D, type Rig } from '../rig';
 import { groupOfSlot, type PartGroup } from '../print/plan';
-import type { Coat } from './coat';
+import { COAT_LIMB, type Coat } from './coat';
 import { EYES, WHISKER_TURN, insectHips, insectLegW, insectRise, prolegXs, roundTail, STALK_W, wingRibs, STAND_MARGIN_MM, STAND_MM, WHISKER_FAN, WHISKER_PAD, WHISKER_W, whiskerLength, type SlotId, type SlotPaths } from './shapes';
 import type { XY } from './path';
 import { typeSize } from './pose';
@@ -67,7 +67,7 @@ export const SPEC_3D: Record<SlotId, Spec | null> = {
   legBFar: null, legFFar: null, wingFar: null,                          // mirror images, generated from the near slot
   torso: { color: 'c1', mirror: false, z: centre, t: (c) => c.W, bevel: (t) => round(0.48)(t) },
   pattern: null, // painted onto the torso surface (colour region), see the viewport
-  coat: null, // a relief sunk into the torso (Part3D.coat), see coat.ts
+  coat: null, coatLegs: null, coatOn: null, coatLegB: null, coatLegF: null, // a relief sunk into the solid (Part3D.coat), see coat.ts
   legB: { color: 'c1', mirror: true, z: (c) => c.legZ, t: (c) => c.legW, bevel: (t) => round(0.4)(t) },
   legF: { color: 'c1', mirror: true, z: (c) => c.legZ, t: (c) => c.legW, bevel: (t) => round(0.4)(t) },
   tail: { color: 'c1', mirror: false, z: centre, t: (c) => Math.max(3.2, c.G * 0.5), bevel: (t) => round(0.42)(t) },
@@ -104,6 +104,8 @@ export function ctxFor(rig: Rig): Ctx {
   const headW = Math.max(8, W * 0.9);
   return { W, G, legW: rig.dims.legWidth, legZ: W * 0.32, headW, snoutW: headW * 0.62, neckT: Math.max(6, W * 0.7) };
 }
+
+const LEG_SLOTS = new Set<SlotId>(['legB', 'legF', 'legBFar', 'legFFar']);
 
 /**
  * `print`: the parts as the bake makes them, with the hidden seating that only a separately printed piece needs (the
@@ -164,8 +166,14 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
     p.ribs = { cones: wingRibs(g.wings!.type!, [n.x, n.y], wingS).map((r) => ({ a: [r.a[0], r.a[1], zAt(r.ra)], b: [r.b[0], r.b[1], zAt(r.rb)], ra: r.ra, rb: r.rb })), domes: [] };
   }
   if (plan === D.PLAN.quadruped || biped) for (const p of out) if (p.slot === 'torso') p.widths = torsoWidths(p, rig);
+  // coat texture: the torso and neck, a round tail and jointed legs (a leg's armour runs in rings); the head stays smooth
   const tex = g.coat?.texture ?? 0;
-  if (tex > 0) for (const p of out) if (p.slot === 'torso') p.coat = { kind: tex as Coat['kind'], cx: rig.nodes.torso.x, cy: rig.nodes.torso.y, tilt: rig.dims.tilt };
+  if (tex > 0) for (const p of out) {
+    const coat = (depth: number, bands: Coat['bands']): Coat => ({ kind: tex as Coat['kind'], cx: rig.nodes.torso.x, cy: rig.nodes.torso.y, tilt: rig.dims.tilt, depth, bands });
+    if (p.slot === 'torso' || p.slot === 'neck') p.coat = coat(1, 'u');
+    else if (p.slot === 'tail' && p.limb) p.coat = coat(COAT_LIMB, 'u');
+    else if (LEG_SLOTS.has(p.slot) && p.limb && (plan === D.PLAN.quadruped || biped)) p.coat = coat(COAT_LIMB, 'v');
+  }
   return out;
 }
 

@@ -22,7 +22,7 @@ export type SlotKind =
 
 export const SLOTS = [
   ['shadow', 'shadow'], ['stand', 'accent'], ['arms', 'skin'], ['wingFar', 'accentFar'], ['tail', 'skin'], ['legBFar', 'skinFar'], ['legFFar', 'skinFar'],
-  ['legB', 'skin'], ['torso', 'skin'], ['torsoClip', 'clip'], ['belly', 'belly'], ['pattern', 'pattern'], ['coat', 'coat'],
+  ['legB', 'skin'], ['torso', 'skin'], ['torsoClip', 'clip'], ['belly', 'belly'], ['pattern', 'pattern'], ['coat', 'coat'], ['coatLegs', 'coat'], ['coatOn', 'clip'], ['coatLegB', 'clip'], ['coatLegF', 'clip'],
   ['saddle', 'accent'], ['spines', 'accent'], ['finD', 'accent'], ['legF', 'skin'], ['finP', 'accent'], ['neck', 'skin'], ['neckDecor', 'skinFar'],
   ['mane', 'accent'], ['collar', 'accent'], ['ear', 'skin'], ['earIn', 'accentSoft'], ['horns', 'accent'], ['antennae', 'accent'], ['tuft', 'accent'],
   ['head', 'skin'], ['snout', 'skin'], ['wingNear', 'accent'], ['nose', 'ink'],
@@ -312,9 +312,6 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
     }
   }
   if (!pt.empty) put('pattern', tilted(pt));
-  // coat texture (fur, scales, armour): the side view of the relief the bake sinks into the torso, see coat.ts
-  const tex = g.coat!.texture!;
-  if (tex > 0) put('coat', tilted(coatPath(tex as 1 | 2 | 3, tRx + 4, tRy + 4, torso)));
   const acc = g.accessory!.type!;
   if (acc === 2) put('saddle', tilted(ellipse(torso[0] - n.bodyL * 0.02, torso[1] + tRy * 0.62, n.bodyL * 0.2, tRy * 0.3)));
 
@@ -572,6 +569,30 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
     const off = WHISKER_TURN[face.whiskerDir ?? 0] ?? 0; // a strand pointing straight sideways shows no length here
     for (const a of WHISKER_FAN) if (Math.abs(Math.sin(a + off)) * len > 3) wk.append(tube([cx, cy + Math.sign(a)], [cx + Math.sin(a + off) * len, cy + Math.sign(a)], 1.2, 1.2)); // strands 1 mm apart fuse into one band
     put('whiskers', wk);
+  }
+
+  // ---- coat texture ------------------------------------------------------------------
+  // the side view of the relief the bake sinks into the solid (coat.ts), masked in the sketch to the parts buildParts3D
+  // textures: torso, neck and a round tail ('coat'), jointed legs, whose armour runs in rings ('coatLegs')
+  const tex = g.coat!.texture!;
+  if (tex > 0) {
+    const cs = Math.cos(n.tilt), sn = Math.sin(n.tilt);
+    const localBox = (ps: Path[]): [number, number, number, number] => {
+      const b: [number, number, number, number] = [Infinity, -Infinity, Infinity, -Infinity];
+      for (const path of ps) for (const poly of path.flatten(2)) for (const [x, y] of poly) {
+        const dx = x - torso[0], dy = y - torso[1], a = dx * cs + dy * sn, v = -dx * sn + dy * cs;
+        b[0] = Math.min(b[0], a); b[1] = Math.max(b[1], a); b[2] = Math.min(b[2], v); b[3] = Math.max(b[3], v);
+      }
+      return b;
+    };
+    const body = [out.torso, out.neck, ...(n.plan !== D.PLAN.fish && (tailType === 1 || tailType === 2) ? [out.tail] : [])];
+    put('coatOn', body.reduce((acc, x) => acc.append(x), new Path()));
+    put('coat', tilted(coatPath(tex as 1 | 2 | 3, localBox(body), torso)));
+    if (n.plan === D.PLAN.quadruped || biped) {
+      put('coatLegB', new Path().append(out.legB));
+      put('coatLegF', new Path().append(out.legF));
+      put('coatLegs', tilted(coatPath(tex as 1 | 2 | 3, localBox([out.legB, out.legF]), torso, 'v')));
+    }
   }
 
   // ---- rig overlay (optional, for the curious) ------------------------------------
