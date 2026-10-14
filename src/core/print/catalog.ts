@@ -32,7 +32,7 @@ export interface PartSpec {
 
 export const PARTS: readonly PartSpec[] = [
   { id: 'torso', blocks: ['body', 'build', 'plan'], slots: ['torso'], repr3D: 'ellipsoid', modular: false, note: 'elipsoida L x W x G, baza modelu' },
-  { id: 'legs', blocks: ['legs'], slots: ['legB', 'legF', 'legBFar', 'legFFar'], repr3D: 'sweep', modular: false,
+  { id: 'legs', blocks: ['legs'], slots: ['legB', 'legF', 'legBFar', 'legFFar', 'claws'], repr3D: 'sweep', modular: false,
     note: '4 nogi (druga para = lustro w Z), płaska podeszwa na Y=0, pazury jako klin leżący na stole' },
   { id: 'neck', blocks: ['head'], slots: ['neck', 'neckDecor'], repr3D: 'sweep', modular: false, note: 'stożek ścięty; grzebień/pancerz jako grzbiety o wysokości 0,8 mm' },
   { id: 'head', blocks: ['head'], slots: ['head'], repr3D: 'ellipsoid', modular: false, note: 'elipsoida czaszki; żadnych sztucznych podpór pod pyskiem' },
@@ -70,5 +70,5 @@ export const SLOT_NAME_PL: Record<SlotId, string> = {
   torso: 'brzuch/tułów', torsoClip: 'tułów', belly: 'brzuch', pattern: 'wzór', coat: 'faktura', coatLegs: 'faktura nóg', coatOn: 'faktura', coatLegB: 'faktura', coatLegF: 'faktura', saddle: 'siodło', spines: 'kolce', legF: 'noga przednia',
   neck: 'szyja', neckDecor: 'ozdoba szyi', mane: 'grzywa', collar: 'obroża', ear: 'ucho', earIn: 'ucho', horns: 'rogi', antennae: 'czułki', stalks: 'szypułki oczu', tuft: 'czub',
   head: 'głowa', snout: 'pysk', wingNear: 'skrzydło', nose: 'nos', mouth: 'usta', maw: 'wnętrze pyska', tongue: 'język', teeth: 'zęby', whiskers: 'wąsy', eye: 'oko',
-  pupil: 'źrenica', glint: 'odblask', iris: 'tęczówka', blush: 'rumieniec', toes: 'paluszki', brow: 'brew', lids: 'powieki', lips: 'wargi', nostrils: 'nozdrza', wingRibs: 'kości skrzydeł', bones: 'kości',
+  pupil: 'źrenica', glint: 'odblask', iris: 'tęczówka', blush: 'rumieniec', toes: 'paluszki', brow: 'brew', lids: 'powieki', lips: 'wargi', claws: 'pazury', nostrils: 'nozdrza', wingRibs: 'kości skrzydeł', bones: 'kości',
 };

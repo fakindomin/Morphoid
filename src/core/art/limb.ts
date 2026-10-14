@@ -17,7 +17,11 @@ export type V3 = [number, number, number];
 export interface Cone { a: V3; b: V3; ra: number; rb: number }
 /** Upper half of an ellipsoid centred on the bed (c[1] = 0): radii along x, y, z. */
 export interface Dome { c: V3; r: V3 }
-export interface Limb { cones: Cone[]; domes: Dome[] }
+export interface Limb {
+  cones: Cone[]; domes: Dome[];
+  /** claws or a hoof at the foot: a separate, darker part of the same leg (spec3d makes them the 'claws' slot) */
+  tips?: Cone[];
+}
 
 /** The narrowest a leg may get (mm radius): 3.2 mm across is two perimeters a side and still stiff. */
 export const LIMB_MIN_R = 1.6;
@@ -79,28 +83,30 @@ export function legLimb(s: LegSpec, z: number): Limb {
   const chain = pts.filter((q, i) => i === 0 || i === pts.length - 1 || dist(q.p, pts[i - 1]!.p) > Math.abs(q.r - pts[i - 1]!.r) + 1);
   const cones: Cone[] = [];
   for (let i = 0; i + 1 < chain.length; i++) cones.push({ a: chain[i]!.p, b: chain[i + 1]!.p, ra: chain[i]!.r, rb: chain[i + 1]!.r });
-  return { cones: [...cones, ...paw.cones], domes: paw.domes };
+  return { cones: [...cones, ...paw.cones], domes: paw.domes, tips: paw.tips };
 }
 
-function pawOf(s: LegSpec, z: number): { ankleY: number; cones: Cone[]; domes: Dome[] } {
+function pawOf(s: LegSpec, z: number): { ankleY: number; cones: Cone[]; domes: Dome[]; tips: Cone[] } {
   const fx = s.foot[0], w = s.legW;
-  if (s.footType === 2) { // hoof: a flat-bottomed cone, a little wider at the bed
-    const rb = Math.max(2.6, Math.min(w * 0.62, Math.abs(z) - 1.5));
-    return { ankleY: 4.6, cones: [{ a: [fx, 0, z], b: [fx, 4.2, z], ra: rb, rb: Math.max(LIMB_MIN_R, w * 0.4) }], domes: [] };
+  if (s.footType === 2) { // hoof: a flat-bottomed horn cone, a little wider at the bed, under a short pastern
+    const rb = Math.max(2.6, Math.min(w * 0.62, Math.abs(z) - 1.5)), rt = Math.max(LIMB_MIN_R, w * 0.4);
+    return { ankleY: 4.6, cones: [{ a: [fx, 3.4, z], b: [fx, 4.6, z], ra: rt * 1.05, rb: rt }], domes: [], tips: [{ a: [fx, 0, z], b: [fx, 3.8, z], ra: rb, rb: rt * 1.08 }] };
   }
   // the paw is a little wider than the ankle, but keeps a 3 mm gap to its pair (a narrower gap fuses on the bed)
   const rx = Math.max(3, s.soleL / 2), rz = Math.max(LIMB_MIN_R + 0.4, Math.min(w * 0.55, Math.abs(z) - 1.5)), ry = Math.max(2.4, w * 0.4);
   const cx = fx + s.soleL * 0.2;
   const domes: Dome[] = [{ c: [cx, 0, z], r: [rx, ry, rz] }];
-  const cones: Cone[] = [];
-  if (s.footType === 1) { // claws: three low ridges reaching forward past the paw, lying on the bed
-    const toe = cx + rx;
-    for (const k of [-1, 0, 1]) {
-      const dz = k * rz * 0.5;
-      cones.push({ a: [toe - 2.2, 0.4, z + dz], b: [toe + 2.4, 0.2, z + dz * 1.15], ra: 1.3, rb: 0.9 });
-    }
+  // toes: round knuckles along the front of the paw (four, or three on a narrow paw)
+  const n = rz < 2.2 ? 3 : 4, tr = Math.min(rz * (n === 4 ? 0.36 : 0.44), ry * 0.55);
+  const cones: Cone[] = [], tips: Cone[] = [];
+  for (let i = 0; i < n; i++) {
+    const k = i - (n - 1) / 2, dz = k * rz * (n === 4 ? 0.46 : 0.58);
+    const t: V3 = [cx + rx * Math.sqrt(Math.max(0.25, 1 - (dz / rz) ** 2)) - tr * 0.35 - Math.abs(k) * 0.25, tr * 1.05, z + dz]; // half out of the paw's front
+    cones.push({ a: t, b: t, ra: tr, rb: tr });
+    // claws: a curved point out of every toe, down to the bed
+    if (s.footType === 1) tips.push({ a: [t[0] + tr * 0.4, t[1], t[2]], b: [t[0] + tr + 2.2, 0.25, t[2] + dz * 0.15], ra: tr * 0.7, rb: 0.2 });
   }
-  return { ankleY: ry * 0.8, cones, domes };
+  return { ankleY: ry * 0.8, cones, domes, tips };
 }
 
 const dist = (a: V3, b: V3): number => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);

@@ -29,7 +29,7 @@ export const GROUPS: readonly GroupDef[] = [
   { id: 'crest', label: 'Grzywa, czub, kolce', slots: ['tuft', 'mane', 'spines'], orientation: 'flat' },
   { id: 'wings', label: 'Skrzydła', slots: ['wingNear', 'wingFar'], orientation: 'flat' },
   { id: 'tail', label: 'Ogon', slots: ['tail'], orientation: 'flat' },
-  { id: 'legs', label: 'Nogi', slots: ['legB', 'legF', 'legBFar', 'legFFar'], orientation: 'upright' },
+  { id: 'legs', label: 'Nogi', slots: ['legB', 'legF', 'legBFar', 'legFFar', 'claws'], orientation: 'upright' },
   // whiskers lie in the horizontal plane (they stick out sideways), so they print flat as they are: 'upright'
   { id: 'whiskers', label: 'Wąsy', slots: ['whiskers'], orientation: 'upright', forced: true },
   // the stand is always printed on its own; pegs on it go up into the feet

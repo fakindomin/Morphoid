@@ -24,7 +24,9 @@ export type SlotKind =
   /** eyelids: skin folds over and under the eyeball */
   | 'lid'
   /** lips along the jaws' edges, a nostril in the nose */
-  | 'lip' | 'nostril';
+  | 'lip' | 'nostril'
+  /** claws and hooves */
+  | 'claw';
 
 export const SLOTS = [
   ['shadow', 'shadow'], ['stand', 'accent'], ['arms', 'skin'], ['wingFar', 'accentFar'], ['tail', 'skin'], ['legBFar', 'skinFar'], ['legFFar', 'skinFar'],
@@ -32,7 +34,7 @@ export const SLOTS = [
   ['saddle', 'accent'], ['spines', 'accent'], ['finD', 'accent'], ['legF', 'skin'], ['finP', 'accent'], ['neck', 'skin'], ['neckDecor', 'skinFar'],
   ['mane', 'accent'], ['collar', 'accent'], ['ear', 'skin'], ['earIn', 'accentSoft'], ['horns', 'accent'], ['antennae', 'accent'], ['tuft', 'accent'],
   ['head', 'skin'], ['snout', 'skin'], ['wingNear', 'accent'], ['nose', 'ink'],
-  ['maw', 'ink'], ['tongue', 'tongue'], ['mouth', 'groove'], ['lips', 'lip'], ['nostrils', 'nostril'], ['teeth', 'white'], ['whiskers', 'skinFar'], ['stalks', 'skin'], ['blush', 'blush'], ['toes', 'groove'], ['eye', 'white'], ['iris', 'iris'], ['pupil', 'ink'],
+  ['maw', 'ink'], ['tongue', 'tongue'], ['mouth', 'groove'], ['lips', 'lip'], ['nostrils', 'nostril'], ['teeth', 'white'], ['whiskers', 'skinFar'], ['stalks', 'skin'], ['blush', 'blush'], ['toes', 'groove'], ['claws', 'claw'], ['eye', 'white'], ['iris', 'iris'], ['pupil', 'ink'],
   ['glint', 'glint'], ['lids', 'lid'], ['brow', 'groove'], ['wingRibs', 'groove'], ['bones', 'bone'],
 ] as const satisfies readonly (readonly [string, SlotKind])[];
 
@@ -321,16 +323,21 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
   // muscular build: a thigh / shoulder bulge at the top of each leg (inside the torso's lower half, never overhanging)
   // jointed legs: the drawing is the side view of the 3D leg (see limb.ts), so sketch and solid are one shape
   const biped = n.plan === D.PLAN.biped;
-  const limb = (slot: 'legB' | 'legF', top: XY, f: XY): Path =>
-    limbOutline(legLimb(legSpecOf(slot, biped, top, f, legW, foot, n.soleL, muscular), 0));
+  const claws = new Path();
+  const limb = (slot: 'legB' | 'legF', top: XY, f: XY, near = false): Path => {
+    const l = legLimb(legSpecOf(slot, biped, top, f, legW, foot, n.soleL, muscular), 0);
+    if (near && l.tips?.length) claws.append(limbOutline({ cones: l.tips, domes: [] }));
+    return limbOutline(l);
+  };
   const far = (path: (dx: number) => Path): [Path, Path] => [path(0), path(3.2)];
   if (n.plan === D.PLAN.quadruped || biped) {
-    put('legB', limb('legB', hipB, fB));
+    put('legB', limb('legB', hipB, fB, true));
     put('legBFar', limb('legB', [hipB[0] + 3.2, hipB[1]], [fB[0] + 3.2, fB[1]]));
     if (!biped) { // a biped has no front legs
-      put('legF', limb('legF', shF, fF));
+      put('legF', limb('legF', shF, fF, true));
       put('legFFar', limb('legF', [shF[0] + 3.2, shF[1]], [fF[0] + 3.2, fF[1]]));
     }
+    put('claws', claws);
   } else if (n.plan === D.PLAN.insect) {
     // six jointed legs: the thigh rises outwards to a knee above the flank, the shin drops steeply to a round foot
     const lw = insectLegW(legW), rise = insectRise(n.bodyG);
@@ -621,17 +628,8 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
     lids.append(polygon([...outer, ...inner]));
   }
   put('lids', lids);
-  // drawing only: a rosy cheek under the eye, and two toe lines on each near paw
+  // drawing only: a rosy cheek under the eye (the toes are real knuckles on the paw now, see limb.ts)
   put('blush', ellipse(head[0] + hs.rx * 0.38, head[1] - hs.ry * 0.3, Math.max(2.2, hs.rx * 0.26), Math.max(1.3, hs.ry * 0.14)));
-  if (foot === 0 && (n.plan === D.PLAN.quadruped || n.plan === D.PLAN.biped)) {
-    const toes = new Path();
-    const feet = n.plan === D.PLAN.biped ? [fB] : [fB, fF];
-    for (const f of feet) {
-      const toe = f[0] + n.soleL * 0.7;
-      for (const dx of [1.4, 3]) toes.append(tube([toe - dx, 0.5], [toe - dx + 0.3, 2.1], 0.7, 0.7));
-    }
-    put('toes', toes);
-  }
 
   // grooves are real-width ribbons (0.9 mm) so the drawing shows what will be engraved
   const G = PRINT_RULES.grooveWidth + 0.1;

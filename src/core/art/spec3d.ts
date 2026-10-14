@@ -103,6 +103,7 @@ export const SPEC_3D: Record<SlotId, Spec | null> = {
   tongue: { color: 'c2soft', mirror: false, z: centre, t: (c) => Math.max(1.6, c.snoutW * 0.5), bevel: (t) => round(0.45)(t) },
   mouth: { color: 'ink', mirror: true, z: (c) => c.snoutW / 2 - 0.1, t: () => 0.5, bevel: () => 0.1 }, // painted, and carved as a groove (see lipsAndNostrils)
   lips: { color: 'c1dark', mirror: true, z: (c) => c.snoutW / 2, t: () => 1.2, bevel: () => 0.5 }, // rolled along the jaws' edges, see lipsAndNostrils
+  claws: { color: 'c1dark', mirror: true, z: (c) => c.legZ, t: () => 1.6, bevel: () => 0.6 }, // the legs' tips, see buildParts3D
   nostrils: { color: 'ink', mirror: true, z: (c) => c.snoutW * 0.18, t: () => 1, bevel: () => 0.4 }, // holes in the nose, see lipsAndNostrils
   teeth: { color: 'white', mirror: true, z: (c) => c.snoutW / 2 - 0.9, t: () => 1.4, bevel: () => 0.5 }, // along the jaws' rims
   arms: { color: 'c1', mirror: false, z: centre, t: () => D.OCTOPUS.armMm, bevel: (t) => round(0.45)(t) }, // top-view, see buildParts3D
@@ -156,6 +157,12 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
     if (p.slot !== 'legB' && p.slot !== 'legF') continue;
     const [top, foot] = p.slot === 'legB' ? [rig.nodes.hipB, rig.nodes.footBL] : [rig.nodes.shoulderF, rig.nodes.footFL];
     p.limb = legLimb(legSpecOf(p.slot, biped, [top.x, top.y], [foot.x, foot.y], rig.dims.legWidth, g.legs!.foot!, rig.dims.soleLength, rig.dims.build === 2), p.z);
+  }
+  // claws and hooves: one darker part per side holding the tips of that side's legs
+  for (const c of out) if (c.slot === 'claws') {
+    const tips = out.filter((p) => LEG_SLOTS.has(p.slot) && p.side === c.side && p.limb?.tips).flatMap((p) => p.limb!.tips!);
+    c.limb = { cones: tips, domes: [] };
+    c.inset = true; // crisp points, not lumps
   }
   for (const p of out) if (p.slot === 'arms') { // octopus tentacles lie on the bed around the hub
     p.limb = octopusLimb(rig.nodes.torso.x, D.OCTOPUS.armLen(g.legs!.length!), Math.max(6, rig.dims.bodyWidth * D.OCTOPUS.hub), D.OCTOPUS.arms);
