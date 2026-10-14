@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { mulberry32, randomGenome } from '../src/core/genome';
 import { solveRig } from '../src/core/rig';
 import { buildShapes, SLOTS } from '../src/core/art/shapes';
-import { targetPose } from '../src/core/art/pose';
+import { clonePose, easePose, targetPose } from '../src/core/art/pose';
+import { defaultGenome } from '../src/core/genome';
 
 describe('2D artwork', () => {
   it('produces finite path data for 1500 random genomes, incl. breathing and mouse offsets', () => {
@@ -28,5 +29,17 @@ describe('2D artwork', () => {
       const pose = targetPose(rig, g, t, true, { x: 2, y: 2 });
       for (const id of ['footFL', 'footFR', 'footBL', 'footBR'] as const) if (rig.nodes[id].contact) expect(pose.pos[id][1]).toBeCloseTo(0, 9);
     }
+  });
+});
+
+describe('pose easing', () => {
+  it('switches body plan and build at once (an in-between plan id would draw no legs)', () => {
+    const a = defaultGenome(), b = defaultGenome();
+    b.plan = { type: 3 }; b.build = { type: 4 };
+    const ra = solveRig(a), rb = solveRig(b);
+    const cur = clonePose(targetPose(ra, a, 0, false, { x: 0, y: 0 })), tgt = targetPose(rb, b, 0, false, { x: 0, y: 0 });
+    easePose(cur, tgt, 0.2);
+    expect([cur.n.plan, cur.n.build]).toEqual([tgt.n.plan, tgt.n.build]);
+    expect(tgt.n.plan).not.toBe(targetPose(ra, a, 0, false, { x: 0, y: 0 }).n.plan);
   });
 });
