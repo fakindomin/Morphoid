@@ -5,6 +5,8 @@ import { targetPose } from '../src/core/art/pose';
 import { buildPaths, SLOTS } from '../src/core/art/shapes';
 import { appendageContacts, appendageUnits, buildParts3D, SPEC_3D, unitGap } from '../src/core/art/spec3d';
 import { parse } from '../src/core/genome/codec';
+import { hostsOf, slabSd } from '../src/core/art/mounts';
+import { EYES } from '../src/core/art/shapes';
 
 const parts = (g: ReturnType<typeof defaultGenome>) => {
   const rig = solveRig(g);
@@ -104,5 +106,43 @@ describe('3D contract: appendages of different kinds do not grow into each other
       expect(reported > 0 || !units.some((u, a) => units.some((v, b) => b > a && (unitGap(u, v) ?? 9) < 0.55))).toBe(true);
     }
     expect(touch / close).toBeLessThan(0.45);
+  });
+});
+
+describe('mount points: small elements sit on the real skin of the head and Pysk', () => {
+  it('every whisker root and every eyeball is buried in the head or Pysk', () => {
+    const rnd = mulberry32(41);
+    let whiskers = 0, eyes = 0;
+    for (let i = 0; i < 300; i++) {
+      const g = randomGenome(rnd);
+      const { rig, parts: ps } = parts(g);
+      const hosts = hostsOf(ps, ['snout', 'head']);
+      const depth = (x: number, y: number, z: number) => Math.min(...hosts.map((h) => slabSd(h.p, h.e, x, y, z)));
+      for (const p of ps) {
+        if (p.slot === 'whiskers') for (const q of p.polys) {
+          if (q.length !== 4) continue; // the print-only pad
+          const [x, z] = [(q[0]![0] + q[3]![0]) / 2, (q[0]![1] + q[3]![1]) / 2];
+          expect(depth(x, p.z, z), `${rig.code}: ${p.id} root floats`).toBeLessThan(-0.3);
+          whiskers++;
+        }
+        if (p.slot === 'eye' && g.face!.eyes !== EYES.stalks) for (const c of p.limb?.cones ?? []) {
+          expect(depth(c.a[0], c.a[1], c.a[2]), `${rig.code}: ${p.id} ball off the head`).toBeLessThan(0);
+          eyes++;
+        }
+      }
+    }
+    expect(whiskers).toBeGreaterThan(30);
+    expect(eyes).toBeGreaterThan(100);
+  });
+
+  it('the whiskers of the reported creature start inside its Pysk', () => {
+    const r = parse('MPH2:B03.63:L01.1:N01.5:H02:S02.6:E03.41:R03.43:W01.1:T04.22:U00:C05.3:O01:M02:Z01:V01.3:F03:D03:A00:G00:P09:J03:Y02:Q00:K00.00#4A');
+    if (!r.ok) throw new Error('code does not parse');
+    const { parts: ps } = parts(r.genome);
+    const hosts = hostsOf(ps, ['snout', 'head']);
+    for (const p of ps.filter((q) => q.slot === 'whiskers')) for (const q of p.polys) {
+      const [x, z] = [(q[0]![0] + q[3]![0]) / 2, (q[0]![1] + q[3]![1]) / 2];
+      expect(Math.min(...hosts.map((h) => slabSd(h.p, h.e, x, p.z, z)))).toBeLessThan(-0.3);
+    }
   });
 });

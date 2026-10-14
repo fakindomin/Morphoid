@@ -16,6 +16,7 @@ import type { XY } from './path';
 import { typeSize } from './pose';
 import { insectLimb, legLimb, legSpecOf, octopusLimb, prolegLimb, type Cone, type Dome, type Limb } from './limb';
 import { blendGroup, edgesOf, sdPolys, slabDist, type Edge } from '../bake/field';
+import { hostsOf, mountAt, skinZ, slabSd, type Host } from './mounts';
 
 export type ColorKey = 'c1' | 'c1dark' | 'c2' | 'c2soft' | 'c3' | 'ink' | 'white';
 
@@ -149,7 +150,7 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
   }
   const head = out.find((p) => p.slot === 'head');
   if (head) for (const p of out) if (p.slot === 'ear') p.polys = seatOn(p, head);
-  for (const p of out) if (p.slot === 'whiskers') whiskerTop(p, g, ctx, print);
+  { const muzzle = hostsOf(out, ['snout', 'head']); for (const p of out) if (p.slot === 'whiskers') whiskerTop(p, g, ctx, muzzle, print); }
   // teeth and tongue stay crisp shapes in the open mouth (tight blend, see bake)
   for (const p of out) if (p.slot === 'teeth' || p.slot === 'tongue') p.inset = true;
   if (g.face!.eyes === EYES.stalks) for (const p of out) { // eyes on stalks: a ball on top of each stalk, the pupil on its outer side
@@ -458,22 +459,30 @@ function reachOut(u: Unit, bodies: { p: Part3D; e: Edge[] }[]): number {
 /** How deep (mm) the cup inside an ear is. */
 const EAR_CUP_MM = 0.9;
 
+/** How deep (mm) a whisker's root sinks into the Pysk's skin, and how far in from its outline the mount sits. */
+export const WHISKER_EMBED_MM = 0.9;
+const WHISKER_INSET_MM = 1.2;
+
 /** Width of a whisker at its tip, as a share of its root. */
 const WHISKER_TIP = 0.45;
 
-function whiskerTop(p: Part3D, g: MorphotypeGenome, ctx: Ctx, print: boolean): void {
+function whiskerTop(p: Part3D, g: MorphotypeGenome, ctx: Ctx, muzzle: Host[], print: boolean): void {
   const pad = p.polys[0]!; // the root dot of the drawing: the side-view position of the pad
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   for (const [x, y] of pad) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
-  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, side = p.side || 1, len = whiskerLength(g.face!.whiskers!);
+  const side = p.side || 1, len = whiskerLength(g.face!.whiskers!), half = p.thickness / 2;
   const off = WHISKER_TURN[g.face!.whiskerDir ?? 0] ?? 0;
-  const zr = ctx.snoutW / 2 - 0.6; // pad centre: just inside the muzzle side
+  // the whisker mount: on the Pysk's skin at the pad, the whole strand's height (y +- half) inside it
+  const m = mountAt(muzzle, (x0 + x1) / 2, (y0 + y1) / 2, WHISKER_INSET_MM);
+  const cx = m?.x ?? (x0 + x1) / 2, cy = m?.y ?? (y0 + y1) / 2;
+  const skin = m ? Math.min(...[-half, 0, half].map((dy) => Math.max(...muzzle.map((h) => skinZ(h, cx, cy + dy))))) : ctx.snoutW / 2;
+  const zr = Math.max(0, skin - WHISKER_PAD[1] * 0.4); // pad centre: inside the Pysk, its outer half standing out
   const polys: XY[][] = [];
   const ell: XY[] = [];
   for (let i = 0; i < 24; i++) { const a = (i / 24) * Math.PI * 2; ell.push([cx + Math.cos(a) * WHISKER_PAD[0], side * (zr + Math.sin(a) * WHISKER_PAD[1])]); }
   if (print) polys.push(side > 0 ? ell : ell.reverse()); // the pad that seats the separate whiskers in the muzzle
   for (const a of WHISKER_FAN) {
-    const ax = cx, az = zr + 0.8, bx = cx + Math.sin(a + off) * len, bz = zr + 1.2 + Math.cos(a + off) * len;
+    const ax = cx, az = Math.max(0, skin - WHISKER_EMBED_MM), bx = cx + Math.sin(a + off) * len, bz = az + 0.4 + Math.cos(a + off) * len;
     const l = Math.hypot(bx - ax, bz - az), nx = -(bz - az) / l * (WHISKER_W / 2), nz = (bx - ax) / l * (WHISKER_W / 2);
     // a hair tapers to its tip (and its top is rounded, see SPEC_3D: a strand, not a flat strip)
     const tx = nx * WHISKER_TIP, tz = nz * WHISKER_TIP;
@@ -495,14 +504,9 @@ const NOSTRIL_R = 0.5;
  * groove cut along the mouth line; nostrils are holes bored into the front of the nose on either side of its centre.
  */
 function lipsAndNostrils(out: Part3D[], paths: SlotPaths, ctx: Ctx): void {
-  const snout = out.find((p) => p.slot === 'snout'), se = snout ? edgesOf(snout.polys) : [];
+  const snout = hostsOf(out, ['snout'])[0];
   // the muzzle's surface z at (x, y): where its rounded slab ends
-  const surfZ = (x: number, y: number): number => {
-    if (!snout) return ctx.snoutW / 2;
-    let z = snout.thickness / 2;
-    while (z > 0 && slabSd(snout, se, x, y, z) > 0) z -= 0.05;
-    return z;
-  };
+  const surfZ = (x: number, y: number): number => (snout ? Math.max(0, skinZ(snout, x, y)) : ctx.snoutW / 2);
   const chain = (pts: [number, number, number][], r: number): Cone[] =>
     pts.slice(1).map((b, i) => ({ a: pts[i]!, b, ra: r, rb: r }));
   for (const p of out) {
@@ -545,7 +549,7 @@ const TOOTH_IN_MM = 1.5;
  * the jaw's surface at its root (the point of the tooth deepest in the muzzle or head outline).
  */
 function seatTeeth(out: Part3D[]): void {
-  const jaws = out.filter((p) => (p.slot === 'snout' || p.slot === 'head') && !p.limb).map((p) => ({ p, e: edgesOf(p.polys) }));
+  const jaws = hostsOf(out, ['snout', 'head']);
   if (!jaws.length) return;
   for (const t of out.filter((p) => p.slot === 'teeth' && p.side)) {
     const teeth = t.polys.map((poly, k): Part3D | null => {
@@ -557,9 +561,8 @@ function seatTeeth(out: Part3D[]): void {
       const sd = (x: number, y: number): number => sdPolys(jaw.e, jaw.p.polys, x, y);
       const gx = sd(root[0] + 0.1, root[1]) - sd(root[0] - 0.1, root[1]), gy = sd(root[0], root[1] + 0.1) - sd(root[0], root[1] - 0.1), gl = Math.hypot(gx, gy) || 1;
       const [qx, qy] = [root[0] - (gx / gl) * TOOTH_IN_MM, root[1] - (gy / gl) * TOOTH_IN_MM];
-      const inside = (z: number): boolean => slabSd(jaw.p, jaw.e, qx, qy, z) < -TOOTH_SEAT_MM;
-      let z = Math.abs(t.z) + t.thickness / 2;
-      while (z > t.thickness / 2 && !inside(z)) z -= 0.1;
+      // the tooth's mount: the jaw's skin there, the root TOOTH_SEAT_MM inside it
+      const z = Math.min(Math.abs(t.z) + t.thickness / 2, skinZ(jaw, qx, qy, TOOTH_SEAT_MM));
       return { ...t, id: `${t.id}${k}`, polys: [poly], z: t.side * Math.max(t.thickness / 2, z - t.thickness / 2) };
     });
     out.splice(out.indexOf(t), 1, ...teeth.filter((x): x is Part3D => !!x));
@@ -567,7 +570,7 @@ function seatTeeth(out: Part3D[]): void {
 }
 
 function eyeballs(out: Part3D[], stalks: boolean): void {
-  const head = out.find((p) => p.slot === 'head'), he = head ? edgesOf(head.polys) : [];
+  const head = hostsOf(out, ['head'])[0];
   for (const eye of out.filter((p) => p.slot === 'eye')) {
     const side = eye.side || 1, cones: Cone[] = [], lidCones: Cone[] = [];
     let front = -Infinity;
@@ -577,7 +580,7 @@ function eyeballs(out: Part3D[], stalks: boolean): void {
       const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, r = (x1 - x0) / 2;
       // where the head's surface is at the eye (it curves away from the 2D outline's centre plane)
       let surf = Math.abs(eye.z) + eye.thickness / 2 - 0.8;
-      if (!stalks && head) { surf = head.thickness / 2; while (surf > 0 && slabSd(head, he, cx, cy, surf) > 0) surf -= 0.1; }
+      if (!stalks && head) surf = Math.max(0, skinZ(head, cx, cy));
       const zc = stalks ? eye.z : side * (surf + (EYE_OUT - 1) * r);
       cones.push({ a: [cx, cy, zc], b: [cx, cy, zc], ra: r, rb: r });
       front = Math.max(front, Math.abs(zc) + r);
@@ -603,10 +606,6 @@ function eyeballs(out: Part3D[], stalks: boolean): void {
   }
 }
 
-/** Signed distance to a part's rounded slab (the shape the bake fuses). */
-function slabSd(p: Part3D, e: Edge[], x: number, y: number, z: number): number {
-  return slabDist(p, sdPolys(e, p.polys, x, y), z - p.z, x);
-}
 
 
 
