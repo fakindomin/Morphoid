@@ -58,7 +58,7 @@ export const TILES: TileDef[] = [
     { block: 'face', field: 'expression', label: 'Mina' },
   ] },
   { id: 'coat', title: '10. Pokrycie i wzór', fields: [
-    { block: 'coat', field: 'texture', label: 'Faktura (wkrótce)', planned: true },
+    { block: 'coat', field: 'texture', label: 'Faktura' },
     { block: 'coat', field: 'pattern', label: 'Wzór' },
   ] },
   { id: 'accessory', title: '11. Dodatki', fields: [{ block: 'accessory', field: 'type', label: 'Akcesorium' }] },

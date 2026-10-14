@@ -10,18 +10,19 @@ import { dimensions as D, type NodeId, type Rig } from '../rig';
 import { PRINT_RULES } from '../print/rules';
 import { ellipse, Path, polygon, taper, tube, type ToPx, type XY } from './path';
 import type { Pose } from './pose';
+import { coatPath } from './coat';
 import { insectLimb, legLimb, legSpecOf, limbOutline, octopusLimb, prolegLimb, tailLimb, type Limb } from './limb';
 
 /** skin/skinFar = body colour (c1); accent = c2; white/ink/glint = details; clip = not drawn. */
 export type SlotKind =
-  | 'shadow' | 'skin' | 'skinFar' | 'belly' | 'pattern' | 'accent' | 'accentFar' | 'accentSoft'
+  | 'shadow' | 'skin' | 'skinFar' | 'belly' | 'pattern' | 'coat' | 'accent' | 'accentFar' | 'accentSoft'
   | 'white' | 'ink' | 'glint' | 'groove' | 'bone' | 'clip'
   /** drawing-only touches of the illustrated style (no geometry): eye colour, cheek blush */
   | 'iris' | 'blush';
 
 export const SLOTS = [
   ['shadow', 'shadow'], ['stand', 'accent'], ['arms', 'skin'], ['wingFar', 'accentFar'], ['tail', 'skin'], ['legBFar', 'skinFar'], ['legFFar', 'skinFar'],
-  ['legB', 'skin'], ['torso', 'skin'], ['torsoClip', 'clip'], ['belly', 'belly'], ['pattern', 'pattern'],
+  ['legB', 'skin'], ['torso', 'skin'], ['torsoClip', 'clip'], ['belly', 'belly'], ['pattern', 'pattern'], ['coat', 'coat'],
   ['saddle', 'accent'], ['spines', 'accent'], ['finD', 'accent'], ['legF', 'skin'], ['finP', 'accent'], ['neck', 'skin'], ['neckDecor', 'skinFar'],
   ['mane', 'accent'], ['collar', 'accent'], ['ear', 'skin'], ['earIn', 'accentSoft'], ['horns', 'accent'], ['antennae', 'accent'], ['tuft', 'accent'],
   ['head', 'skin'], ['snout', 'skin'], ['wingNear', 'accent'], ['nose', 'ink'],
@@ -311,6 +312,9 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
     }
   }
   if (!pt.empty) put('pattern', tilted(pt));
+  // coat texture (fur, scales, armour): the side view of the relief the bake sinks into the torso, see coat.ts
+  const tex = g.coat!.texture!;
+  if (tex > 0) put('coat', tilted(coatPath(tex as 1 | 2 | 3, tRx + 4, tRy + 4, torso)));
   const acc = g.accessory!.type!;
   if (acc === 2) put('saddle', tilted(ellipse(torso[0] - n.bodyL * 0.02, torso[1] + tRy * 0.62, n.bodyL * 0.2, tRy * 0.3)));
 

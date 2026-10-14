@@ -6,6 +6,7 @@ import { targetPose } from '../../core/art/pose';
 import { buildPaths } from '../../core/art/shapes';
 import { buildParts3D, ctxFor, type ColorKey, type Part3D } from '../../core/art/spec3d';
 import type { Limb } from '../../core/art/limb';
+import { COAT_GLSL, type Coat } from '../../core/art/coat';
 import { widthAt } from '../../core/bake/field';
 import { groupOfSlot, pieceOf, type PartGroup, type PrintPlan, type PrintReport } from '../../core/print';
 
@@ -19,6 +20,9 @@ const ROOTS: Record<PartGroup, NodeId[]> = {
   head: ['neckBase'], ears: ['earRoot'], horns: ['hornRoot'], crest: ['neckBase'], wings: ['wingRoot'],
   tail: ['tailBase'], legs: ['hipB', 'shoulderF'], whiskers: ['muzzle'], stand: ['footBL'],
 };
+
+/** The preview's bump is a little stronger than the real relief: a light bump reads weaker on screen than a groove in plastic. */
+const COAT_BUMP = 1.6;
 
 const mix = (a: string, b: string, t: number): THREE.Color => new THREE.Color(a).lerp(new THREE.Color(b), t);
 
@@ -81,38 +85,68 @@ function geometryFor(p: Part3D): THREE.BufferGeometry[] {
   });
 }
 
-function patternMaterial(base: THREE.MeshStandardMaterial, polys: [number, number][][], box: THREE.Box2, color: THREE.Color): THREE.MeshStandardMaterial {
-  const W = 768;
-  const w = box.max.x - box.min.x, h = box.max.y - box.min.y;
-  const canvas = document.createElement('canvas');
-  canvas.width = W; canvas.height = Math.max(8, Math.round((W * h) / w));
-  const ctx = canvas.getContext('2d')!;
-  ctx.fillStyle = '#fff';
-  for (const poly of polys) {
-    ctx.beginPath();
-    poly.forEach(([x, y], i) => {
-      const px = ((x - box.min.x) / w) * canvas.width, py = (1 - (y - box.min.y) / h) * canvas.height;
-      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-    });
-    ctx.closePath(); ctx.fill();
-  }
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.NoColorSpace;
+/**
+ * The torso's material: the coat pattern painted on as a colour region (planar projection of the 2D pattern), and the
+ * coat texture (fur, scales, armour) as a bump from the same height function the bake sinks into the solid.
+ */
+function torsoMaterial(base: THREE.MeshStandardMaterial, pat: { polys: [number, number][][]; box: THREE.Box2; color: THREE.Color } | null, coat: Coat | undefined, z: number): THREE.MeshStandardMaterial {
   const mat = base.clone();
-  mat.userData.tex = tex;
+  let tex: THREE.CanvasTexture | null = null;
+  let w = 1, h = 1;
+  if (pat) {
+    const W = 768;
+    w = pat.box.max.x - pat.box.min.x; h = pat.box.max.y - pat.box.min.y;
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = Math.max(8, Math.round((W * h) / w));
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#fff';
+    for (const poly of pat.polys) {
+      ctx.beginPath();
+      poly.forEach(([x, y], i) => {
+        const px = ((x - pat.box.min.x) / w) * canvas.width, py = (1 - (y - pat.box.min.y) / h) * canvas.height;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      });
+      ctx.closePath(); ctx.fill();
+    }
+    tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.NoColorSpace;
+    mat.userData.tex = tex;
+  }
+  mat.userData.own = true;
+  // the shader differs with what is on (pattern, coat), not with the callback's source: keep the programs apart
+  mat.customProgramCacheKey = () => `torso:${tex ? 1 : 0}:${coat ? 1 : 0}`;
   mat.onBeforeCompile = (shader) => {
-    shader.uniforms.patMap = { value: tex };
-    shader.uniforms.patBox = { value: new THREE.Vector4(box.min.x, box.min.y, w, h) };
-    shader.uniforms.patColor = { value: color };
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec2 vPat;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPat = position.xy;');
-    shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec2 vPat; uniform sampler2D patMap; uniform vec4 patBox; uniform vec3 patColor;')
-      .replace('#include <color_fragment>', `#include <color_fragment>
+      .replace('#include <common>', '#include <common>\nvarying vec2 vPat; varying vec3 vCoatP; varying vec3 vCoatN; uniform float coatZ;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPat = position.xy; vCoatP = position + vec3(0.0, 0.0, coatZ); vCoatN = objectNormal;');
+    shader.uniforms.coatZ = { value: z };
+    let head = 'varying vec2 vPat; varying vec3 vCoatP; varying vec3 vCoatN;';
+    let frag = shader.fragmentShader;
+    if (tex && pat) {
+      shader.uniforms.patMap = { value: tex };
+      shader.uniforms.patBox = { value: new THREE.Vector4(pat.box.min.x, pat.box.min.y, w, h) };
+      shader.uniforms.patColor = { value: pat.color };
+      head += ' uniform sampler2D patMap; uniform vec4 patBox; uniform vec3 patColor;';
+      frag = frag.replace('#include <color_fragment>', `#include <color_fragment>
         vec2 puv = (vPat - patBox.xy) / patBox.zw;
         float pm = (puv.x < 0.0 || puv.x > 1.0 || puv.y < 0.0 || puv.y > 1.0) ? 0.0 : texture2D(patMap, puv).a;
         diffuseColor.rgb = mix(diffuseColor.rgb, patColor, pm * 0.92);`);
+    }
+    if (coat) {
+      shader.uniforms.coatU = { value: new THREE.Vector4(coat.kind, coat.cx, coat.cy, coat.tilt) };
+      head += ' uniform vec4 coatU;' + COAT_GLSL;
+      // bump mapping (as three's bumpmap chunk): tilt the normal by the screen-space slope of the relief
+      frag = frag.replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        {
+          float hh = -coatDepth(coatU, vCoatP, normalize(vCoatN)) * ${COAT_BUMP.toFixed(2)};
+          vec3 sp = -vViewPosition, sx = dFdx(sp), sy = dFdy(sp);
+          vec3 r1 = cross(sy, normal), r2 = cross(normal, sx);
+          float det = dot(sx, r1);
+          vec3 grad = sign(det) * (dFdx(hh) * r1 + dFdy(hh) * r2);
+          normal = normalize(abs(det) * normal - grad);
+        }`);
+    }
+    shader.fragmentShader = frag.replace('#include <common>', '#include <common>\n' + head);
   };
   return mat;
 }
@@ -159,7 +193,7 @@ export function buildModel(genome: MorphotypeGenome, plan: PrintPlan, report: Pr
     const key = piece === 'body' ? 'body' : `${piece}:${side}`;
     const holder = container(key, off);
     let material = matFor(part.color);
-    if (part.slot === 'torso' && box2) material = patternMaterial(material, patPolys, box2, colors.c3);
+    if (part.slot === 'torso' && (box2 || part.coat)) material = torsoMaterial(material, box2 ? { polys: patPolys, box: box2, color: colors.c3 } : null, part.coat, part.z);
     for (const geo of geometryFor(part)) {
       geometries.push(geo);
       const mesh = new THREE.Mesh(geo, material);
@@ -208,7 +242,7 @@ export function buildModel(genome: MorphotypeGenome, plan: PrintPlan, report: Pr
       geometries.forEach((g) => g.dispose());
       mats.forEach((m) => m.dispose());
       pegMat.dispose();
-      root.traverse((o) => { const m = (o as THREE.Mesh).material as THREE.Material | undefined; if (m && (m.userData as { tex?: THREE.Texture }).tex) { (m.userData as { tex: THREE.Texture }).tex.dispose(); m.dispose(); } });
+      root.traverse((o) => { const m = (o as THREE.Mesh).material as THREE.Material | undefined; if (m?.userData.own) { (m.userData as { tex?: THREE.Texture }).tex?.dispose(); m.dispose(); } });
     },
   };
 }

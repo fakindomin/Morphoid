@@ -9,6 +9,7 @@
 import type { MorphotypeGenome } from '../genome';
 import { dimensions as D, type Rig } from '../rig';
 import { groupOfSlot, type PartGroup } from '../print/plan';
+import type { Coat } from './coat';
 import { EYES, WHISKER_TURN, insectHips, insectLegW, insectRise, prolegXs, roundTail, STALK_W, wingRibs, STAND_MARGIN_MM, STAND_MM, WHISKER_FAN, WHISKER_PAD, WHISKER_W, whiskerLength, type SlotId, type SlotPaths } from './shapes';
 import type { XY } from './path';
 import { typeSize } from './pose';
@@ -48,6 +49,8 @@ export interface Part3D {
   limb?: Limb;
   /** raised 3D ribs fused onto the slab (wing bones, feather shafts), world mm */
   ribs?: Limb;
+  /** coat texture (fur, scales, armour): a shallow relief sunk into the surface, see coat.ts */
+  coat?: Coat;
 }
 
 interface Ctx { W: number; G: number; legW: number; legZ: number; headW: number; snoutW: number; neckT: number }
@@ -64,6 +67,7 @@ export const SPEC_3D: Record<SlotId, Spec | null> = {
   legBFar: null, legFFar: null, wingFar: null,                          // mirror images, generated from the near slot
   torso: { color: 'c1', mirror: false, z: centre, t: (c) => c.W, bevel: (t) => round(0.48)(t) },
   pattern: null, // painted onto the torso surface (colour region), see the viewport
+  coat: null, // a relief sunk into the torso (Part3D.coat), see coat.ts
   legB: { color: 'c1', mirror: true, z: (c) => c.legZ, t: (c) => c.legW, bevel: (t) => round(0.4)(t) },
   legF: { color: 'c1', mirror: true, z: (c) => c.legZ, t: (c) => c.legW, bevel: (t) => round(0.4)(t) },
   tail: { color: 'c1', mirror: false, z: centre, t: (c) => Math.max(3.2, c.G * 0.5), bevel: (t) => round(0.42)(t) },
@@ -160,6 +164,8 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
     p.ribs = { cones: wingRibs(g.wings!.type!, [n.x, n.y], wingS).map((r) => ({ a: [r.a[0], r.a[1], zAt(r.ra)], b: [r.b[0], r.b[1], zAt(r.rb)], ra: r.ra, rb: r.rb })), domes: [] };
   }
   if (plan === D.PLAN.quadruped || biped) for (const p of out) if (p.slot === 'torso') p.widths = torsoWidths(p, rig);
+  const tex = g.coat?.texture ?? 0;
+  if (tex > 0) for (const p of out) if (p.slot === 'torso') p.coat = { kind: tex as Coat['kind'], cx: rig.nodes.torso.x, cy: rig.nodes.torso.y, tilt: rig.dims.tilt };
   return out;
 }
 

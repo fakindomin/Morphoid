@@ -7,6 +7,7 @@ import type { Part3D } from '../art/spec3d';
 import type { XY } from '../art/path';
 import type { Grid3 } from './surfacenets';
 import { limbBox, limbSd, type Limb } from '../art/limb';
+import { coatDepth } from '../art/coat';
 
 export const BIG = 6; // mm, "far away" distance written into empty space
 
@@ -171,18 +172,29 @@ export function addPart(g: Grid3, part: Part3D, k: number): void {
   const d2 = new Float32Array(w2 * (v1 - v0 + 1));
   for (let v = v0; v <= v1; v++) for (let i = i0; i <= i1; i++) d2[(v - v0) * w2 + (i - i0)] = sdPolys(edges, part.polys, g.ox + i * h, vo + v * h);
   closeOutline(d2, w2, v1 - v0 + 1, h, SLIT_CLOSE_MM);
+  const slab = (sd: number, wz: number, x: number): number => {
+    if (dome) return slabDist(part, sd, wz);
+    if (part.widths) return slabDist(part, sd, wz, x);
+    const wx = sd + r, wy = Math.abs(wz) - half + r;
+    const px = wx > 0 ? wx : 0, py = wy > 0 ? wy : 0;
+    return Math.min(Math.max(wx, wy), 0) + Math.sqrt(px * px + py * py) - r;
+  };
+  const coat = top ? undefined : part.coat;
+  const vMax = v1 - v0;
   for (let w = w0; w <= w1; w++) {
-    const wz = wo + w * h - part.z, wy = Math.abs(wz) - half + r;
+    const wz = wo + w * h - part.z;
     for (let v = v0; v <= v1; v++) for (let i = i0; i <= i1; i++) {
       const sd = d2[(v - v0) * w2 + (i - i0)]!;
       if (sd > far) continue; // farther than the blend radius from this part's outline: cannot matter
-      let d3: number;
-      if (dome) d3 = slabDist(part, sd, wz);
-      else if (part.widths) d3 = slabDist(part, sd, wz, g.ox + i * h);
-      else {
-        const wx = sd + r;
-        const px = wx > 0 ? wx : 0, py = wy > 0 ? wy : 0;
-        d3 = Math.min(Math.max(wx, wy), 0) + Math.sqrt(px * px + py * py) - r;
+      const x = g.ox + i * h;
+      let d3 = slab(sd, wz, x);
+      if (coat && Math.abs(d3) < 1.5) { // coat relief: sunk along the surface normal (the slab's own gradient)
+        const ia = Math.max(i - 1, i0), ib = Math.min(i + 1, i1), va = Math.max(v - 1 - v0, 0), vb = Math.min(v + 1 - v0, vMax);
+        const gx = slab(d2[(v - v0) * w2 + (ib - i0)]!, wz, g.ox + ib * h) - slab(d2[(v - v0) * w2 + (ia - i0)]!, wz, g.ox + ia * h);
+        const gy = slab(d2[vb * w2 + (i - i0)]!, wz, x) - slab(d2[va * w2 + (i - i0)]!, wz, x);
+        const gz = slab(sd, wz + h, x) - slab(sd, wz - h, x);
+        const gl = Math.hypot(gx, gy, gz) || 1;
+        d3 += coatDepth(coat, x, vo + v * h, wz + part.z, gx / gl, gy / gl, gz / gl);
       }
       const idx = top ? (v * ny + w) * nx + i : (w * ny + v) * nx + i;
       const cur = g.data[idx]!;

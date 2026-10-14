@@ -214,7 +214,7 @@ export function Canvas2D({ showBones, breathing, frozen, onSocket, markers = [] 
             <g key={layer} className={`layer-${layer}`} filter={layer === 'skin' ? 'url(#goo)' : layer === 'far' ? undefined : 'url(#form)'}>
               {LAYER_SLOTS(layer).map(([id, kind]) => (
                 <path key={id} ref={reg(id, 0)} className={`shape ${kind} s-${id}`} d=""
-                  clipPath={id === 'pattern' || id === 'belly' ? 'url(#torsoClip)' : undefined} />
+                  clipPath={id === 'pattern' || id === 'coat' || id === 'belly' ? 'url(#torsoClip)' : undefined} />
               ))}
             </g>
           ))}

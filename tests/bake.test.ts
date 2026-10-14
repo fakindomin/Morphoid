@@ -32,6 +32,18 @@ describe('bake: SDF fusion -> watertight solid', () => {
     expect(r.pieces).toHaveLength(1);
   });
 
+  it('coat texture (fur, scales, armour) sinks a relief into the torso and still bakes ONE watertight shell', { timeout: 60000 }, () => {
+    const smooth = bake(defaultGenome(), planWhole(), 'standard').pieces.find((p) => p.id === 'body')!.validation.volume;
+    for (const t of [1, 2, 3]) {
+      const g = defaultGenome(); g.coat!.texture = t;
+      const v = bake(g, planWhole(), 'standard').pieces.find((p) => p.id === 'body')!.validation;
+      expect(v.watertight, `texture ${t}`).toBe(true);
+      expect(v.shells, `texture ${t}`).toBe(1);
+      expect(v.volume, `texture ${t}: grooves remove material`).toBeLessThan(smooth);
+      expect(v.volume, `texture ${t}: only a shallow relief`).toBeGreaterThan(smooth * 0.9);
+    }
+  });
+
   it('25 random Morphoids bake into watertight meshes (every piece), whole and modular', { timeout: 120000 }, () => {
     const rnd = mulberry32(77);
     for (let i = 0; i < 25; i++) {
