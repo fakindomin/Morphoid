@@ -19,8 +19,13 @@ export interface BakeJob {
   finishedCount: number;
 }
 
+/** Detail first: the finest grid unless the device is short of memory. */
+const defaultQuality = (): BakeQuality => {
+  try { const m = (navigator as Navigator & { deviceMemory?: number }).deviceMemory; return m !== undefined && m <= 2 ? 'standard' : 'fine'; } catch { return 'standard'; }
+};
+
 let job: BakeJob = {
-  status: 'idle', quality: 'standard', startedAt: 0, progress: null, result: null, signature: null,
+  status: 'idle', quality: defaultQuality(), startedAt: 0, progress: null, result: null, signature: null,
   error: null, showBaked: true, finishedCount: 0,
 };
 let handle: BakeHandle | null = null;

@@ -16,8 +16,8 @@ export interface PreviewJob {
   error: string | null;
 }
 
-/** Coarse (quick) then fine voxel sizes (mm). */
-const VOXELS = [0.7, 0.4];
+/** Coarse (quick), fine, then finest (teeth, eyelids and claws crisp, a few seconds more) voxel sizes (mm). */
+const VOXELS = [0.7, 0.4, 0.28];
 const DEBOUNCE_MS = 200;
 
 let job: PreviewJob = { solid: null, code: null, busy: false, error: null };

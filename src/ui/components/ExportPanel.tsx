@@ -10,9 +10,9 @@ import { studio, useStudioState } from '../studio';
 import { BakeProgressBar, useBakeFresh } from './BakeStatus';
 
 const QUALITY: { id: BakeQuality; label: string; hint: string }[] = [
-  { id: 'draft', label: 'Szkic', hint: `${VOXEL_MM.draft} mm: ułamek sekundy` },
-  { id: 'standard', label: 'Standard', hint: `${VOXEL_MM.standard} mm: ok. 1 s` },
-  { id: 'fine', label: 'Dokładny', hint: `${VOXEL_MM.fine} mm: kilka sekund, do ok. 0,5 GB pamięci` },
+  { id: 'draft', label: 'Szkic', hint: `${VOXEL_MM.draft} mm: kilka sekund, do szybkiego sprawdzenia` },
+  { id: 'standard', label: 'Standard', hint: `${VOXEL_MM.standard} mm: kilka do kilkunastu sekund` },
+  { id: 'fine', label: 'Dokładny', hint: `${VOXEL_MM.fine} mm: najdrobniejsze detale (zęby, pazury, powieki); do minuty i ok. 0,5 GB pamięci` },
 ];
 
 /** Chrome reports the device RAM in GB; the finest bake needs roughly half a gigabyte. */
@@ -46,7 +46,7 @@ export function ExportPanel() {
   return (
     <section className="tile">
       <header className="tile-header"><span className="tile-title">📦 Eksport do druku</span><span className="tile-status">STL · 3MF</span></header>
-      <p className="hint">Zamienia model na jedną gładką, szczelną bryłę (zrost bez szwów) i sprawdza ją. Części drukowane osobno trafiają do ZIP-a. 3MF zawiera wszystkie części ułożone na stole i pomalowane czterema filamentami (c1, c2, c3 i biały) pod AMS. Przygotowanie trwa od ułamka sekundy do kilku sekund i dzieje się w tle.</p>
+      <p className="hint">Zamienia model na jedną gładką, szczelną bryłę (zrost bez szwów) i sprawdza ją. Części drukowane osobno trafiają do ZIP-a. 3MF zawiera wszystkie części ułożone na stole i pomalowane czterema filamentami (c1, c2, c3 i biały) pod AMS. Przygotowanie trwa od kilku sekund do minuty i dzieje się w tle.</p>
       <div className="control-label">Dokładność</div>
       <div className="segment">
         {QUALITY.map((q) => (
