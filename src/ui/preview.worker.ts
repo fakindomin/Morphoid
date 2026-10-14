@@ -10,7 +10,7 @@ self.onmessage = (e: MessageEvent<Req>): void => {
   for (const h of voxels) {
     try {
       const solid = previewSolid(genome, h);
-      self.postMessage({ id, h, solid }, [solid.positions.buffer as ArrayBuffer, solid.normals.buffer as ArrayBuffer, solid.indices.buffer as ArrayBuffer]);
+      self.postMessage({ id, h, solid }, [solid.positions.buffer as ArrayBuffer, solid.normals.buffer as ArrayBuffer, solid.ao.buffer as ArrayBuffer, solid.indices.buffer as ArrayBuffer]);
     } catch (err) {
       self.postMessage({ id, h, error: err instanceof Error ? err.message : String(err) });
       return;

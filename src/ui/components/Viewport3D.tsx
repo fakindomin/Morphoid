@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { storage } from '../studio';
 import type { BakeResult } from '../../core/bake/bake';
 import { reportFor } from '../printReport';
 import { buildBakedModel } from '../three/bakedModel';
@@ -18,6 +20,8 @@ interface Props {
   baked?: BakeResult | null;
 }
 
+const GREY_KEY = 'morphoid.grey';
+
 export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const api = useRef<{ explode: (f: number) => void; resetView: () => void; rebuild: () => void } | null>(null);
@@ -27,6 +31,9 @@ export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
   explodeRef.current = explode;
   const [failed, setFailed] = useState(false);
   const preview = usePreview();
+  const [grey, setGrey] = useState(() => storage.get(GREY_KEY) === '1');
+  const greyRef = useRef(grey);
+  greyRef.current = grey;
 
   useEffect(() => {
     const el = host.current;
@@ -41,9 +48,26 @@ export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(32, 1, 1, 2000);
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x3b4a5c, 1.15));
-    const key = new THREE.DirectionalLight(0xffffff, 1.7); key.position.set(60, 120, -80); scene.add(key);
-    const fill = new THREE.DirectionalLight(0x9fd8ff, 0.7); fill.position.set(-80, 40, 90); scene.add(fill);
+    // studio lighting: a soft room for reflections, a warm key that casts a soft shadow, a cool fill, a rim from behind
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const room = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environment = room;
+    scene.environmentIntensity = 0.55;
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x445064, 0.55));
+    const key = new THREE.DirectionalLight(0xfff4e6, 2.1); key.position.set(70, 140, -60);
+    key.castShadow = variant === 'main';
+    key.shadow.mapSize.set(2048, 2048);
+    key.shadow.radius = 6; key.shadow.bias = -0.0004; key.shadow.normalBias = 0.4;
+    Object.assign(key.shadow.camera, { left: -90, right: 90, top: 90, bottom: -90, near: 10, far: 400 });
+    scene.add(key);
+    const fill = new THREE.DirectionalLight(0xcfe6ff, 0.6); fill.position.set(-90, 50, 80); scene.add(fill);
+    const rim = new THREE.DirectionalLight(0xffffff, 1.1); rim.position.set(-40, 80, 160); scene.add(rim);
+    // the shadow lands on an invisible catcher on the bed
+    const catcher = new THREE.Mesh(new THREE.PlaneGeometry(400, 400).rotateX(-Math.PI / 2), new THREE.ShadowMaterial({ opacity: 0.22 }));
+    catcher.receiveShadow = true; catcher.position.y = 0.02;
+    scene.add(catcher);
 
     // the print bed (P1S: 256 x 256) shown as a plate under the model
     const bed = new THREE.Group();
@@ -75,19 +99,20 @@ export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
     };
     // what is on screen: the print bake if one matches, else the preview solid (also a slightly stale one while the
     // next is being built), else the quick outline slabs (first load, and the exploded view of separate pieces)
-    let shown: unknown = null, shownPalette = -1;
+    let shown: unknown = null, shownPalette = -1, shownGrey = false;
     const rebuild = (): void => {
       const { genome, plan } = studio.getState();
       const b = bakedRef.current, p = previewStore.get();
       const solid = !b && explodeRef.current < 0.02 ? p.solid : null;
       const what = b ?? solid ?? `slabs:${studio.code()}:${plan.separate.join(',')}`;
-      if (what === shown && genome.palette!.index! === shownPalette && model) return;
-      shown = what; shownPalette = genome.palette!.index!;
-      const next = b ? buildBakedModel(b, genome.palette!.index!)
-        : solid ? buildSolidModel(solid, genome.palette!.index!)
+      if (what === shown && genome.palette!.index! === shownPalette && greyRef.current === shownGrey && model) return;
+      shown = what; shownPalette = genome.palette!.index!; shownGrey = greyRef.current;
+      const next = b ? buildBakedModel(b, genome.palette!.index!, greyRef.current)
+        : solid ? buildSolidModel(solid, genome.palette!.index!, greyRef.current)
         : buildModel(genome, plan, reportFor(genome, plan));
       if (model) { scene.remove(model.root); model.dispose(); }
       model = next;
+      model.root.traverse((o) => { if ((o as THREE.Mesh).isMesh) o.castShadow = true; });
       scene.add(model.root);
       model.explode(explodeRef.current);
       if (!framed || variant === 'mini') { frame(); framed = true; }
@@ -118,11 +143,12 @@ export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
 
     return () => {
       cancelAnimationFrame(raf); unsubs.forEach((u) => u()); ro.disconnect(); controls.dispose();
-      model?.dispose(); renderer.dispose(); renderer.domElement.remove(); api.current = null;
+      model?.dispose(); room.dispose(); pmrem.dispose(); renderer.dispose(); renderer.domElement.remove(); api.current = null;
     };
   }, [variant]);
 
   useEffect(() => { api.current?.rebuild(); api.current?.explode(explode); }, [explode]);
+  useEffect(() => { storage.set(GREY_KEY, grey ? '1' : '0'); api.current?.rebuild(); }, [grey]);
   useEffect(() => { api.current?.rebuild(); }, [baked]);
 
   if (failed) return <div className="viewport3d-fail">Przeglądarka nie udostępnia WebGL, więc podgląd 3D jest niedostępny.</div>;
@@ -130,7 +156,10 @@ export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
     <div className={`viewport3d ${variant}`} ref={host}>
       {variant === 'main' && preview.busy && !baked && explode < 0.02 && <div className="viewport-busy">Przeliczam bryłę…</div>}
       {variant === 'main' && (
-        <button type="button" className="btn-mini viewport-reset" onClick={() => api.current?.resetView()}>Wyśrodkuj widok</button>
+        <div className="viewport-tools">
+          <button type="button" className={`btn-mini${grey ? ' on' : ''}`} aria-pressed={grey} title="Jak wydruk z jednego, szarego filamentu" onClick={() => setGrey((g) => !g)}>Szary filament</button>
+          <button type="button" className="btn-mini" onClick={() => api.current?.resetView()}>Wyśrodkuj widok</button>
+        </div>
       )}
     </div>
   );

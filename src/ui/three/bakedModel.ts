@@ -5,11 +5,11 @@ import { PALETTES } from '../../core/palette';
 import type { Model } from './model';
 
 /** The real baked solid (smooth normals from the shared vertices), painted with the filaments of the 3MF. */
-export function buildBakedModel(result: BakeResult, paletteIndex: number): Model {
+export function buildBakedModel(result: BakeResult, paletteIndex: number, grey = false): Model {
   const root = new THREE.Group();
   const geos: THREE.BufferGeometry[] = [];
   const mats = [...PALETTES[paletteIndex]!, '#ffffff'].slice(0, FILAMENTS)
-    .map((color) => new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0 }));
+    .map((color) => new THREE.MeshStandardMaterial({ color: grey ? '#a7abb1' : color, roughness: grey ? 0.62 : 0.5, metalness: 0 }));
   for (const p of result.pieces) {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(p.mesh.positions, 3));

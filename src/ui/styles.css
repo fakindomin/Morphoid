@@ -268,6 +268,7 @@ kbd { font: 10.5px ui-monospace, Menlo, monospace; padding: 1px 6px; border: 1px
 .notice-title { font-weight: 800; font-size: 13px; }
 .notice-body { font-size: 12px; color: var(--muted); line-height: 1.45; }
 .notice-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.btn-mini.on { background: var(--cyan); color: #fff; border-color: var(--cyan); }
 .btn-mini.ghost { background: none; border-color: var(--border); }
 @keyframes pop-notice { from { opacity: 0; transform: translate(-50%, -6px); } }
 
@@ -275,7 +276,7 @@ kbd { font: 10.5px ui-monospace, Menlo, monospace; padding: 1px 6px; border: 1px
 .viewport3d.main { position: absolute; inset: 0; }
 .viewport3d.mini { height: 150px; border-radius: 10px; background: var(--bg-input); border: 1px solid var(--border); overflow: hidden; pointer-events: none; }
 .viewport3d canvas { outline: none; }
-.viewport-reset { position: absolute; right: 14px; top: 14px; }
+.viewport-tools { position: absolute; right: 14px; top: 14px; display: flex; gap: 6px; }
 .viewport-busy { position: absolute; left: 14px; bottom: 14px; font: 11px/1 var(--mono, monospace); color: var(--muted); letter-spacing: .04em; pointer-events: none; }
 .viewport3d-fail { padding: 24px; color: var(--muted); font-size: 13px; text-align: center; }
 
