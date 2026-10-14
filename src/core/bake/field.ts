@@ -99,7 +99,27 @@ export function gridDims(parts: Part3D[], h: number, margin = 3): { nx: number; 
 
 export function makeGrid(parts: Part3D[], h: number, margin = 3): Grid3 {
   const d = gridDims(parts, h, margin);
-  return { ...d, h, data: new Float32Array(d.nx * d.ny * d.nz).fill(BIG) };
+  const n = d.nx * d.ny * d.nz;
+  return { ...d, h, data: new Float32Array(n).fill(BIG), owner: new Uint8Array(n) };
+}
+
+/**
+ * Appendages each grow out of the body with a soft fillet, but never out of each other: a wing next to an ear,
+ * or a horn next to a crest, meets it with a plain (sharp) union, so neighbours stay two separate shapes.
+ */
+const GROUP: Partial<Record<string, number>> = {
+  ear: 1, earIn: 1, wingNear: 2, wingFar: 2, wingRibs: 2, horns: 3, antennae: 4, tuft: 5, mane: 6, finD: 7, finP: 8,
+};
+export const blendGroup = (slot: string): number => GROUP[slot] ?? 0;
+
+/** Union of the node with a new value: smooth with the body and the part's own group, sharp with another appendage. */
+function unite(g: Grid3, idx: number, d3: number, k: number, grp: number): void {
+  const cur = g.data[idx]!;
+  if (d3 > cur + k) return;
+  const o = g.owner ? g.owner[idx]! : 0;
+  const sharp = grp !== 0 && o !== 0 && o !== grp;
+  g.data[idx] = sharp ? Math.min(cur, d3) : smin(cur, d3, k);
+  if (g.owner && d3 < cur) g.owner[idx] = grp;
 }
 
 /**
@@ -159,8 +179,9 @@ const sstep = (a: number, b: number, x: number): number => { const t = Math.min(
 /** Fuse a part into the grid with a smooth union. */
 export function addPart(g: Grid3, part: Part3D, k: number): void {
   const { h, nx, ny, nz } = g;
-  if (part.limb) { addLimb(g, part.limb, k, part.coat, part.carve); return; }
-  if (part.ribs) addLimb(g, part.ribs, k);
+  const grp = blendGroup(part.slot);
+  if (part.limb) { addLimb(g, part.limb, k, part.coat, part.carve, grp); return; }
+  if (part.ribs) addLimb(g, part.ribs, k, undefined, false, grp);
   const edges = edgesOf(part.polys);
   if (!edges.length) return;
   const pad = k + 2 * h + part.bevel;
@@ -208,14 +229,13 @@ export function addPart(g: Grid3, part: Part3D, k: number): void {
       const idx = top ? (v * ny + w) * nx + i : (w * ny + v) * nx + i;
       const cur = g.data[idx]!;
       if (part.carve) { if (d3 < k) g.data[idx] = -smin(-cur, d3, k); continue; } // a hollow cut into the solid
-      if (d3 > cur + k) continue;
-      g.data[idx] = smin(cur, d3, k);
+      unite(g, idx, d3, k, grp);
     }
   }
 }
 
 /** Fuse a true 3D part (a jointed leg) into the grid with a smooth union. */
-function addLimb(g: Grid3, limb: Limb, k: number, coat?: Coat, carve = false): void {
+function addLimb(g: Grid3, limb: Limb, k: number, coat?: Coat, carve = false, grp = 0): void {
   const { h, nx, ny, nz } = g;
   const pad = k + 2 * h;
   const { lo, hi } = limbBox(limb);
@@ -235,8 +255,7 @@ function addLimb(g: Grid3, limb: Limb, k: number, coat?: Coat, carve = false): v
     }
     const x = g.ox + i * h, y = g.oy + j * h, z = g.oz + kk * h;
     if (coat && Math.abs(d3) < 1.5) d3 += limbCoat(limb, coat, x, y, z, h);
-    if (d3 > cur + k) continue;
-    g.data[idx] = smin(cur, d3, k);
+    unite(g, idx, d3, k, grp);
   }
 }
 

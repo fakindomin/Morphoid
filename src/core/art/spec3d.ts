@@ -188,6 +188,7 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
     if (tl) p.limb = tl;
   }
   if (plan === D.PLAN.caterpillar) for (const p of out) if (p.slot === 'legF') p.limb = prolegLimb(prolegXs(rig.nodes.torso.x, rig.dims.bodyLength), p.z);
+  wingsClearEars(out, ctx.W);
   // wing ribs stand on the OUTER face (the inner one stays flat: the wing prints lying on it)
   const wingS = typeSize(g, 'wings', D.WING_SPAN, 'scale');
   if (g.wings!.type! > 0 && wingS > 0.5) for (const p of out) if (p.slot === 'wingNear') {
@@ -284,6 +285,39 @@ function standTop(p: Part3D, g: MorphotypeGenome, rig: Rig): void {
  * Whiskers stick out sideways: the part becomes a top-view plate (x, z) at the height of their root in the side view,
  * three strands fanning out of the muzzle side; for print, a pad half sunk into the muzzle holds them together.
  */
+/** The smallest air gap (mm) between a wing and the ear beside it. */
+const WING_EAR_GAP_MM = 1.6;
+
+/**
+ * A wing that rises right behind an ear shares its Z band with it, so in 3D the two grow into one plate. When they
+ * meet (or nearly meet) in the side view, the wing moves out sideways until it clears the ear, while its root stays
+ * buried in the body's flank (never past 1.5 mm inside the widest torso half-width); the ear moves in for the rest.
+ */
+function wingsClearEars(out: Part3D[], bodyW: number): void {
+  const box = (p: Part3D): [number, number, number, number] => {
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const poly of p.polys) for (const [x, y] of poly) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+    return [x0, x1, y0, y1];
+  };
+  const near = 2.4 + WING_EAR_GAP_MM; // the body blend radius (bake BLEND_MM) plus the gap
+  for (const w of out) if (w.slot === 'wingNear' && w.side) {
+    const [wx0, wx1, wy0, wy1] = box(w);
+    let need = 0;
+    for (const e of out) if (e.slot === 'ear' && e.side === w.side) {
+      const [ex0, ex1, ey0, ey1] = box(e);
+      if (ex0 > wx1 + near || wx0 > ex1 + near || ey0 > wy1 + near || wy0 > ey1 + near) continue;
+      need = Math.max(need, Math.abs(e.z) + e.thickness / 2 + WING_EAR_GAP_MM - (Math.abs(w.z) - w.thickness / 2));
+    }
+    if (need <= 0) continue;
+    const room = bodyW * 0.5 - 1.5 - (Math.abs(w.z) - w.thickness / 2);
+    const push = Math.min(need, Math.max(0, room));
+    w.z += w.side * push;
+    // whatever the wing could not take, the ear gives: it moves in towards the middle of the head (with its cup)
+    const rest = need - push;
+    if (rest > 0) for (const e of out) if ((e.slot === 'ear' || e.slot === 'earIn') && e.side === w.side) e.z -= e.side * rest;
+  }
+}
+
 /** How deep (mm) the cup inside an ear is. */
 const EAR_CUP_MM = 0.9;
 

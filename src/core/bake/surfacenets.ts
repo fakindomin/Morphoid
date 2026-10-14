@@ -9,6 +9,8 @@ export interface Grid3 {
   /** node (i, j, k) sits at origin + (i, j, k) * h */
   h: number; ox: number; oy: number; oz: number;
   data: Float32Array; // index = (k * ny + j) * nx + i
+  /** which appendage group is nearest at each node (0 = the body); see field.ts blendGroup */
+  owner?: Uint8Array;
 }
 
 export interface Mesh {
