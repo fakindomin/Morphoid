@@ -59,9 +59,13 @@ function limbGeometry(limb: Limb): THREE.BufferGeometry[] {
 
 function geometryFor(p: Part3D): THREE.BufferGeometry[] {
   if (p.limb) return limbGeometry(p.limb);
-  const b = Math.max(0, Math.min(p.bevel, p.thickness / 2 - 0.01));
-  const depth = Math.max(0.05, p.thickness - 2 * b);
   return p.polys.map((poly) => {
+    // the bevel eats into the outline (bevelOffset -b): wider than half the shape it turns the outline inside out and
+    // a small round part (a nose) shows as a spiky knob, so it never exceeds ~half the shape's narrow side
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const [x, y] of poly) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+    const b = Math.max(0, Math.min(p.bevel, p.thickness / 2 - 0.01, 0.42 * Math.min(x1 - x0, y1 - y0)));
+    const depth = Math.max(0.05, p.thickness - 2 * b);
     const shape = new THREE.Shape(poly.map(([x, y]) => new THREE.Vector2(x, y)));
     const geo = new THREE.ExtrudeGeometry(shape, {
       depth, steps: 1, curveSegments: 6,
@@ -193,7 +197,7 @@ export function buildModel(genome: MorphotypeGenome, plan: PrintPlan, report: Pr
 
   const apply = (f: number): void => {
     for (const c of containers.values()) c.obj.position.copy(c.offset).multiplyScalar(f);
-    for (const p of pegs) { p.mesh.position.copy(p.root).addScaledVector(p.offset, 0.5 * f); p.mesh.visible = true; }
+    for (const p of pegs) { p.mesh.position.copy(p.root).addScaledVector(p.offset, 0.5 * f); p.mesh.visible = f > 0.02; } // pegs only show when the pieces are pulled apart
   };
   apply(0);
   const box = new THREE.Box3().setFromObject(root);

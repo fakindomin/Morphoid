@@ -559,11 +559,12 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
   }
   if (face.whiskers! > 0) {
     // Whiskers stick out SIDEWAYS from the muzzle (a flat plate lying in the horizontal plane, see whiskerTop in
-    // spec3d). Seen from the side they are foreshortened: the root pad and the strands that fan back and forward.
+    // spec3d). Seen from the side they are foreshortened: the strands that fan back and forward from one root (drawn as
+    // the dot where they leave the muzzle; the pad that seats a printed set is not drawn, see buildParts3D `print`).
     const len = whiskerLength(face.whiskers!);
     const wk = new Path();
     const [cx, cy] = whiskerRoot(tipX, tip);
-    wk.append(ellipse(cx, cy, WHISKER_PAD[0], 1.6));
+    wk.append(ellipse(cx, cy, 1, 1));
     const off = WHISKER_TURN[face.whiskerDir ?? 0] ?? 0; // a strand pointing straight sideways shows no length here
     for (const a of WHISKER_FAN) if (Math.abs(Math.sin(a + off)) * len > 3) wk.append(tube([cx, cy + Math.sign(a)], [cx + Math.sin(a + off) * len, cy + Math.sign(a)], 1.2, 1.2)); // strands 1 mm apart fuse into one band
     put('whiskers', wk);

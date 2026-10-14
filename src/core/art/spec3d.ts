@@ -101,7 +101,11 @@ export function ctxFor(rig: Rig): Ctx {
   return { W, G, legW: rig.dims.legWidth, legZ: W * 0.32, headW, snoutW: headW * 0.62, neckT: Math.max(6, W * 0.7) };
 }
 
-export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig): Part3D[] {
+/**
+ * `print`: the parts as the bake makes them, with the hidden seating that only a separately printed piece needs (the
+ * whiskers' root pad). The previews leave it out, so they show the creature alone.
+ */
+export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, print = false): Part3D[] {
   void g;
   const ctx = ctxFor(rig);
   const out: Part3D[] = [];
@@ -119,7 +123,7 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig): P
   }
   const head = out.find((p) => p.slot === 'head');
   if (head) for (const p of out) if (p.slot === 'ear') p.polys = seatOn(p, head);
-  for (const p of out) if (p.slot === 'whiskers') whiskerTop(p, g, ctx);
+  for (const p of out) if (p.slot === 'whiskers') whiskerTop(p, g, ctx, print);
   if (g.face!.eyes === EYES.stalks) for (const p of out) { // eyes on stalks: a ball on top of each stalk, the pupil on its outer side
     const zs = ctx.headW * 0.25 * p.side;
     if (p.slot === 'eye') { p.z = zs; p.thickness = 4.4; p.bevel = 2.1; }
@@ -210,11 +214,11 @@ function standTop(p: Part3D, g: MorphotypeGenome, rig: Rig): void {
 }
 
 /**
- * Whiskers stick out sideways: the part becomes a top-view plate (x, z) at the height of its pad in the side view,
- * the pad half sunk into the muzzle side, three strands fanning out from it.
+ * Whiskers stick out sideways: the part becomes a top-view plate (x, z) at the height of their root in the side view,
+ * three strands fanning out of the muzzle side; for print, a pad half sunk into the muzzle holds them together.
  */
-function whiskerTop(p: Part3D, g: MorphotypeGenome, ctx: Ctx): void {
-  const pad = p.polys[0]!;
+function whiskerTop(p: Part3D, g: MorphotypeGenome, ctx: Ctx, print: boolean): void {
+  const pad = p.polys[0]!; // the root dot of the drawing: the side-view position of the pad
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   for (const [x, y] of pad) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
   const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, side = p.side || 1, len = whiskerLength(g.face!.whiskers!);
@@ -223,7 +227,7 @@ function whiskerTop(p: Part3D, g: MorphotypeGenome, ctx: Ctx): void {
   const polys: XY[][] = [];
   const ell: XY[] = [];
   for (let i = 0; i < 24; i++) { const a = (i / 24) * Math.PI * 2; ell.push([cx + Math.cos(a) * WHISKER_PAD[0], side * (zr + Math.sin(a) * WHISKER_PAD[1])]); }
-  polys.push(side > 0 ? ell : ell.reverse());
+  if (print) polys.push(side > 0 ? ell : ell.reverse()); // the pad that seats the separate whiskers in the muzzle
   for (const a of WHISKER_FAN) {
     const ax = cx, az = zr + 0.8, bx = cx + Math.sin(a + off) * len, bz = zr + 1.2 + Math.cos(a + off) * len;
     const l = Math.hypot(bx - ax, bz - az), nx = -(bz - az) / l * (WHISKER_W / 2), nz = (bx - ax) / l * (WHISKER_W / 2);

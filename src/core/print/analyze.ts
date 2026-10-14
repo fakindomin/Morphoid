@@ -13,7 +13,8 @@
  * Severity: error = will not print as planned; warn = prints with care / minor supports.
  */
 import type { Rig } from '../rig';
-import type { SlotId, SlotPaths } from '../art/shapes';
+import { WHISKER_PAD, type SlotId, type SlotPaths } from '../art/shapes';
+import type { XY } from '../art/path';
 import { PRINT_SOLID_SLOTS, SLOT_NAME_PL } from './catalog';
 import { GROUPS, PRINTERS, groupOfSlot, isSeparate, type GroupDef, type PartGroup, type PrintPlan } from './plan';
 import { PRINT_RULES as R } from './rules';
@@ -140,6 +141,20 @@ export function pieceOf(slot: SlotId, plan: PrintPlan): PartGroup | 'body' {
 
 interface PieceSpec { id: string; label: string; kind: 'body' | 'part'; orientation: 'upright' | 'flat'; slots: SlotId[]; clipY?: number }
 
+/**
+ * The preview draws the whiskers' root as a small dot; the printed set gets a pad there (see buildParts3D `print`) that
+ * seats it in the muzzle and carries its peg. The audit checks what is printed, so it adds the pad back.
+ */
+function withWhiskerPad(polys: XY[][]): XY[][] {
+  const root = polys[0];
+  if (!root) return polys;
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const [x, y] of root) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, pad: XY[] = [];
+  for (let i = 0; i < 24; i++) { const a = (i / 24) * Math.PI * 2; pad.push([cx + Math.cos(a) * WHISKER_PAD[0], cy + Math.sin(a) * 1.6]); }
+  return [pad, ...polys.slice(1)];
+}
+
 export function analyzePrint(paths: SlotPaths, rig: Rig, plan: PrintPlan): PrintReport {
   const issues: PrintIssue[] = [];
   const pieces: PieceInfo[] = [];
@@ -190,7 +205,7 @@ export function analyzePrint(paths: SlotPaths, rig: Rig, plan: PrintPlan): Print
 
   // ---------------------------------------------------------------------------------------
   function analyzePiece(s: PieceSpec): void {
-    const solids = s.slots.map((id) => ({ id, polys: paths[id].flatten(8) })).filter((x) => x.polys.length);
+    const solids = s.slots.map((id) => ({ id, polys: id === 'whiskers' ? withWhiskerPad(paths[id].flatten(8)) : paths[id].flatten(8) })).filter((x) => x.polys.length);
     if (!solids.length) return;
     let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
     for (const o of solids) for (const poly of o.polys) for (const [x, y] of poly) {

@@ -160,7 +160,7 @@ export function bake(
   const t0 = performance.now();
   const rig = solveRig(genome);
   const paths = buildPaths(targetPose(rig, genome, 0, false, { x: 0, y: 0 }), genome, rig, false);
-  const all = buildParts3D(paths, genome, rig);
+  const all = buildParts3D(paths, genome, rig, true);
   const parts = all.filter((p) => p.thickness >= MIN_SOLID_MM);
   // too thin to be geometry: painted on the piece they belong to (3MF colour regions)
   const decalsOf = (id: string): Part3D[] => all.filter((p) => p.thickness < MIN_SOLID_MM && pieceOf(p.slot as SlotId, plan) === id);
