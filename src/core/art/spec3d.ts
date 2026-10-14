@@ -47,9 +47,7 @@ export interface Part3D {
   widths?: { x0: number; dx: number; k: number[] };
   /** a true 3D solid (a jointed leg) in world mm: then `polys` is only its side view, see limb.ts */
   limb?: Limb;
-  /** removes material instead of adding it (the open mouth carved into the muzzle) */
-  cut?: boolean;
-  /** added after the cuts with a tight blend, so it stays a crisp shape inside a carved opening (teeth) */
+  /** added last with a tight blend, so it stays a crisp shape (teeth and tongue in an open mouth) */
   inset?: boolean;
   /** raised 3D ribs fused onto the slab (wing bones, feather shafts), world mm */
   ribs?: Limb;
@@ -96,8 +94,11 @@ export const SPEC_3D: Record<SlotId, Spec | null> = {
   eye: { color: 'white', mirror: true, z: (c) => c.headW / 2 - 0.35, t: () => 2.3, bevel: (t) => round(0.35)(t) }, // sits 1.5 mm in, stands 0.8 mm proud
   pupil: { color: 'ink', mirror: true, z: (c) => c.headW / 2 + 0.8, t: () => 0.4, bevel: () => 0.08 },
   brow: { color: 'ink', mirror: true, z: (c) => c.headW / 2 - 0.1, t: () => 0.5, bevel: () => 0.1 },
+  // open mouth: the inside is set back 1.2 mm from each side of the jaws, the tongue narrower still
+  maw: { color: 'ink', mirror: false, z: centre, t: (c) => Math.max(1.6, c.snoutW - 2.4), bevel: (t) => round(0.3)(t) },
+  tongue: { color: 'c2soft', mirror: false, z: centre, t: (c) => Math.max(1.6, c.snoutW * 0.5), bevel: (t) => round(0.45)(t) },
   mouth: { color: 'ink', mirror: true, z: (c) => c.snoutW / 2 - 0.1, t: () => 0.5, bevel: () => 0.1 },
-  teeth: { color: 'white', mirror: true, z: (c) => c.snoutW / 2 - 0.4, t: () => 1.6, bevel: () => 0.1 },
+  teeth: { color: 'white', mirror: true, z: (c) => c.snoutW / 2 - 0.9, t: () => 1.4, bevel: () => 0.5 }, // along the jaws' rims
   arms: { color: 'c1', mirror: false, z: centre, t: () => D.OCTOPUS.armMm, bevel: (t) => round(0.45)(t) }, // top-view, see buildParts3D
   stand: { color: 'c2', mirror: false, z: centre, t: () => STAND_MM, bevel: (t) => round(0.3)(t) }, // top-view plate, see standTop
   whiskers: { color: 'c1dark', mirror: true, z: () => 0, t: () => 1.6, bevel: (t) => flat(t) }, // top-view plate, see whiskerTop
@@ -134,7 +135,8 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
   const head = out.find((p) => p.slot === 'head');
   if (head) for (const p of out) if (p.slot === 'ear') p.polys = seatOn(p, head);
   for (const p of out) if (p.slot === 'whiskers') whiskerTop(p, g, ctx, print);
-  if (g.face!.teeth! > 0) openMouth(out, print);
+  // teeth and tongue stay crisp shapes in the open mouth (tight blend, see bake)
+  for (const p of out) if (p.slot === 'teeth' || p.slot === 'tongue') p.inset = true;
   if (g.face!.eyes === EYES.stalks) for (const p of out) { // eyes on stalks: a ball on top of each stalk, the pupil on its outer side
     const zs = ctx.headW * 0.25 * p.side;
     if (p.slot === 'eye') { p.z = zs; p.thickness = 4.4; p.bevel = 2.1; }
@@ -256,63 +258,6 @@ function whiskerTop(p: Part3D, g: MorphotypeGenome, ctx: Ctx, print: boolean): v
   p.polys = polys;
   p.plane = 'xz';
   p.z = cy;
-}
-
-/** How deep (mm) the open mouth is carved into the muzzle side, and how far below the lips the teeth's faces sit. */
-export const MOUTH_DEPTH = 1.3;
-const TEETH_BELOW = 0.25, TEETH_T = 1.4;
-
-/** z (>= 0, mm from the part's centre plane) of a slab part's surface over (x, y), or null outside its outline. */
-function surfaceZ(p: Part3D, x: number, y: number): number | null {
-  const sd = sdPolys(edgesOf(p.polys), p.polys, x, y);
-  if (sd >= 0) return null;
-  let lo = 0, hi = p.thickness / 2 + 0.5;
-  for (let i = 0; i < 24; i++) { const m = (lo + hi) / 2; if (slabDist(p, sd, m) < 0) lo = m; else hi = m; }
-  return lo;
-}
-
-/**
- * An open mouth with teeth (see mouthOpening in shapes). In print geometry the opening (the first outline of the mouth
- * slot) is carved MOUTH_DEPTH into each side of the muzzle, below the muzzle's rounded skin at its middle, and the
- * teeth stand on the floor of the opening with their faces TEETH_BELOW under the lips, so they sit inside the mouth.
- * The dark mouth colour is still painted on the floor (the mouth decal); the lips' edges keep the skin colour.
- */
-function openMouth(out: Part3D[], print: boolean): void {
-  const snout = out.find((p) => p.slot === 'snout'), head = out.find((p) => p.slot === 'head');
-  const zAt = (x: number, y: number): number | null => {
-    const zs = [snout, head].map((q) => (q ? surfaceZ(q, x, y) : null)).filter((z): z is number => z !== null);
-    return zs.length ? Math.max(...zs) : null;
-  };
-  const centre = (polys: XY[][]): XY => {
-    let sx = 0, sy = 0, n = 0;
-    for (const poly of polys) for (const [x, y] of poly) { sx += x; sy += y; n++; }
-    return [sx / (n || 1), sy / (n || 1)];
-  };
-  // each tooth on its own: the muzzle rounds off towards its tip, so a tooth there sits at a smaller z than one further back
-  let toothSkin = Infinity;
-  for (const t of out.filter((p) => p.slot === 'teeth')) {
-    out.splice(out.indexOf(t), 1);
-    t.polys.forEach((poly, i) => {
-      // the skin over the tooth's middle (its root, under the lip, is hidden in the muzzle and not painted, see paint.ts)
-      const z0 = zAt(...centre([poly]));
-      if (z0 === null) return;
-      toothSkin = Math.min(toothSkin, z0);
-      // preview (flat-faced slabs): the teeth keep their place just in front of the dark opening
-      if (!print) { out.push({ ...t, id: `${t.id}${i}`, polys: [poly] }); return; }
-      out.push({ ...t, id: `${t.id}${i}`, polys: [poly], z: t.side * (z0 - TEETH_BELOW - TEETH_T / 2), thickness: TEETH_T, bevel: 0.2, inset: true });
-    });
-  }
-  for (const m of out.filter((p) => p.slot === 'mouth')) {
-    const outline = m.polys[0];
-    if (!outline) continue;
-    const zs = zAt(...centre([outline]));
-    if (zs === null) continue;
-    if (!print) continue; // preview: the dark opening lies on the muzzle's flat side, as the mouth line always did
-    // a flat floor, deep enough under every tooth (the front ones sit where the muzzle has rounded in) to show 1 mm of it
-    const floor = Math.min(zs - MOUTH_DEPTH, toothSkin - TEETH_BELOW - 1);
-    m.z = m.side * (floor + 0.4); // the dark paint lies on the floor of the opening
-    out.push({ ...m, id: `${m.id}cut`, polys: [outline], cut: true, z: m.side * (floor + 3), thickness: 6, bevel: 0.4 });
-  }
 }
 
 /** Signed distance to a part's rounded slab (the shape the bake fuses). */

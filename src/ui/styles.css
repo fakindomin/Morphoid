@@ -169,6 +169,7 @@ kbd { font: 10.5px ui-monospace, Menlo, monospace; padding: 1px 6px; border: 1px
 .shape.coat { fill: color-mix(in srgb, var(--c1) 50%, #000); stroke: none; opacity: .38; }
 .shape.accent { fill: var(--c2); stroke: color-mix(in srgb, var(--c2) 55%, #000); }
 .shape.accentFar { fill: color-mix(in srgb, var(--c2) 68%, #000); stroke: color-mix(in srgb, var(--c2) 45%, #000); }
+.shape.tongue { fill: color-mix(in srgb, var(--c2) 55%, #fff); stroke: color-mix(in srgb, var(--c2) 60%, #000); stroke-width: 1; }
 .shape.accentSoft { fill: color-mix(in srgb, var(--c2) 65%, #fff); stroke: none; }
 .shape.white { fill: #fbfbf8; stroke: color-mix(in srgb, var(--ink) 70%, transparent); stroke-width: 1.4; }
 .shape.ink { fill: var(--ink); stroke: none; }

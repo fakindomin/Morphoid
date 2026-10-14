@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { defaultGenome, mulberry32, randomGenome } from '../src/core/genome';
 import { planModular, planWhole } from '../src/core/print';
 import { bake } from '../src/core/bake/bake';
+import { solveRig } from '../src/core/rig';
+import { targetPose } from '../src/core/art/pose';
+import { buildPaths } from '../src/core/art/shapes';
 import { toBinaryStl, validateMesh } from '../src/core/bake/mesh';
 import { surfaceNets, type Grid3 } from '../src/core/bake/surfacenets';
 
@@ -32,14 +35,15 @@ describe('bake: SDF fusion -> watertight solid', () => {
     expect(r.pieces).toHaveLength(1);
   });
 
-  it('teeth sit inside an open mouth carved into the muzzle, still ONE watertight shell', { timeout: 60000 }, () => {
-    const closed = bake(defaultGenome(), planWhole(), 'standard').pieces.find((p) => p.id === 'body')!.validation.volume;
+  it('teeth come with a really open mouth: two jaws, the inside, a tongue, still ONE watertight shell', { timeout: 60000 }, () => {
     for (const t of [1, 2]) {
       const g = defaultGenome(); g.face!.teeth = t;
+      const rig = solveRig(g), paths = buildPaths(targetPose(rig, g, 0, false, { x: 0, y: 0 }), g, rig, false);
+      expect(paths.snout.flatten(8), `teeth ${t}: upper and lower jaw`).toHaveLength(2);
+      expect(paths.maw.empty || paths.tongue.empty, `teeth ${t}`).toBe(false);
       const v = bake(g, planWhole(), 'standard').pieces.find((p) => p.id === 'body')!.validation;
       expect(v.watertight, `teeth ${t}`).toBe(true);
-      expect(v.shells, `teeth ${t}: every tooth is attached`).toBe(1);
-      expect(v.volume, `teeth ${t}: the mouth is open`).toBeLessThan(closed);
+      expect(v.shells, `teeth ${t}: jaws, teeth and tongue are attached`).toBe(1);
     }
   });
 

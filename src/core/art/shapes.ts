@@ -18,7 +18,9 @@ export type SlotKind =
   | 'shadow' | 'skin' | 'skinFar' | 'belly' | 'pattern' | 'coat' | 'accent' | 'accentFar' | 'accentSoft'
   | 'white' | 'ink' | 'glint' | 'groove' | 'bone' | 'clip'
   /** drawing-only touches of the illustrated style (no geometry): eye colour, cheek blush */
-  | 'iris' | 'blush';
+  | 'iris' | 'blush'
+  /** the tongue in an open mouth */
+  | 'tongue';
 
 export const SLOTS = [
   ['shadow', 'shadow'], ['stand', 'accent'], ['arms', 'skin'], ['wingFar', 'accentFar'], ['tail', 'skin'], ['legBFar', 'skinFar'], ['legFFar', 'skinFar'],
@@ -26,7 +28,7 @@ export const SLOTS = [
   ['saddle', 'accent'], ['spines', 'accent'], ['finD', 'accent'], ['legF', 'skin'], ['finP', 'accent'], ['neck', 'skin'], ['neckDecor', 'skinFar'],
   ['mane', 'accent'], ['collar', 'accent'], ['ear', 'skin'], ['earIn', 'accentSoft'], ['horns', 'accent'], ['antennae', 'accent'], ['tuft', 'accent'],
   ['head', 'skin'], ['snout', 'skin'], ['wingNear', 'accent'], ['nose', 'ink'],
-  ['mouth', 'groove'], ['teeth', 'white'], ['whiskers', 'skinFar'], ['stalks', 'skin'], ['blush', 'blush'], ['toes', 'groove'], ['eye', 'white'], ['iris', 'iris'], ['pupil', 'ink'],
+  ['maw', 'ink'], ['tongue', 'tongue'], ['mouth', 'groove'], ['teeth', 'white'], ['whiskers', 'skinFar'], ['stalks', 'skin'], ['blush', 'blush'], ['toes', 'groove'], ['eye', 'white'], ['iris', 'iris'], ['pupil', 'ink'],
   ['glint', 'glint'], ['brow', 'groove'], ['wingRibs', 'groove'], ['bones', 'bone'],
 ] as const satisfies readonly (readonly [string, SlotKind])[];
 
@@ -188,41 +190,62 @@ export function buildShapes(pose: Pose, g: MorphotypeGenome, rig: Rig, to: ToPx,
   return out;
 }
 
-/** The open mouth (with teeth): how far along the mouth line it reaches (0 front .. 1 corner) and how wide it opens. */
-export const MOUTH_OPEN = { reach: 0.62, gap: [3.6, 3.2] as const, lift: 0.35 } as const;
+/** How far (radians) the lower jaw drops when the mouth is open: fangs gape wider than a row of small teeth. */
+export const JAW_OPEN = [0.42, 0.36] as const;
+
+/** Keep the part of polygon `poly` on the side of the line through `a` with normal `nrm` where dot(p - a, nrm) >= 0. */
+function clipHalf(poly: readonly XY[], a: XY, nrm: XY): XY[] {
+  const out: XY[] = [];
+  const side = (q: XY): number => (q[0] - a[0]) * nrm[0] + (q[1] - a[1]) * nrm[1];
+  for (let i = 0; i < poly.length; i++) {
+    const p = poly[i]!, q = poly[(i + 1) % poly.length]!, sp = side(p), sq = side(q);
+    if (sp >= 0) out.push(p);
+    if ((sp >= 0) !== (sq >= 0)) { const t = sp / (sp - sq); out.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]); }
+  }
+  return out;
+}
 
 /**
- * The open mouth for `teeth` (1 fangs, 2 a row) along the mouth line `at(f)`: its outline (a lens that is widest a
- * third of the way back) and the teeth, each hanging from the upper lip (a row also stands on the lower lip) and ending
- * at least 0.5 mm short of the opposite lip.
+ * An open mouth (with teeth): the muzzle is split along the mouth line into the upper jaw and the lower jaw, and the
+ * lower jaw drops by JAW_OPEN about the corner of the mouth `b` (a really open mouth, also in 3D). Between them: the
+ * dark inside of the mouth (`maw`, set back from the lips), a tongue lying on the lower jaw, and the teeth along both
+ * jaws' edges (fangs: an upper pair; a row: upper and lower), each ending well short of the opposite jaw.
  */
-export function mouthOpening(teeth: number, at: (f: number) => XY, jaw: (x: number) => [number, number] | null = () => null): { outline: XY[]; teeth: XY[][]; upper: (f: number) => XY; lower: (f: number) => XY } {
-  const H = MOUTH_OPEN.gap[teeth === 1 ? 0 : 1]!, F = MOUTH_OPEN.reach;
-  const gap = (f: number): number => (f <= 0 || f >= F ? 0 : H * Math.sin(Math.PI * Math.pow(f / F, 0.6)));
-  // the lips stay inside the muzzle: at least LIP_MM of jaw under the opening and of muzzle above it
-  const LIP_MM = 1.1;
-  const lower = (f: number): XY => {
-    const [x, y] = at(f), j = jaw(x);
-    return [x, Math.min(y, j ? Math.max(y - gap(f) * (1 - MOUTH_OPEN.lift), j[0] + LIP_MM) : y - gap(f) * (1 - MOUTH_OPEN.lift))];
-  };
-  // where the jaw cannot drop further (a low mouth line, a grin), the upper lip lifts more so the mouth opens as wide
-  const upper = (f: number): XY => {
-    const [x, y] = at(f), j = jaw(x), want = lower(f)[1] + gap(f);
-    return [x, Math.max(y, j ? Math.min(want, j[1] - LIP_MM) : want)];
-  };
-  const N = 16, outline: XY[] = [];
-  for (let i = 0; i <= N; i++) outline.push(upper((F * i) / N));
-  for (let i = N - 1; i >= 1; i--) outline.push(lower((F * i) / N));
+export function openJaw(muzzle: readonly XY[], a: XY, b: XY, teeth: number): { upper: XY[]; lower: XY[]; maw: XY[]; tongue: XY[]; teeth: XY[][] } {
+  const L = Math.hypot(a[0] - b[0], a[1] - b[1]) || 1;
+  const d: XY = [(a[0] - b[0]) / L, (a[1] - b[1]) / L], up: XY = [-d[1], d[0]];
+  const th = JAW_OPEN[teeth === 1 ? 0 : 1]!, c = Math.cos(-th), sn = Math.sin(-th);
+  const drop = (q: XY): XY => { const x = q[0] - b[0], y = q[1] - b[1]; return [b[0] + x * c - y * sn, b[1] + x * sn + y * c]; };
+  const upper = clipHalf(muzzle, b, up), lower = clipHalf(muzzle, b, [-up[0], -up[1]]).map(drop);
+  // the front of the mouth: where the mouth line leaves the muzzle
+  let reach = 0;
+  for (const q of upper) reach = Math.max(reach, (q[0] - b[0]) * d[0] + (q[1] - b[1]) * d[1]);
+  const on = (s: number, off = 0): XY => [b[0] + d[0] * s + up[0] * off, b[1] + d[1] * s + up[1] * off]; // s: mm from the corner
+  const gap = (s: number): number => s * Math.sin(th); // how far apart the jaws are, s mm from the corner
+  const front = reach * 0.9;
+  // the inside of the mouth (throat and cheeks): from behind the corner, hidden in the head, half way out; in front of
+  // it the mouth is open right through, so the far jaw, the teeth and the tongue show
+  const back = front * 0.5;
+  const maw: XY[] = [on(-2), on(back, 0.4), drop(on(back * 0.8, -0.4)), drop(on(back, -0.4))];
+  // tongue: lies on the lower jaw, from deep in the mouth to two thirds of the way out, bulging a little
+  const tongue: XY[] = [];
+  const t0 = front * 0.15, t1 = front * 0.78;
+  for (let i = 0; i <= 8; i++) { const s = t0 + ((t1 - t0) * i) / 8; tongue.push(drop(on(s, -0.6))); }
+  for (let i = 8; i >= 0; i--) { const s = t0 + ((t1 - t0) * i) / 8; tongue.push(drop(on(s, Math.min(1.8, 0.3 * gap(s)) * Math.sin(Math.PI * (0.15 + 0.85 * i / 8))))); }
   const out: XY[][] = [];
-  const tooth = (f: number, half: number, len: number, down: boolean): void => {
-    const room = upper(f)[1] - lower(f)[1] - 0.5, l = Math.min(len, room);
-    if (l < 0.8) return;
-    const [x, y] = down ? upper(f) : lower(f), s = down ? -1 : 1, root = 0.15; // the root just touches the lip
-    out.push(down ? [[x - half, y + root], [x + half, y + root], [x, y + s * l]] : [[x + half, y - root], [x - half, y - root], [x, y + s * l]]);
+  const tooth = (s: number, half: number, len: number, lower: boolean): void => {
+    const l = Math.min(len, gap(s) * (teeth === 1 ? 0.75 : 0.42));
+    if (l < 0.9) return;
+    const sgn = lower ? 1 : -1, root = 0.5; // the root sits in the jaw
+    const pts: XY[] = [on(s + half, -sgn * root), on(s, sgn * l), on(s - half, -sgn * root)];
+    out.push(lower ? pts.map(drop) : pts);
   };
-  if (teeth === 1) for (const f of [0.17, 0.4]) tooth(f, 1.2, 2.8, true); // fangs: a matched upper pair
-  else for (const f of [0.13, 0.25, 0.37, 0.49]) tooth(f, 0.75, 1.7, true); // a row: four even teeth, apart enough to print as four
-  return { outline, teeth: out, upper, lower };
+  if (teeth === 1) for (const k of [0.82, 0.5]) tooth(front * k, 1.15, 3, false); // fangs: an upper pair
+  else {
+    for (const k of [0.86, 0.68, 0.5, 0.32]) tooth(front * k, 0.75, 1.8, false);
+    for (const k of [0.77, 0.59, 0.41]) tooth(front * k, 0.7, 1.5, true);
+  }
+  return { upper, lower, maw, tongue, teeth: out };
 }
 
 export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean): SlotPaths {
@@ -580,36 +603,18 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
     const [a, c, b] = smile, u = 1 - f;
     return [u * u * a[0] + 2 * u * f * c[0] + f * f * b[0], u * u * a[1] + 2 * u * f * c[1] + f * f * b[1]];
   };
-  const closed = (f0: number): Path => { // the closed mouth line from f0 to the corner
-    if (f0 <= 0) return expr === 1 ? taper(smile[0], smile[1], smile[2], () => G, 8) : tube(mouthA, mouthB, G, G);
-    const line = new Path(), steps = 5;
-    for (let i = 0; i < steps; i++) line.append(tube(mouthAt(f0 + ((1 - f0) * i) / steps), mouthAt(f0 + ((1 - f0) * (i + 1)) / steps), G, G));
-    return line;
-  };
   if (expr === 2) put('brow', tube([eye[0] - er2 - 1.4, eye[1] + er2 + 3], [eye[0] + er2 + 1.4, eye[1] + er2 + 1], G, G));
 
   if (face.teeth! > 0) {
-    // Teeth show only in an OPEN mouth: the front of the mouth line parts into a dark opening (the upper lip lifts a
-    // little, the jaw drops more), closing again towards the corner. The teeth hang from the upper lip (a row also
-    // stands on the lower one) and always end inside the opening. The bake carves the same opening into the muzzle
-    // and seats the teeth in it, below the lips (see mouthOpening in spec3d).
-    const muzzle = out.snout.flatten(8)[0] ?? [];
-    const jaw = (x: number): [number, number] | null => { // the muzzle's bottom and top edge over x
-      let lo = Infinity, hi = -Infinity;
-      for (let i = 0; i < muzzle.length; i++) {
-        const [ax, ay] = muzzle[i]!, [bx, by] = muzzle[(i + 1) % muzzle.length]!;
-        if ((ax - x) * (bx - x) > 0 || ax === bx) continue;
-        const y = ay + ((x - ax) / (bx - ax)) * (by - ay);
-        lo = Math.min(lo, y); hi = Math.max(hi, y);
-      }
-      return hi > lo ? [lo, hi] : null;
-    };
-    const open = mouthOpening(face.teeth!, mouthAt, jaw);
-    put('mouth', new Path().append(polygon(open.outline)).append(closed(MOUTH_OPEN.reach)));
+    // teeth come with a really open mouth: the muzzle parts into two jaws, see openJaw
+    const jaw = openJaw(out.snout.flatten(12)[0] ?? [], mouthA, mouthB, face.teeth!);
+    put('snout', new Path().append(polygon(jaw.upper)).append(polygon(jaw.lower)));
+    put('maw', polygon(jaw.maw));
+    put('tongue', polygon(jaw.tongue));
     const t = new Path();
-    for (const tooth of open.teeth) t.append(polygon(tooth));
+    for (const tooth of jaw.teeth) t.append(polygon(tooth));
     put('teeth', t);
-  } else put('mouth', closed(0));
+  } else put('mouth', expr === 1 ? taper(smile[0], smile[1], smile[2], () => G, 8) : tube(mouthA, mouthB, G, G));
   if (face.whiskers! > 0) {
     // Whiskers stick out SIDEWAYS from the muzzle (a flat plate lying in the horizontal plane, see whiskerTop in
     // spec3d). Seen from the side they are foreshortened: the strands that fan back and forward from one root (drawn as

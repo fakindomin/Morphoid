@@ -22,7 +22,7 @@ export const VOXEL_MM: Record<BakeQuality, number> = { draft: 0.6, standard: 0.3
 export const BLEND_MM = 2.4;
 /** Parts thinner than this are colour regions / engraving (3MF), not geometry. */
 export const MIN_SOLID_MM = 0.8;
-/** Blend radius of a part seated in a carved opening (teeth): small, so the opening around it stays open. */
+/** Blend radius of a crisp part (teeth, tongue): small, so it does not swell into its neighbours. */
 const INSET_BLEND_MM = 0.5;
 /** How far skin smoothing may move a vertex, in voxels (see smooth.ts). */
 export const SMOOTH_MOVE = 0.9;
@@ -193,9 +193,8 @@ export function bake(
     const ps = byPiece.get(id)!;
     report(n, 0, PHASE_LABEL.field);
     const grid = makeGrid(ps, h, margin(id));
-    for (const p of ps) if (!p.cut && !p.inset) addPart(grid, p, BLEND_MM);
-    for (const p of ps) if (p.cut) addPart(grid, p, 0, true); // the open mouth
-    for (const p of ps) if (p.inset) addPart(grid, p, INSET_BLEND_MM); // teeth inside it
+    for (const p of ps) if (!p.inset) addPart(grid, p, BLEND_MM);
+    for (const p of ps) if (p.inset) addPart(grid, p, INSET_BLEND_MM); // teeth and tongue in an open mouth
     // flat cuts so a piece has a real footprint on the bed
     if (id === 'head') clipBelow(grid, rig.nodes.neckBase.y);
     // wings print lying on their inner face: the ribs' smooth blend must not bulge through it
