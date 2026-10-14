@@ -157,6 +157,7 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
     if (p.slot === 'eye') p.z = zs;
   }
   eyeballs(out, g.face!.eyes === EYES.stalks);
+  seatTeeth(out);
   // the inside of an ear is a real cup: the inner-ear outline is hollowed out of the ear's outer face
   for (const p of [...out]) if (p.slot === 'earIn') out.push({ ...p, id: `earCup${p.side > 0 ? '+' : '-'}`, thickness: EAR_CUP_MM * 2, bevel: EAR_CUP_MM * 0.8, carve: true, z: p.z + p.side * 0.25 });
   lipsAndNostrils(out, paths, ctx);
@@ -533,6 +534,38 @@ const EYE_OUT = 0.75;
  * and pupil are painted on its front, and the eyelids are round folds rolled over the top and under the bottom of the
  * ball, following the arcs the 2D sketch draws (eyelids in shapes.ts).
  */
+/** How deep (mm) a tooth's root sinks into the jaw it grows from. */
+const TOOTH_SEAT_MM = 0.5;
+/** How far in from the rim (mm) the jaw's width is measured for a tooth. */
+const TOOTH_IN_MM = 1.5;
+
+/**
+ * Teeth sit on the rims of the jaws, but the muzzle is rounded across Z: at the rim it is narrower than its full
+ * width, so teeth placed at a fixed Z hang beside the jaws in the air. Each tooth becomes its own part, set just inside
+ * the jaw's surface at its root (the point of the tooth deepest in the muzzle or head outline).
+ */
+function seatTeeth(out: Part3D[]): void {
+  const jaws = out.filter((p) => (p.slot === 'snout' || p.slot === 'head') && !p.limb).map((p) => ({ p, e: edgesOf(p.polys) }));
+  if (!jaws.length) return;
+  for (const t of out.filter((p) => p.slot === 'teeth' && p.side)) {
+    const teeth = t.polys.map((poly, k): Part3D | null => {
+      let root: XY | null = null, best = Infinity;
+      for (const [x, y] of poly) for (const { p, e } of jaws) { const d = sdPolys(e, p.polys, x, y); if (d < best) { best = d; root = [x, y]; } }
+      if (!root) return null;
+      // the jaw's width a little way in from the rim, along the outline's inward normal
+      const jaw = jaws.reduce((a, b) => sdPolys(b.e, b.p.polys, root![0], root![1]) < sdPolys(a.e, a.p.polys, root![0], root![1]) ? b : a);
+      const sd = (x: number, y: number): number => sdPolys(jaw.e, jaw.p.polys, x, y);
+      const gx = sd(root[0] + 0.1, root[1]) - sd(root[0] - 0.1, root[1]), gy = sd(root[0], root[1] + 0.1) - sd(root[0], root[1] - 0.1), gl = Math.hypot(gx, gy) || 1;
+      const [qx, qy] = [root[0] - (gx / gl) * TOOTH_IN_MM, root[1] - (gy / gl) * TOOTH_IN_MM];
+      const inside = (z: number): boolean => slabSd(jaw.p, jaw.e, qx, qy, z) < -TOOTH_SEAT_MM;
+      let z = Math.abs(t.z) + t.thickness / 2;
+      while (z > t.thickness / 2 && !inside(z)) z -= 0.1;
+      return { ...t, id: `${t.id}${k}`, polys: [poly], z: t.side * Math.max(t.thickness / 2, z - t.thickness / 2) };
+    });
+    out.splice(out.indexOf(t), 1, ...teeth.filter((x): x is Part3D => !!x));
+  }
+}
+
 function eyeballs(out: Part3D[], stalks: boolean): void {
   const head = out.find((p) => p.slot === 'head'), he = head ? edgesOf(head.polys) : [];
   for (const eye of out.filter((p) => p.slot === 'eye')) {
