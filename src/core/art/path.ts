@@ -6,13 +6,15 @@ type Cmd = [string, ...number[]];
 
 export class Path {
   private c: Cmd[] = [];
+  /** centre lines of tube-like shapes (lips), for the 3D solid that rolls a real tube along them */
+  spines: XY[][] = [];
   M(x: number, y: number): this { this.c.push(['M', x, y]); return this; }
   L(x: number, y: number): this { this.c.push(['L', x, y]); return this; }
   Q(cx: number, cy: number, x: number, y: number): this { this.c.push(['Q', cx, cy, x, y]); return this; }
   C(a: number, b: number, c: number, d: number, x: number, y: number): this { this.c.push(['C', a, b, c, d, x, y]); return this; }
   Z(): this { this.c.push(['Z']); return this; }
   get empty(): boolean { return this.c.length === 0; }
-  append(p: Path): this { this.c.push(...p.c); return this; }
+  append(p: Path): this { this.c.push(...p.c); this.spines.push(...p.spines); return this; }
 
   d(to: ToPx): string {
     let out = '';

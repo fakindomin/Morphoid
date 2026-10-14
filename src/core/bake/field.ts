@@ -153,7 +153,7 @@ export function slabDist(p: Part3D, sd: number, w: number, x?: number): number {
 /** Fuse a part into the grid with a smooth union. */
 export function addPart(g: Grid3, part: Part3D, k: number): void {
   const { h, nx, ny, nz } = g;
-  if (part.limb) { addLimb(g, part.limb, k, part.coat); return; }
+  if (part.limb) { addLimb(g, part.limb, k, part.coat, part.carve); return; }
   if (part.ribs) addLimb(g, part.ribs, k);
   const edges = edgesOf(part.polys);
   if (!edges.length) return;
@@ -205,7 +205,7 @@ export function addPart(g: Grid3, part: Part3D, k: number): void {
 }
 
 /** Fuse a true 3D part (a jointed leg) into the grid with a smooth union. */
-function addLimb(g: Grid3, limb: Limb, k: number, coat?: Coat): void {
+function addLimb(g: Grid3, limb: Limb, k: number, coat?: Coat, carve = false): void {
   const { h, nx, ny, nz } = g;
   const pad = k + 2 * h;
   const { lo, hi } = limbBox(limb);
@@ -219,6 +219,10 @@ function addLimb(g: Grid3, limb: Limb, k: number, coat?: Coat): void {
     let d3 = field[((kk - k0) * by + (j - j0)) * bx + (i - i0)]!;
     if (d3 === Infinity) continue;
     const idx = (kk * ny + j) * nx + i, cur = g.data[idx]!;
+    if (carve) { // smooth subtraction: the solid minus the limb
+      if (d3 < k) g.data[idx] = -smin(-cur, d3, k);
+      continue;
+    }
     const x = g.ox + i * h, y = g.oy + j * h, z = g.oz + kk * h;
     if (coat && Math.abs(d3) < 1.5) d3 += limbCoat(limb, coat, x, y, z, h);
     if (d3 > cur + k) continue;

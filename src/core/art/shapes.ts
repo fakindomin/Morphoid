@@ -22,7 +22,9 @@ export type SlotKind =
   /** the tongue in an open mouth */
   | 'tongue'
   /** eyelids: skin folds over and under the eyeball */
-  | 'lid';
+  | 'lid'
+  /** lips along the jaws' edges, a nostril in the nose */
+  | 'lip' | 'nostril';
 
 export const SLOTS = [
   ['shadow', 'shadow'], ['stand', 'accent'], ['arms', 'skin'], ['wingFar', 'accentFar'], ['tail', 'skin'], ['legBFar', 'skinFar'], ['legFFar', 'skinFar'],
@@ -30,7 +32,7 @@ export const SLOTS = [
   ['saddle', 'accent'], ['spines', 'accent'], ['finD', 'accent'], ['legF', 'skin'], ['finP', 'accent'], ['neck', 'skin'], ['neckDecor', 'skinFar'],
   ['mane', 'accent'], ['collar', 'accent'], ['ear', 'skin'], ['earIn', 'accentSoft'], ['horns', 'accent'], ['antennae', 'accent'], ['tuft', 'accent'],
   ['head', 'skin'], ['snout', 'skin'], ['wingNear', 'accent'], ['nose', 'ink'],
-  ['maw', 'ink'], ['tongue', 'tongue'], ['mouth', 'groove'], ['teeth', 'white'], ['whiskers', 'skinFar'], ['stalks', 'skin'], ['blush', 'blush'], ['toes', 'groove'], ['eye', 'white'], ['iris', 'iris'], ['pupil', 'ink'],
+  ['maw', 'ink'], ['tongue', 'tongue'], ['mouth', 'groove'], ['lips', 'lip'], ['nostrils', 'nostril'], ['teeth', 'white'], ['whiskers', 'skinFar'], ['stalks', 'skin'], ['blush', 'blush'], ['toes', 'groove'], ['eye', 'white'], ['iris', 'iris'], ['pupil', 'ink'],
   ['glint', 'glint'], ['lids', 'lid'], ['brow', 'groove'], ['wingRibs', 'groove'], ['bones', 'bone'],
 ] as const satisfies readonly (readonly [string, SlotKind])[];
 
@@ -211,6 +213,8 @@ export function buildShapes(pose: Pose, g: MorphotypeGenome, rig: Rig, to: ToPx,
 
 /** How far (radians) the lower jaw drops when the mouth is open: fangs gape wider than a row of small teeth. */
 export const JAW_OPEN = [0.42, 0.36] as const;
+/** How much deeper the lower jaw is than the muzzle below the mouth line. */
+const JAW_DEPTH = 1.35;
 
 /** Keep the part of polygon `poly` on the side of the line through `a` with normal `nrm` where dot(p - a, nrm) >= 0. */
 function clipHalf(poly: readonly XY[], a: XY, nrm: XY): XY[] {
@@ -230,12 +234,14 @@ function clipHalf(poly: readonly XY[], a: XY, nrm: XY): XY[] {
  * dark inside of the mouth (`maw`, set back from the lips), a tongue lying on the lower jaw, and the teeth along both
  * jaws' edges (fangs: an upper pair; a row: upper and lower), each ending well short of the opposite jaw.
  */
-export function openJaw(muzzle: readonly XY[], a: XY, b: XY, teeth: number): { upper: XY[]; lower: XY[]; maw: XY[]; tongue: XY[]; teeth: XY[][] } {
+export function openJaw(muzzle: readonly XY[], a: XY, b: XY, teeth: number): { upper: XY[]; lower: XY[]; maw: XY[]; tongue: XY[]; teeth: XY[][]; lips: XY[][] } {
   const L = Math.hypot(a[0] - b[0], a[1] - b[1]) || 1;
   const d: XY = [(a[0] - b[0]) / L, (a[1] - b[1]) / L], up: XY = [-d[1], d[0]];
   const th = JAW_OPEN[teeth === 1 ? 0 : 1]!, c = Math.cos(-th), sn = Math.sin(-th);
   const drop = (q: XY): XY => { const x = q[0] - b[0], y = q[1] - b[1]; return [b[0] + x * c - y * sn, b[1] + x * sn + y * c]; };
-  const upper = clipHalf(muzzle, b, up), lower = clipHalf(muzzle, b, [-up[0], -up[1]]).map(drop);
+  // the lower jaw is a little deeper than the half of the muzzle below the mouth line: a real chin, not a sliver
+  const deepen = (q: XY): XY => { const o = (q[0] - b[0]) * up[0] + (q[1] - b[1]) * up[1]; return o < 0 ? [q[0] + up[0] * o * (JAW_DEPTH - 1), q[1] + up[1] * o * (JAW_DEPTH - 1)] : q; };
+  const upper = clipHalf(muzzle, b, up), lower = clipHalf(muzzle, b, [-up[0], -up[1]]).map(deepen).map(drop);
   // the front of the mouth: where the mouth line leaves the muzzle
   let reach = 0;
   for (const q of upper) reach = Math.max(reach, (q[0] - b[0]) * d[0] + (q[1] - b[1]) * d[1]);
@@ -264,8 +270,17 @@ export function openJaw(muzzle: readonly XY[], a: XY, b: XY, teeth: number): { u
     for (const k of [0.86, 0.68, 0.5, 0.32]) tooth(front * k, 0.75, 1.8, false);
     for (const k of [0.77, 0.59, 0.41]) tooth(front * k, 0.7, 1.5, true);
   }
-  return { upper, lower, maw, tongue, teeth: out };
+  // lips: a roll along the edge of each jaw, from the corner of the mouth to its front
+  const lipLine = (lowerJaw: boolean): XY[] => Array.from({ length: 10 }, (_, i) => {
+    const q = on(-1 + ((front + 1) * i) / 9, lowerJaw ? -LIP_IN : LIP_IN);
+    return lowerJaw ? drop(q) : q;
+  });
+  return { upper, lower, maw, tongue, teeth: out, lips: [lipLine(false), lipLine(true)] };
 }
+
+/** How far (mm) inside a jaw's cut edge the lip's centre line runs, and the lip's radius. */
+export const LIP_IN = 0.5;
+export const LIP_R = 0.6;
 
 export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean): SlotPaths {
   const out = {} as SlotPaths;
@@ -641,7 +656,21 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
     const t = new Path();
     for (const tooth of jaw.teeth) t.append(polygon(tooth));
     put('teeth', t);
-  } else put('mouth', expr === 1 ? taper(smile[0], smile[1], smile[2], () => G, 8) : tube(mouthA, mouthB, G, G));
+    const lips = new Path();
+    for (const line of jaw.lips) for (let i = 1; i < line.length; i++) lips.append(tube(line[i - 1]!, line[i]!, LIP_R * 1.3, LIP_R * 1.3));
+    lips.spines = jaw.lips;
+    put('lips', lips);
+  } else {
+    const mouth = expr === 1 ? taper(smile[0], smile[1], smile[2], () => G, 8) : tube(mouthA, mouthB, G, G);
+    mouth.spines = [Array.from({ length: 12 }, (_, i) => mouthAt(i / 11))]; // a real groove in 3D, see spec3d
+    put('mouth', mouth);
+  }
+  // a nostril in the front of the nose (in 3D: a hole on each side of the nose's tip)
+  if (snoutType !== 2) {
+    const ns = ellipse(tipX - 0.15, tip[1] + 0.55, 0.42, 0.34);
+    ns.spines = [[[tipX + 0.8, tip[1] + 0.55], [tipX - 1.0, tip[1] + 0.6]]];
+    put('nostrils', ns);
+  }
   if (face.whiskers! > 0) {
     // Whiskers stick out SIDEWAYS from the muzzle (a flat plate lying in the horizontal plane, see whiskerTop in
     // spec3d). Seen from the side they are foreshortened: the strands that fan back and forward from one root (drawn as

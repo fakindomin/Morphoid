@@ -8,7 +8,7 @@ import { solveRig } from '../rig';
 import { targetPose } from '../art/pose';
 import { buildPaths } from '../art/shapes';
 import { buildParts3D, type ColorKey } from '../art/spec3d';
-import { BLEND_MM, INSET_BLEND_MM, MIN_SOLID_MM, SMOOTH_MOVE } from './bake';
+import { BLEND_MM, CARVE_BLEND_MM, INSET_BLEND_MM, MIN_SOLID_MM, SMOOTH_MOVE } from './bake';
 import { addPart, makeGrid } from './field';
 import { flipMesh, validateMesh } from './mesh';
 import { painter } from './paint';
@@ -37,12 +37,13 @@ export function previewSolid(genome: MorphotypeGenome, h = PREVIEW_VOXEL_MM): Pr
   const all = buildParts3D(paths, genome, rig);
   const parts = all.filter((p) => p.thickness >= MIN_SOLID_MM);
   const grid = makeGrid(parts, h, 3);
-  for (const p of parts) if (!p.inset) addPart(grid, p, BLEND_MM);
+  for (const p of parts) if (!p.inset && !p.carve) addPart(grid, p, BLEND_MM);
   for (const p of parts) if (p.inset) addPart(grid, p, INSET_BLEND_MM);
+  for (const p of parts) if (p.carve) addPart(grid, p, CARVE_BLEND_MM);
   let mesh = surfaceNets(grid);
   if (validateMesh(mesh).volume < 0) mesh = flipMesh(mesh);
   mesh = smoothMesh(mesh, SMOOTH_MOVE * h);
-  const colorAt = painter(parts, all.filter((p) => p.thickness < MIN_SOLID_MM), paths.pattern.flatten(8));
+  const colorAt = painter(parts.filter((p) => !p.carve), all.filter((p) => p.thickness < MIN_SOLID_MM), paths.pattern.flatten(8));
   return { ...paintSmooth(mesh.positions, mesh.indices, colorAt, grid), ms: performance.now() - t0 };
 }
 

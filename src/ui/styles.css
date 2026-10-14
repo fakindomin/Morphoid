@@ -175,6 +175,8 @@ kbd { font: 10.5px ui-monospace, Menlo, monospace; padding: 1px 6px; border: 1px
 .shape.ink { fill: var(--ink); stroke: none; }
 .shape.glint { fill: #fff; stroke: none; }
 .shape.lid { fill: var(--c1); stroke: color-mix(in srgb, var(--c1) 50%, #000); stroke-width: 1.1; }
+.shape.lip { fill: color-mix(in srgb, var(--c1) 62%, #000); stroke: none; }
+.shape.nostril { fill: #000; stroke: none; opacity: .7; }
 .shape.iris { fill: color-mix(in srgb, var(--c2) 75%, #fff); stroke: none; }
 .shape.blush { fill: #ff6f91; stroke: none; opacity: .32; filter: blur(1.5px); }
 .shape.groove { fill: color-mix(in srgb, var(--c1) 35%, var(--ink)); stroke: none; }

@@ -10,7 +10,7 @@ import type { MorphotypeGenome } from '../genome';
 import { dimensions as D, type Rig } from '../rig';
 import { groupOfSlot, type PartGroup } from '../print/plan';
 import { COAT_LIMB, type Coat } from './coat';
-import { EYES, eyelids, WHISKER_TURN, insectHips, insectLegW, insectRise, prolegXs, roundTail, STALK_W, wingRibs, STAND_MARGIN_MM, STAND_MM, WHISKER_FAN, WHISKER_PAD, WHISKER_W, whiskerLength, type SlotId, type SlotPaths } from './shapes';
+import { EYES, eyelids, LIP_R, WHISKER_TURN, insectHips, insectLegW, insectRise, prolegXs, roundTail, STALK_W, wingRibs, STAND_MARGIN_MM, STAND_MM, WHISKER_FAN, WHISKER_PAD, WHISKER_W, whiskerLength, type SlotId, type SlotPaths } from './shapes';
 import type { XY } from './path';
 import { typeSize } from './pose';
 import { insectLimb, legLimb, legSpecOf, octopusLimb, prolegLimb, type Cone, type Limb } from './limb';
@@ -49,6 +49,8 @@ export interface Part3D {
   limb?: Limb;
   /** added last with a tight blend, so it stays a crisp shape (teeth and tongue in an open mouth) */
   inset?: boolean;
+  /** cut out of the solid instead of added (a nostril, the groove of a closed mouth); never painted, see paint.ts */
+  carve?: boolean;
   /** raised 3D ribs fused onto the slab (wing bones, feather shafts), world mm */
   ribs?: Limb;
   /** coat texture (fur, scales, armour): a shallow relief sunk into the surface, see coat.ts */
@@ -99,7 +101,9 @@ export const SPEC_3D: Record<SlotId, Spec | null> = {
   // open mouth: the inside is set back 1.2 mm from each side of the jaws, the tongue narrower still
   maw: { color: 'ink', mirror: false, z: centre, t: (c) => Math.max(1.6, c.snoutW - 2.4), bevel: (t) => round(0.3)(t) },
   tongue: { color: 'c2soft', mirror: false, z: centre, t: (c) => Math.max(1.6, c.snoutW * 0.5), bevel: (t) => round(0.45)(t) },
-  mouth: { color: 'ink', mirror: true, z: (c) => c.snoutW / 2 - 0.1, t: () => 0.5, bevel: () => 0.1 },
+  mouth: { color: 'ink', mirror: true, z: (c) => c.snoutW / 2 - 0.1, t: () => 0.5, bevel: () => 0.1 }, // painted, and carved as a groove (see lipsAndNostrils)
+  lips: { color: 'c1dark', mirror: true, z: (c) => c.snoutW / 2, t: () => 1.2, bevel: () => 0.5 }, // rolled along the jaws' edges, see lipsAndNostrils
+  nostrils: { color: 'ink', mirror: true, z: (c) => c.snoutW * 0.18, t: () => 1, bevel: () => 0.4 }, // holes in the nose, see lipsAndNostrils
   teeth: { color: 'white', mirror: true, z: (c) => c.snoutW / 2 - 0.9, t: () => 1.4, bevel: () => 0.5 }, // along the jaws' rims
   arms: { color: 'c1', mirror: false, z: centre, t: () => D.OCTOPUS.armMm, bevel: (t) => round(0.45)(t) }, // top-view, see buildParts3D
   stand: { color: 'c2', mirror: false, z: centre, t: () => STAND_MM, bevel: (t) => round(0.3)(t) }, // top-view plate, see standTop
@@ -144,6 +148,7 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
     if (p.slot === 'eye') p.z = zs;
   }
   eyeballs(out, g.face!.eyes === EYES.stalks);
+  lipsAndNostrils(out, paths, ctx);
   for (const p of out) if (p.slot === 'stand') standTop(p, g, rig);
   // jointed legs of four- and two-legged creatures are real 3D chains (insects and caterpillars keep their slabs)
   const plan = rig.dims.plan, biped = plan === D.PLAN.biped;
@@ -260,6 +265,46 @@ function whiskerTop(p: Part3D, g: MorphotypeGenome, ctx: Ctx, print: boolean): v
   p.polys = polys;
   p.plane = 'xz';
   p.z = cy;
+}
+
+/** Radius (mm) of the groove a closed mouth is cut with, and of a nostril's opening. */
+const MOUTH_CUT_R = 0.45;
+const NOSTRIL_R = 0.5;
+
+/**
+ * Lips: a tube rolled along each jaw's edge on both sides of the muzzle, where its surface is. A closed mouth is a real
+ * groove cut along the mouth line; nostrils are holes bored into the front of the nose on either side of its centre.
+ */
+function lipsAndNostrils(out: Part3D[], paths: SlotPaths, ctx: Ctx): void {
+  const snout = out.find((p) => p.slot === 'snout'), se = snout ? edgesOf(snout.polys) : [];
+  // the muzzle's surface z at (x, y): where its rounded slab ends
+  const surfZ = (x: number, y: number): number => {
+    if (!snout) return ctx.snoutW / 2;
+    let z = snout.thickness / 2;
+    while (z > 0 && slabSd(snout, se, x, y, z) > 0) z -= 0.05;
+    return z;
+  };
+  const chain = (pts: [number, number, number][], r: number): Cone[] =>
+    pts.slice(1).map((b, i) => ({ a: pts[i]!, b, ra: r, rb: r }));
+  for (const p of out) {
+    const side = p.side || 1;
+    if (p.slot === 'lips') {
+      p.limb = { cones: paths.lips.spines.flatMap((line) => chain(line.map(([x, y]) => [x, y, side * (surfZ(x, y) - LIP_R * 0.45)]), LIP_R)), domes: [] };
+      p.inset = true;
+    }
+    if (p.slot === 'nostrils') {
+      const cones: Cone[] = paths.nostrils.spines.map(([a, b]) => ({ a: [a![0], a![1], p.z], b: [b![0], b![1], p.z], ra: NOSTRIL_R, rb: NOSTRIL_R * 0.6 }));
+      p.limb = { cones, domes: [] };
+      p.carve = true;
+    }
+  }
+  // the closed mouth's groove: one cut per side, following the muzzle's surface
+  // (only where the muzzle is wide enough: near a narrow tip the two cuts would meet and bore a tunnel through it)
+  for (const line of paths.mouth.spines) for (const side of [1, -1] as const) {
+    const pts = line.map(([x, y]): [number, number, number] => [x, y, side * (surfZ(x, y) - MOUTH_CUT_R * 0.2)]).filter((q) => Math.abs(q[2]) > MOUTH_CUT_R * 3);
+    if (pts.length < 2) continue;
+    out.push({ id: `mouthCut${side > 0 ? '+' : '-'}`, slot: 'mouth', group: null, polys: paths.mouth.flatten(12), z: side * ctx.snoutW / 2, thickness: 1, bevel: 0.4, color: 'ink', side, limb: { cones: chain(pts, MOUTH_CUT_R), domes: [] }, carve: true });
+  }
 }
 
 /** How far an eyeball stands out of the head, as a share of its radius: most of the ball shows, like a real eye. */

@@ -24,6 +24,8 @@ export const BLEND_MM = 2.4;
 export const MIN_SOLID_MM = 0.8;
 /** Blend radius of a crisp part (teeth, tongue): small, so it does not swell into its neighbours. */
 export const INSET_BLEND_MM = 0.5;
+/** Edge rounding (mm) of a cut (a nostril, a mouth groove). */
+export const CARVE_BLEND_MM = 0.35;
 /** How far skin smoothing may move a vertex, in voxels (see smooth.ts). */
 export const SMOOTH_MOVE = 0.9;
 
@@ -193,8 +195,9 @@ export function bake(
     const ps = byPiece.get(id)!;
     report(n, 0, PHASE_LABEL.field);
     const grid = makeGrid(ps, h, margin(id));
-    for (const p of ps) if (!p.inset) addPart(grid, p, BLEND_MM);
+    for (const p of ps) if (!p.inset && !p.carve) addPart(grid, p, BLEND_MM);
     for (const p of ps) if (p.inset) addPart(grid, p, INSET_BLEND_MM); // teeth and tongue in an open mouth
+    for (const p of ps) if (p.carve) addPart(grid, p, CARVE_BLEND_MM); // nostrils, a closed mouth's groove
     // flat cuts so a piece has a real footprint on the bed
     if (id === 'head') clipBelow(grid, rig.nodes.neckBase.y);
     // wings print lying on their inner face: the ribs' smooth blend must not bulge through it
@@ -257,7 +260,7 @@ export function bake(
     const validation = mesh === raw ? rawValidation : validateMesh(mesh);
     // a part swallowed whole by the piece it gave way to (ears inside a big octopus mantle) leaves nothing to print
     if (id !== 'body' && validation.shells === 0) { doneW += weights[n]! * rest; return; }
-    const paint = paintMesh(mesh, byPiece.get(id)!, decalsOf(id), id === 'body' ? paths.pattern.flatten(8) : []);
+    const paint = paintMesh(mesh, byPiece.get(id)!.filter((p) => !p.carve), decalsOf(id), id === 'body' ? paths.pattern.flatten(8) : []);
     const flat = id !== 'body' && GROUPS.find((x: { id: PartGroup }) => x.id === id)?.orientation === 'flat';
     pieces.push({ id, label: labelOf(id), orientation: flat ? 'flat' : 'upright', mesh, paint, validation, ms: performance.now() - t1, holesClosed, clashesWith: clashes.get(id) ?? [], joints: (joints.get(id) ?? []).map((j) => ({ ...j, hostId: hostsOf(id)[j.host]! })) });
     doneW += weights[n]! * rest;

@@ -127,7 +127,7 @@ function hostOf(slot: SlotId, g: GroupDef | undefined): PartGroup | undefined {
   return g?.host;
 }
 
-const FACE_RELIEF: readonly SlotId[] = ['eye', 'pupil', 'iris', 'lids', 'brow', 'mouth', 'maw', 'tongue', 'teeth', 'nose'];
+const FACE_RELIEF: readonly SlotId[] = ['eye', 'pupil', 'iris', 'lids', 'lips', 'nostrils', 'brow', 'mouth', 'maw', 'tongue', 'teeth', 'nose'];
 
 /** Which printed piece a slot belongs to under a plan: its own group, its host, or the body. */
 export function pieceOf(slot: SlotId, plan: PrintPlan): PartGroup | 'body' {
