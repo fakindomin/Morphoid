@@ -40,6 +40,9 @@ export const SLOTS = [
   ['head', 'skin'], ['snout', 'skin'], ['wingNear', 'accent'], ['nose', 'ink'],
   ['maw', 'ink'], ['tongue', 'tongue'], ['mouth', 'groove'], ['lips', 'lip'], ['nostrils', 'nostril'], ['teeth', 'white'], ['whiskers', 'skinFar'], ['stalks', 'skin'], ['blush', 'blush'], ['toes', 'groove'], ['claws', 'claw'], ['relief', 'relief'], ['eye', 'white'], ['iris', 'iris'], ['pupil', 'ink'],
   ['glint', 'glint'], ['lids', 'lid'], ['brow', 'groove'], ['wingRibs', 'groove'], ['bones', 'bone'],
+  // an insect's near legs once more, one slot per leg (hind, middle, front), each drawn over the body with its own
+  // outline so the six legs read apart (drawing only: the legs themselves are legB / legF)
+  ['legOver0', 'skin'], ['legOver1', 'skin'], ['legOver2', 'skin'],
 ] as const satisfies readonly (readonly [string, SlotKind])[];
 
 export type SlotId = (typeof SLOTS)[number][0];
@@ -292,6 +295,12 @@ export function openJaw(muzzle: readonly XY[], a: XY, b: XY, teeth: number): { u
 export const LIP_IN = 0.5;
 export const LIP_R = 0.6;
 
+/** How much an insect leg's 2D drawing leans per mm it reaches out sideways (see the insect legs in drawPaths). */
+const INSECT_SPLAY = 0.45;
+
+/** Build index (gene J) of the round, ball-shaped trunk. */
+const BUILD_ROUND = 3;
+
 /** How far (mm) the head and Pysk stay above whatever they could sink into: the bed, or an octopus's arms on it. */
 const HEAD_CLEAR_MM = 1;
 /** The slots of the head that must stay clear of the bed (an open mouth's lower jaw included). */
@@ -376,9 +385,19 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
     put('claws', claws);
   } else if (n.plan === D.PLAN.insect) {
     // six jointed legs: the thigh rises outwards to a knee above the flank, the shin drops steeply to a round foot
+    // they reach out sideways, so a pure side view stacks thigh and shin into one column: the drawing looks at them a
+    // little from the front (x shifted by how far out a point is), the near legs splaying forward, the far ones back
     const lw = insectLegW(legW), rise = insectRise(n.bodyG);
-    const [nb, fb] = far((dx) => limbOutline(insectLimb(insectHips([hipB[0] + dx, hipB[1]], [shF[0] + dx, shF[1]]).legB, lw, rise, n.bodyW, 1)));
-    const [nf, ff] = far((dx) => limbOutline(insectLimb(insectHips([hipB[0] + dx, hipB[1]], [shF[0] + dx, shF[1]]).legF, lw, rise, n.bodyW, 1)));
+    const splay = (l: Limb, k: number): Limb => {
+      const sh = (p: readonly [number, number, number]): [number, number, number] => [p[0] + k * p[2], p[1], p[2]];
+      return { ...l, cones: l.cones.map((c) => ({ ...c, a: sh(c.a), b: sh(c.b) })), domes: l.domes.map((d) => ({ ...d, c: sh(d.c) })) };
+    };
+    const insect2D = (pair: 'legB' | 'legF', dx: number): Path =>
+      limbOutline(splay(insectLimb(insectHips([hipB[0] + dx, hipB[1]], [shF[0] + dx, shF[1]])[pair], lw, rise, n.bodyW, 1), dx ? -INSECT_SPLAY : INSECT_SPLAY));
+    const [nb, fb] = far((dx) => insect2D('legB', dx));
+    const [nf, ff] = far((dx) => insect2D('legF', dx));
+    const hips = insectHips(hipB, shF), each = [...hips.legB, ...hips.legF.slice().reverse()]; // hind, middle, front
+    each.forEach((h, i) => put(`legOver${i}` as SlotId, limbOutline(splay(insectLimb([h], lw, rise, n.bodyW, 1), INSECT_SPLAY))));
     put('legB', nb); put('legBFar', fb); put('legF', nf); put('legFFar', ff);
   } else if (n.plan === D.PLAN.caterpillar) {
     // stubby prolegs along the flat belly, peeking out of the flanks (drawn over the torso)
@@ -421,7 +440,9 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
   const tilted = (path: Path): Path => path.rotated(torso[0], torso[1], n.tilt);
   put('torso', trunk());
   put('torsoClip', trunk());
-  put('belly', tilted(ellipse(torso[0] - 0.5, torso[1] - tRy * 0.38, tRx * 0.7, tRy * 0.48)));
+  // a lighter belly (drawing only): not on an insect or a round build, where a pale disc on the ball reads as a
+  // pregnant belly the solid does not have
+  if (n.plan !== D.PLAN.insect && n.build !== BUILD_ROUND) put('belly', tilted(ellipse(torso[0] - 0.5, torso[1] - tRy * 0.38, tRx * 0.7, tRy * 0.48)));
 
   const pattern = g.coat!.pattern!;
   const pt = new Path();

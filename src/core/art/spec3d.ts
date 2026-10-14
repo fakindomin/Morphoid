@@ -74,7 +74,7 @@ const centre = (): number => 0;
 
 /** `null` = deliberately not a 3D solid (render-only shading, or the mirror image of another slot). */
 export const SPEC_3D: Record<SlotId, Spec | null> = {
-  shadow: null, torsoClip: null, belly: null, glint: null, bones: null, blush: null, toes: null, // render-only
+  shadow: null, torsoClip: null, belly: null, legOver0: null, legOver1: null, legOver2: null, glint: null, bones: null, blush: null, toes: null, // render-only
   relief: null, // grooves sunk into the accessories (Part3D.relief), see relief.ts
   wingRibs: null, // drawn crests of the wing ribs; the ribs themselves are `ribs` on the wing, see buildParts3D
   legBFar: null, legFFar: null, wingFar: null,                          // mirror images, generated from the near slot

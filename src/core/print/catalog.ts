@@ -57,7 +57,7 @@ export const PARTS: readonly PartSpec[] = [
 ];
 
 /** Drawn only to look good; carries no geometry and must never suggest any. */
-export const RENDER_ONLY_SLOTS: readonly SlotId[] = ['shadow', 'torsoClip', 'belly', 'glint', 'bones', 'blush', 'toes', 'wingRibs', 'coat', 'coatLegs', 'coatOn', 'coatLegB', 'coatLegF', 'relief'];
+export const RENDER_ONLY_SLOTS: readonly SlotId[] = ['shadow', 'torsoClip', 'belly', 'glint', 'bones', 'blush', 'toes', 'wingRibs', 'coat', 'coatLegs', 'coatOn', 'coatLegB', 'coatLegF', 'relief', 'legOver0', 'legOver1', 'legOver2'];
 
 /** Additive parts that form the support-free print silhouette (whiskers are printed separately). */
 export const PRINT_SOLID_SLOTS: readonly SlotId[] = [
@@ -70,5 +70,5 @@ export const SLOT_NAME_PL: Record<SlotId, string> = {
   torso: 'brzuch/tułów', torsoClip: 'tułów', belly: 'brzuch', pattern: 'wzór', coat: 'faktura', coatLegs: 'faktura nóg', coatOn: 'faktura', coatLegB: 'faktura', coatLegF: 'faktura', saddle: 'siodło', spines: 'kolce', legF: 'noga przednia',
   neck: 'szyja', neckDecor: 'ozdoba szyi', mane: 'grzywa', collar: 'obroża', ear: 'ucho', earIn: 'ucho', horns: 'rogi', antennae: 'czułki', stalks: 'szypułki oczu', tuft: 'czub',
   head: 'głowa', snout: 'pysk', wingNear: 'skrzydło', nose: 'nos', mouth: 'usta', maw: 'wnętrze pyska', tongue: 'język', teeth: 'zęby', whiskers: 'wąsy', eye: 'oko',
-  pupil: 'źrenica', glint: 'odblask', iris: 'tęczówka', blush: 'rumieniec', toes: 'paluszki', brow: 'brew', lids: 'powieki', lips: 'wargi', claws: 'pazury', relief: 'prążki', nostrils: 'nozdrza', wingRibs: 'kości skrzydeł', bones: 'kości',
+  pupil: 'źrenica', glint: 'odblask', iris: 'tęczówka', blush: 'rumieniec', toes: 'paluszki', brow: 'brew', lids: 'powieki', lips: 'wargi', claws: 'pazury', relief: 'prążki', nostrils: 'nozdrza', wingRibs: 'kości skrzydeł', bones: 'kości', legOver0: 'noga', legOver1: 'noga', legOver2: 'noga',
 };

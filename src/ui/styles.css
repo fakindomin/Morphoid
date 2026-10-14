@@ -406,3 +406,6 @@ button.status-bake:hover { color: var(--cyan); }
 .dna-strip.copied { border-color: var(--cyan); box-shadow: 0 0 0 2px var(--cyan-glow); }
 /* one line: the code (about 130 characters, a monospace character is 0.6 em) shrinks to fit the width */
 .dna-strip code { display: block; white-space: nowrap; font: 12px/1.3 ui-monospace, Menlo, monospace; font-size: min(12px, (100cqw - 64px) / 80); color: var(--text); }
+
+/* an insect's near legs over the body: a fat ink stroke under each leg's fill leaves one clean outline per leg */
+.leg-ink { fill: var(--ink); stroke: var(--ink); stroke-width: 4.5; stroke-linejoin: round; }

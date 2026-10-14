@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { solveRig, SOCKET_NODE, type SocketId } from '../../core';
+import { dimensions as D, solveRig, SOCKET_NODE, type SocketId } from '../../core';
 import { PALETTES } from '../../core/palette';
 import { studio } from '../studio';
 import { clonePose, easePose, targetPose, type Pose } from '../../core/art/pose';
@@ -14,7 +14,7 @@ const SOLID: readonly SlotKind[] = ['skin', 'skinFar', 'accent', 'accentFar', 'a
 const DETAIL: readonly SlotKind[] = ['white', 'iris', 'ink', 'glint', 'lid', 'lip', 'nostril', 'claw', 'relief', 'groove', 'blush', 'tongue'];
 /** Parts drawn in front of the coated ones that hide their texture (the near front leg covers the torso). */
 const COAT_CUT = ['legF', 'head', 'snout', 'ear', 'stalks'] as const;
-const SIL_SLOTS = SLOTS.filter(([, kind]) => SOLID.includes(kind));
+const SIL_SLOTS = SLOTS.filter(([id, kind]) => SOLID.includes(kind) && !id.startsWith('legOver'));
 /**
  * Paint layers, back to front. The skin-coloured parts are fused into one smooth body (the 2D twin of the bake's
  * smooth union), so the head, neck, torso, legs and tail read as one figurine, not a pile of shapes. Accents that grow
@@ -23,8 +23,9 @@ const SIL_SLOTS = SLOTS.filter(([, kind]) => SOLID.includes(kind));
  */
 type Layer = 'far' | 'behind' | 'skin' | 'over' | 'detail';
 const BEHIND = new Set<string>(['stand', 'horns', 'antennae', 'tuft', 'spines', 'finD', 'mane']);
+const OVER_LEGS = ['legOver0', 'legOver1', 'legOver2'] as const;
 const layerOf = (id: string, kind: SlotKind): Layer | null =>
-  kind === 'clip' || id === 'shadow' ? null
+  kind === 'clip' || id === 'shadow' || id.startsWith('legOver') ? null
     : DETAIL.includes(kind) || kind === 'bone' ? 'detail'
     : id === 'neckDecor' ? 'over'
     : kind === 'skinFar' || kind === 'accentFar' ? 'far'
@@ -58,6 +59,7 @@ export function Canvas2D({ showBones, breathing, frozen, onSocket, markers = [] 
   const reg = (id: string, k: number) => (el: SVGPathElement | null): void => { (slotEls.current[id] ??= [])[k] = el; };
   const figureRef = useRef<SVGGElement>(null);
   const lightRef = useRef<SVGRectElement>(null);
+  const insectRef = useRef<SVGGElement>(null);
   const socketEls = useRef<Record<string, SVGGElement | null>>({});
   const sizeRef = useRef<SVGTextElement>(null);
   const live = useRef({ showBones, breathing, frozen });
@@ -98,6 +100,7 @@ export function Canvas2D({ showBones, breathing, frozen, onSocket, markers = [] 
 
       if (dirty || remaining > 1e-3 || (br && !fz)) {
         const shapes = buildShapes(cur, g, rig, to, sb);
+        insectRef.current?.setAttribute('visibility', rig.dims.plan === D.PLAN.insect ? 'visible' : 'hidden');
         for (const [id] of SLOTS) {
           if (cache[id] !== shapes[id]) {
             cache[id] = shapes[id];
@@ -253,6 +256,16 @@ export function Canvas2D({ showBones, breathing, frozen, onSocket, markers = [] 
               ))}
             </g>
           ))}
+          {/* an insect's near legs splay out sideways over its flank: drawn once more on top, each with its own outline,
+              so the six jointed legs read as legs and not as one block fused with the body */}
+          <g ref={insectRef} className="insect-legs" visibility="hidden" filter="url(#form)">
+            {OVER_LEGS.map((id) => (
+              <g key={id}>
+                <path ref={reg(id, 1)} className="leg-ink" d="" />
+                <path ref={reg(id, 0)} className="shape skin" style={{ stroke: 'none' }} d="" />
+              </g>
+            ))}
+          </g>
         </g>
         <rect ref={lightRef} className="light" clipPath="url(#silClip)" fill="url(#lightGrad)" />
         <rect className="hatch" x={0} y={0} width={W} height={H} fill="url(#hatch)" mask="url(#shadeMask)" />
