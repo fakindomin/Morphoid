@@ -32,6 +32,17 @@ describe('bake: SDF fusion -> watertight solid', () => {
     expect(r.pieces).toHaveLength(1);
   });
 
+  it('teeth sit inside an open mouth carved into the muzzle, still ONE watertight shell', { timeout: 60000 }, () => {
+    const closed = bake(defaultGenome(), planWhole(), 'standard').pieces.find((p) => p.id === 'body')!.validation.volume;
+    for (const t of [1, 2]) {
+      const g = defaultGenome(); g.face!.teeth = t;
+      const v = bake(g, planWhole(), 'standard').pieces.find((p) => p.id === 'body')!.validation;
+      expect(v.watertight, `teeth ${t}`).toBe(true);
+      expect(v.shells, `teeth ${t}: every tooth is attached`).toBe(1);
+      expect(v.volume, `teeth ${t}: the mouth is open`).toBeLessThan(closed);
+    }
+  });
+
   it('coat texture (fur, scales, armour) sinks a relief into the torso and still bakes ONE watertight shell', { timeout: 60000 }, () => {
     const smooth = bake(defaultGenome(), planWhole(), 'standard').pieces.find((p) => p.id === 'body')!.validation.volume;
     for (const t of [1, 2, 3]) {

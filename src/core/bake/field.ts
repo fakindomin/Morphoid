@@ -151,7 +151,8 @@ export function slabDist(p: Part3D, sd: number, w: number, x?: number): number {
 }
 
 /** Fuse a part into the grid with a smooth union. */
-export function addPart(g: Grid3, part: Part3D, k: number): void {
+/** Fuse `part` into the field with blend radius k; a `carve` removes it instead (a hard cut, no blend). */
+export function addPart(g: Grid3, part: Part3D, k: number, carve = false): void {
   const { h, nx, ny, nz } = g;
   if (part.limb) { addLimb(g, part.limb, k, part.coat); return; }
   if (part.ribs) addLimb(g, part.ribs, k);
@@ -198,6 +199,7 @@ export function addPart(g: Grid3, part: Part3D, k: number): void {
       }
       const idx = top ? (v * ny + w) * nx + i : (w * ny + v) * nx + i;
       const cur = g.data[idx]!;
+      if (carve) { if (-d3 > cur) g.data[idx] = -d3; continue; }
       if (d3 > cur + k) continue;
       g.data[idx] = smin(cur, d3, k);
     }

@@ -48,7 +48,9 @@ function partSd(s: Shape, x: number, y: number, z: number): number {
 export function paintMesh(mesh: Mesh, solids: Part3D[], decals: Part3D[], pattern: XY[][] = []): Uint8Array {
   const P = mesh.positions, I = mesh.indices, nt = I.length / 3;
   const out = new Uint8Array(nt);
-  const solid = solids.map((p) => shapeOf(p, REACH_MM));
+  const solid = solids.filter((p) => !p.cut).map((p) => shapeOf(p, REACH_MM));
+  // a carved opening (the open mouth) removes the skin around it: inside it, the parts it cut do not count as near
+  const cuts = solids.filter((p) => p.cut).map((p) => shapeOf(p, REACH_MM));
   const decal = decals.map((p) => shapeOf(p, DECAL_Z_MM));
   const patEdges = pattern.length ? edgesOf(pattern) : [];
   for (let t = 0; t < nt; t++) {
@@ -61,12 +63,19 @@ export function paintMesh(mesh: Mesh, solids: Part3D[], decals: Part3D[], patter
     let color: ColorKey = solids[0]?.color ?? 'c1', best = Infinity, near: Part3D | null = null;
     for (const s of solid) {
       if (!within(s, x, y, z)) continue;
-      const d = partSd(s, x, y, z);
+      let d = partSd(s, x, y, z);
+      for (const c of cuts) {
+        if (!within(c, x, y, z)) continue;
+        const sd2 = sdPolys(c.edges, c.part.polys, x, y);
+        // the skin it cut is gone here; a tooth counts only inside the opening (not on the lip above its root)
+        d = s.part.inset ? Math.max(d, sd2 + 0.35) : Math.max(d, -partSd(c, x, y, z));
+      }
       if (d < best) { best = d; color = s.part.color; near = s.part; }
     }
     if (near?.slot === 'torso' && patEdges.length && sdPolys(patEdges, pattern, x, y) < 0) color = 'c3';
     // colour regions: the last one drawn wins (a pupil over the eye), only on the face turned to its side
     for (const s of decal) {
+      if (near?.inset) break; // the teeth keep their white inside the dark mouth
       if (!within(s, x, y, z)) continue;
       const side = s.part.side || Math.sign(s.part.z) || Math.sign(z);
       if (nz * side / nlen < 0.2) continue;
