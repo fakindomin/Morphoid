@@ -139,7 +139,7 @@ export function slabDist(p: Part3D, sd: number, w: number, x?: number): number {
   const half = (p.thickness / 2) * (x === undefined ? 1 : widthAt(p, x));
   if (p.dome && p.side) {
     // the outer half of a slab grown inwards by R and rounded by R, cut flat at the inner face
-    const R = Math.min(p.dome, p.thickness), o = w * p.side, he = half + R / 2;
+    const R = Math.min(p.dome, p.thickness), o = w * (p.domeSide ?? p.side), he = half + R / 2;
     const qx = sd + R, qy = Math.abs(o + R / 2) - he + R;
     const d = Math.min(Math.max(qx, qy), 0) + Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) - R;
     return Math.max(d, -half - o);
@@ -198,6 +198,7 @@ export function addPart(g: Grid3, part: Part3D, k: number): void {
       }
       const idx = top ? (v * ny + w) * nx + i : (w * ny + v) * nx + i;
       const cur = g.data[idx]!;
+      if (part.carve) { if (d3 < k) g.data[idx] = -smin(-cur, d3, k); continue; } // a hollow cut into the solid
       if (d3 > cur + k) continue;
       g.data[idx] = smin(cur, d3, k);
     }

@@ -49,6 +49,8 @@ export interface Part3D {
   limb?: Limb;
   /** added last with a tight blend, so it stays a crisp shape (teeth and tongue in an open mouth) */
   inset?: boolean;
+  /** which face of a `dome` part is the round one (default: its side, away from the centre plane); +1 = up for a top-view part */
+  domeSide?: 1 | -1;
   /** cut out of the solid instead of added (a nostril, the groove of a closed mouth); never painted, see paint.ts */
   carve?: boolean;
   /** raised 3D ribs fused onto the slab (wing bones, feather shafts), world mm */
@@ -108,7 +110,7 @@ export const SPEC_3D: Record<SlotId, Spec | null> = {
   teeth: { color: 'white', mirror: true, z: (c) => c.snoutW / 2 - 0.9, t: () => 1.4, bevel: () => 0.5 }, // along the jaws' rims
   arms: { color: 'c1', mirror: false, z: centre, t: () => D.OCTOPUS.armMm, bevel: (t) => round(0.45)(t) }, // top-view, see buildParts3D
   stand: { color: 'c2', mirror: false, z: centre, t: () => STAND_MM, bevel: (t) => round(0.3)(t) }, // top-view plate, see standTop
-  whiskers: { color: 'c1dark', mirror: true, z: () => 0, t: () => 1.6, bevel: (t) => flat(t) }, // top-view plate, see whiskerTop
+  whiskers: { color: 'c1dark', mirror: true, z: () => 0, t: () => 1.6, bevel: (t) => flat(t), dome: () => WHISKER_W * 0.46 }, // top-view plate, see whiskerTop
 };
 
 export function ctxFor(rig: Rig): Ctx {
@@ -149,6 +151,8 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
     if (p.slot === 'eye') p.z = zs;
   }
   eyeballs(out, g.face!.eyes === EYES.stalks);
+  // the inside of an ear is a real cup: the inner-ear outline is hollowed out of the ear's outer face
+  for (const p of [...out]) if (p.slot === 'earIn') out.push({ ...p, id: `earCup${p.side > 0 ? '+' : '-'}`, thickness: EAR_CUP_MM * 2, bevel: EAR_CUP_MM * 0.8, carve: true, z: p.z + p.side * 0.25 });
   lipsAndNostrils(out, paths, ctx);
   for (const p of out) if (p.slot === 'stand') standTop(p, g, rig);
   // jointed legs of four- and two-legged creatures are real 3D chains (insects and caterpillars keep their slabs)
@@ -252,6 +256,12 @@ function standTop(p: Part3D, g: MorphotypeGenome, rig: Rig): void {
  * Whiskers stick out sideways: the part becomes a top-view plate (x, z) at the height of their root in the side view,
  * three strands fanning out of the muzzle side; for print, a pad half sunk into the muzzle holds them together.
  */
+/** How deep (mm) the cup inside an ear is. */
+const EAR_CUP_MM = 0.9;
+
+/** Width of a whisker at its tip, as a share of its root. */
+const WHISKER_TIP = 0.45;
+
 function whiskerTop(p: Part3D, g: MorphotypeGenome, ctx: Ctx, print: boolean): void {
   const pad = p.polys[0]!; // the root dot of the drawing: the side-view position of the pad
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
@@ -266,12 +276,15 @@ function whiskerTop(p: Part3D, g: MorphotypeGenome, ctx: Ctx, print: boolean): v
   for (const a of WHISKER_FAN) {
     const ax = cx, az = zr + 0.8, bx = cx + Math.sin(a + off) * len, bz = zr + 1.2 + Math.cos(a + off) * len;
     const l = Math.hypot(bx - ax, bz - az), nx = -(bz - az) / l * (WHISKER_W / 2), nz = (bx - ax) / l * (WHISKER_W / 2);
-    const quad: XY[] = [[ax + nx, side * (az + nz)], [bx + nx, side * (bz + nz)], [bx - nx, side * (bz - nz)], [ax - nx, side * (az - nz)]];
+    // a hair tapers to its tip (and its top is rounded, see SPEC_3D: a strand, not a flat strip)
+    const tx = nx * WHISKER_TIP, tz = nz * WHISKER_TIP;
+    const quad: XY[] = [[ax + nx, side * (az + nz)], [bx + tx, side * (bz + tz)], [bx - tx, side * (bz - tz)], [ax - nx, side * (az - nz)]];
     polys.push(side > 0 ? quad : quad.reverse());
   }
   p.polys = polys;
   p.plane = 'xz';
   p.z = cy;
+  p.domeSide = 1; // round on top, flat underneath: the set prints lying on the bed
 }
 
 /** Radius (mm) of the groove a closed mouth is cut with, and of a nostril's opening. */
