@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { studio, useStudioState } from '../studio';
 import { copyText } from './RightColumn';
 
-/** The creature's DNA code above the sketch: shown in full, one click copies it. */
+/** The creature's DNA code above the sketch: one line, live with every change; one click copies it (the frame flashes). */
 export function DnaStrip() {
   useStudioState(); // re-render on every genome change
   const { code } = studio.creature();
@@ -16,7 +16,6 @@ export function DnaStrip() {
   };
   return (
     <button type="button" className={`dna-strip${copied ? ' copied' : ''}`} onClick={copy} title="Kliknij, aby skopiować kod DNA" aria-label="Kod DNA stwora. Kliknij, aby skopiować">
-      <span className="dna-strip-head"><span>🧬 DNA</span><span className="dna-strip-hint">{copied ? 'Skopiowano!' : 'Kliknij, aby skopiować'}</span></span>
       <code>{code}</code>
     </button>
   );
