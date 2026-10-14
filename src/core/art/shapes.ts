@@ -292,7 +292,35 @@ export function openJaw(muzzle: readonly XY[], a: XY, b: XY, teeth: number): { u
 export const LIP_IN = 0.5;
 export const LIP_R = 0.6;
 
+/** How far (mm) the head and Pysk stay above whatever they could sink into: the bed, or an octopus's arms on it. */
+const HEAD_CLEAR_MM = 1;
+/** The slots of the head that must stay clear of the bed (an open mouth's lower jaw included). */
+const HEAD_LOW_SLOTS: SlotId[] = ['head', 'snout', 'nose', 'maw', 'tongue', 'teeth', 'lips'];
+/** The rig nodes carried along when the head is lifted (the neck stretches to follow). */
+const HEAD_NODES: NodeId[] = ['head', 'muzzle', 'hornRoot', 'earRoot'];
+
+const lowestY = (paths: SlotPaths, slots: SlotId[]): number => {
+  let low = Infinity;
+  for (const id of slots) for (const poly of paths[id].flatten(6)) for (const [, y] of poly) low = Math.min(low, y);
+  return low;
+};
+
+/**
+ * Every slot's outline. A head held low (an octopus's or a fish's, a dropped jaw under a long Pysk) could reach
+ * below the bed, into the stand, or into the arms lying around an octopus: it is lifted until its lowest point clears
+ * them by HEAD_CLEAR_MM, the neck stretching to follow, so 2D, 3D and print all get the same lifted head.
+ */
 export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean): SlotPaths {
+  const out = drawPaths(pose, g, rig, showBones);
+  const arms = pose.n.plan === D.PLAN.octopus ? Math.max(D.OCTOPUS.armMm * 1.5, ...out.arms.flatten(6).flatMap((p) => p.map(([, y]) => y))) : 0;
+  const floor = arms + HEAD_CLEAR_MM, low = lowestY(out, HEAD_LOW_SLOTS);
+  if (!(low < floor)) return out;
+  const pos = { ...pose.pos };
+  for (const id of HEAD_NODES) pos[id] = [pos[id][0], pos[id][1] + floor - low];
+  return drawPaths({ ...pose, pos }, g, rig, showBones);
+}
+
+function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean): SlotPaths {
   const out = {} as SlotPaths;
   for (const [id] of SLOTS) out[id] = new Path();
   const put = (id: SlotId, path: Path): void => { out[id] = path; };

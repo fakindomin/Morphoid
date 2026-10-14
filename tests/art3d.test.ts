@@ -158,3 +158,17 @@ describe('mount points: small elements sit on the real skin of the head and Pysk
     }
   });
 });
+
+describe('the head never sinks into the bed, the stand or an octopus\'s arms', () => {
+  it('head and Pysk (open jaw included) stay above the bed on 300 random creatures', () => {
+    const rnd = mulberry32(77);
+    for (let i = 0; i < 300; i++) {
+      const g = randomGenome(rnd);
+      const { rig, paths } = parts(g);
+      let low = Infinity, armsTop = 0;
+      for (const id of ['head', 'snout', 'maw', 'tongue', 'teeth', 'lips'] as const) for (const poly of paths[id].flatten(6)) for (const [, y] of poly) low = Math.min(low, y);
+      for (const poly of paths.arms.flatten(6)) for (const [, y] of poly) armsTop = Math.max(armsTop, y);
+      expect(low, `${rig.code}: head reaches ${low.toFixed(1)} mm`).toBeGreaterThan(armsTop + 0.5);
+    }
+  });
+});
