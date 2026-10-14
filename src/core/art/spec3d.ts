@@ -14,7 +14,7 @@ import { reliefSpec, rootOf, type Relief } from './relief';
 import { EYES, eyelids, LIP_R, WHISKER_TURN, insectHips, insectLegW, insectRise, prolegXs, roundTail, STALK_W, wingRibs, STAND_MARGIN_MM, STAND_MM, WHISKER_FAN, WHISKER_PAD, WHISKER_W, whiskerLength, type SlotId, type SlotPaths } from './shapes';
 import type { XY } from './path';
 import { typeSize } from './pose';
-import { insectLimb, legLimb, legSpecOf, octopusLimb, prolegLimb, type Cone, type Limb } from './limb';
+import { insectLimb, legLimb, legSpecOf, octopusLimb, prolegLimb, type Cone, type Dome, type Limb } from './limb';
 import { edgesOf, sdPolys, slabDist, type Edge } from '../bake/field';
 
 export type ColorKey = 'c1' | 'c1dark' | 'c2' | 'c2soft' | 'c3' | 'ink' | 'white';
@@ -52,6 +52,8 @@ export interface Part3D {
   inset?: boolean;
   /** which face of a `dome` part is the round one (default: its side, away from the centre plane); +1 = up for a top-view part */
   domeSide?: 1 | -1;
+  /** the body pattern (spots, stripes) as a shallow sunk relief, side-view polygons; see PATTERN_DEPTH in field.ts */
+  pattern?: XY[][];
   /** growth rings or rays sunk into the surface (horns, fins, feathers), see relief.ts */
   relief?: Relief;
   /** cut out of the solid instead of added (a nostril, the groove of a closed mouth); never painted, see paint.ts */
@@ -195,6 +197,18 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
     p.ribs = { cones: wingRibs(g.wings!.type!, [n.x, n.y], wingS).map((r) => ({ a: [r.a[0], r.a[1], zAt(r.ra)], b: [r.b[0], r.b[1], zAt(r.rb)], ra: r.ra, rb: r.rb })), domes: [] };
   }
   if (plan === D.PLAN.quadruped || biped) for (const p of out) if (p.slot === 'torso') p.widths = torsoWidths(p, rig);
+  // the body pattern is felt as well as seen: a shallow relief on the torso
+  const pat = paths.pattern.flatten(8);
+  if (pat.length) for (const p of out) if (p.slot === 'torso' && !p.limb) p.pattern = pat;
+  // muscles: a shoulder and a haunch over the top of every jointed leg (strongest on a muscular build)
+  const brawn = MUSCLE[rig.dims.build] ?? 0;
+  if ((plan === D.PLAN.quadruped || biped) && brawn > 0) for (const side of [1, -1] as const) {
+    const w = rig.dims.legWidth, z = side * (ctx.legZ + w * 0.12);
+    const at = (n: { x: number; y: number }, k: [number, number, number], dy: number): Dome => ({ c: [n.x, n.y + dy * w, z], r: [k[0] * w * brawn, k[1] * w * brawn, Math.min(k[2] * w * brawn, Math.abs(z) * 0.5)] });
+    const domes = [at(rig.nodes.hipB, [0.7, 0.8, 0.3], -0.15), ...(biped ? [] : [at(rig.nodes.shoulderF, [0.6, 0.72, 0.28], -0.1)])];
+    const torso = out.find((p) => p.slot === 'torso');
+    if (torso) out.push({ ...torso, id: `muscle${side > 0 ? '+' : '-'}`, side, z, limb: { cones: [], domes }, widths: undefined, pattern: undefined });
+  }
   // relief: rings round horns and antennae, rays across fins, feathers, a mane
   for (const p of out) {
     const r = p.limb || p.plane ? null : reliefSpec(p.slot, g);
@@ -217,6 +231,9 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
  * Seen from above a torso is not a plank: full over the haunches, drawn in at the waist, deepest over the chest. Values
  * are half-width factors at the rear end, the hips, the waist, the shoulders and the front end, per build (gene J).
  */
+/** Size of the shoulder and haunch muscles per build (normal, stick, muscular, round, skeletal); 0 = none. */
+const MUSCLE: readonly number[] = [0.75, 0, 0.95, 0, 0];
+
 const ANATOMY: readonly (readonly [number, number, number, number, number])[] = [
   [0.86, 0.97, 0.86, 1, 0.9],   // normal
   [0.8, 0.92, 0.78, 1, 0.86],   // stick
