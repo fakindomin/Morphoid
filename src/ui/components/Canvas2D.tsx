@@ -11,7 +11,7 @@ const to = (x: number, y: number) => [CX - x * SCALE, GROUND - y * SCALE] as con
 /** Solid parts that make up the figurine's silhouette: drawn once more underneath as one outline. */
 const SOLID: readonly SlotKind[] = ['skin', 'skinFar', 'accent', 'accentFar', 'accentSoft', 'white'];
 /** Small details drawn above the shading (eyes, mouth, nose), so the light does not tint them. */
-const DETAIL: readonly SlotKind[] = ['white', 'iris', 'ink', 'glint', 'groove', 'blush', 'tongue'];
+const DETAIL: readonly SlotKind[] = ['white', 'iris', 'ink', 'glint', 'lid', 'groove', 'blush', 'tongue'];
 /** Parts drawn in front of the coated ones that hide their texture (the near front leg covers the torso). */
 const COAT_CUT = ['legF', 'head', 'snout', 'ear', 'stalks'] as const;
 const SIL_SLOTS = SLOTS.filter(([, kind]) => SOLID.includes(kind));

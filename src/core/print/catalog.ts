@@ -44,7 +44,7 @@ export const PARTS: readonly PartSpec[] = [
   { id: 'crest', blocks: ['crest'], slots: ['tuft', 'mane', 'spines'], repr3D: 'cone-array', modular: false, note: 'kolce/czub z czubkiem >= 1,2 mm' },
   { id: 'wings', blocks: ['wings'], slots: ['wingNear', 'wingFar'], repr3D: 'plate', modular: true, note: 'płytki 1,6 mm po obu stronach; w trybie modułowym drukowane na płasko z czopem' },
   { id: 'tail', blocks: ['tail'], slots: ['tail'], repr3D: 'sweep', modular: false, note: 'sweep eliptyczny od nasady' },
-  { id: 'eyes', blocks: ['face'], slots: ['eye', 'pupil'], repr3D: 'dome', modular: false, note: 'oko = kopułka >= 0,8 mm, źrenica = kolor/zagłębienie 0,4 mm' },
+  { id: 'eyes', blocks: ['face'], slots: ['eye', 'pupil', 'iris', 'lids'], repr3D: 'dome', modular: false, note: 'oko = gałka wystająca z głowy, tęczówka i źrenica = kolor, powieki = wałki nad i pod gałką' },
   { id: 'mouth', blocks: ['face'], slots: ['mouth', 'brow', 'maw', 'tongue'], repr3D: 'groove', modular: false, note: 'zamknięte usta: rowek 0,8 x 0,5 mm; otwarte (z zębami): żuchwa opuszczona, wnętrze cofnięte 1,2 mm, język' },
   { id: 'teeth', blocks: ['face'], slots: ['teeth'], repr3D: 'dome', modular: false, note: 'zęby 1,4 mm wzdłuż krawędzi szczęk w otwartym pysku' },
   { id: 'arms', blocks: ['plan'], slots: ['arms'], repr3D: 'plate', modular: false, note: 'osiem macek 3,2 mm leżących płasko na stole wokół piasty pod płaszczem (bryła z góry)' },
@@ -57,7 +57,7 @@ export const PARTS: readonly PartSpec[] = [
 ];
 
 /** Drawn only to look good; carries no geometry and must never suggest any. */
-export const RENDER_ONLY_SLOTS: readonly SlotId[] = ['shadow', 'torsoClip', 'belly', 'glint', 'bones', 'iris', 'blush', 'toes', 'wingRibs', 'coat', 'coatLegs', 'coatOn', 'coatLegB', 'coatLegF'];
+export const RENDER_ONLY_SLOTS: readonly SlotId[] = ['shadow', 'torsoClip', 'belly', 'glint', 'bones', 'blush', 'toes', 'wingRibs', 'coat', 'coatLegs', 'coatOn', 'coatLegB', 'coatLegF'];
 
 /** Additive parts that form the support-free print silhouette (whiskers are printed separately). */
 export const PRINT_SOLID_SLOTS: readonly SlotId[] = [
@@ -70,5 +70,5 @@ export const SLOT_NAME_PL: Record<SlotId, string> = {
   torso: 'brzuch/tułów', torsoClip: 'tułów', belly: 'brzuch', pattern: 'wzór', coat: 'faktura', coatLegs: 'faktura nóg', coatOn: 'faktura', coatLegB: 'faktura', coatLegF: 'faktura', saddle: 'siodło', spines: 'kolce', legF: 'noga przednia',
   neck: 'szyja', neckDecor: 'ozdoba szyi', mane: 'grzywa', collar: 'obroża', ear: 'ucho', earIn: 'ucho', horns: 'rogi', antennae: 'czułki', stalks: 'szypułki oczu', tuft: 'czub',
   head: 'głowa', snout: 'pysk', wingNear: 'skrzydło', nose: 'nos', mouth: 'usta', maw: 'wnętrze pyska', tongue: 'język', teeth: 'zęby', whiskers: 'wąsy', eye: 'oko',
-  pupil: 'źrenica', glint: 'odblask', iris: 'tęczówka', blush: 'rumieniec', toes: 'paluszki', brow: 'brew', wingRibs: 'kości skrzydeł', bones: 'kości',
+  pupil: 'źrenica', glint: 'odblask', iris: 'tęczówka', blush: 'rumieniec', toes: 'paluszki', brow: 'brew', lids: 'powieki', wingRibs: 'kości skrzydeł', bones: 'kości',
 };

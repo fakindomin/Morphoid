@@ -20,7 +20,9 @@ export type SlotKind =
   /** drawing-only touches of the illustrated style (no geometry): eye colour, cheek blush */
   | 'iris' | 'blush'
   /** the tongue in an open mouth */
-  | 'tongue';
+  | 'tongue'
+  /** eyelids: skin folds over and under the eyeball */
+  | 'lid';
 
 export const SLOTS = [
   ['shadow', 'shadow'], ['stand', 'accent'], ['arms', 'skin'], ['wingFar', 'accentFar'], ['tail', 'skin'], ['legBFar', 'skinFar'], ['legFFar', 'skinFar'],
@@ -29,7 +31,7 @@ export const SLOTS = [
   ['mane', 'accent'], ['collar', 'accent'], ['ear', 'skin'], ['earIn', 'accentSoft'], ['horns', 'accent'], ['antennae', 'accent'], ['tuft', 'accent'],
   ['head', 'skin'], ['snout', 'skin'], ['wingNear', 'accent'], ['nose', 'ink'],
   ['maw', 'ink'], ['tongue', 'tongue'], ['mouth', 'groove'], ['teeth', 'white'], ['whiskers', 'skinFar'], ['stalks', 'skin'], ['blush', 'blush'], ['toes', 'groove'], ['eye', 'white'], ['iris', 'iris'], ['pupil', 'ink'],
-  ['glint', 'glint'], ['brow', 'groove'], ['wingRibs', 'groove'], ['bones', 'bone'],
+  ['glint', 'glint'], ['lids', 'lid'], ['brow', 'groove'], ['wingRibs', 'groove'], ['bones', 'bone'],
 ] as const satisfies readonly (readonly [string, SlotKind])[];
 
 export type SlotId = (typeof SLOTS)[number][0];
@@ -122,6 +124,23 @@ function earPaths(type: number, e: number, ex: number, ey: number): { outer: Pat
 
 /** Eye variants (gene O): radius per size; 'many' = a cluster of small eyes, 'stalks' = one eye per side on a stalk. */
 export const EYES = { many: 3, stalks: 4 } as const;
+
+/**
+ * The eyelids of an eye with radius r: a heavy fold over the top of the ball and a thin one under it. Each is an arc of
+ * samples (angle round the eye, radius of the fold's centre line seen from the side, the fold's half width), thickest
+ * in the middle and thinning towards the corners. The 2D sketch draws the band, spec3d rolls a tube along it.
+ */
+export function eyelids(r: number): { arc: [number, number, number][]; upper: boolean }[] {
+  const arc = (a0: number, a1: number, inner: number, outer: number): [number, number, number][] => Array.from({ length: 13 }, (_, i) => {
+    const t = i / 12, a = a0 + (a1 - a0) * t, k = 0.3 + 0.7 * Math.sin(Math.PI * t);
+    const w = ((outer - inner) / 2) * k; // the outer edge (where the fold meets the head) stays put, the lid edge thins
+    return [a, r * (outer - w), r * w];
+  });
+  return [
+    { arc: arc(Math.PI * 1.06, -Math.PI * 0.12, 0.55, 1.2), upper: true },
+    { arc: arc(Math.PI * 1.08, Math.PI * 1.94, 0.82, 1.14), upper: false },
+  ];
+}
 const EYE_R = [1.7, 2.4, 3.2, 1.6, 2.6];
 /** Eye stalk: width (>= 2 perimeters each side) and where it stands on the head; it leans forward ~20 deg. */
 export const STALK_W = 2.4;
@@ -579,6 +598,14 @@ export function buildPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones:
     eg.append(ellipse(x + r * 0.42, y + r * 0.32, r * 0.26, r * 0.26)).append(ellipse(x - r * 0.02, y - r * 0.38, r * 0.12, r * 0.12));
   }
   put('eye', ew); put('iris', ei); put('pupil', ep); put('glint', eg);
+  // eyelids: a heavy fold over the top of the eyeball and a thin one under it (the same arcs spec3d rolls round the ball)
+  const lids = new Path();
+  for (const [c, r] of eyes) for (const lid of eyelids(r)) {
+    const at = (a: number, d: number): XY => [c[0] + Math.cos(a) * d, c[1] + Math.sin(a) * d * 1.08];
+    const outer = lid.arc.map(([a, m, w]) => at(a, m + w)), inner = lid.arc.map(([a, m, w]) => at(a, m - w)).reverse();
+    lids.append(polygon([...outer, ...inner]));
+  }
+  put('lids', lids);
   // drawing only: a rosy cheek under the eye, and two toe lines on each near paw
   put('blush', ellipse(head[0] + hs.rx * 0.38, head[1] - hs.ry * 0.3, Math.max(2.2, hs.rx * 0.26), Math.max(1.3, hs.ry * 0.14)));
   if (foot === 0 && (n.plan === D.PLAN.quadruped || n.plan === D.PLAN.biped)) {

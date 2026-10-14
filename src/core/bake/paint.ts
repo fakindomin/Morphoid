@@ -15,6 +15,9 @@ import { limbSd } from '../art/limb';
 export const FILAMENT_OF: Record<ColorKey, number> = { c1: 0, c1dark: 0, c2: 1, c2soft: 1, c3: 2, ink: 2, white: 3 };
 export const FILAMENTS = 4;
 
+/** Colour regions that belong on one element only (the iris and pupil on the eyeball, never on the eyelid over it). */
+const DECAL_ON: Partial<Record<string, string>> = { iris: 'eye', pupil: 'eye' };
+
 /** How far (mm) along Z a colour region may sit from the surface it is painted on. */
 const DECAL_Z_MM = 1.5;
 /** Solid elements farther than this from a triangle are not considered for its colour. */
@@ -89,6 +92,8 @@ export function painter(solids: Part3D[], decals: Part3D[], pattern: XY[][] = []
       if (!within(s, x, y, z)) continue;
       const side = s.part.side || Math.sign(s.part.z) || Math.sign(z);
       if (nz * side < 0.2) continue;
+      const on = DECAL_ON[s.part.slot];
+      if (on && near?.slot !== on) continue;
       if (sdPolys(s.edges, s.part.polys, x, y) < 0) color = s.part.color;
     }
     return color;

@@ -10,10 +10,10 @@ import type { MorphotypeGenome } from '../genome';
 import { dimensions as D, type Rig } from '../rig';
 import { groupOfSlot, type PartGroup } from '../print/plan';
 import { COAT_LIMB, type Coat } from './coat';
-import { EYES, WHISKER_TURN, insectHips, insectLegW, insectRise, prolegXs, roundTail, STALK_W, wingRibs, STAND_MARGIN_MM, STAND_MM, WHISKER_FAN, WHISKER_PAD, WHISKER_W, whiskerLength, type SlotId, type SlotPaths } from './shapes';
+import { EYES, eyelids, WHISKER_TURN, insectHips, insectLegW, insectRise, prolegXs, roundTail, STALK_W, wingRibs, STAND_MARGIN_MM, STAND_MM, WHISKER_FAN, WHISKER_PAD, WHISKER_W, whiskerLength, type SlotId, type SlotPaths } from './shapes';
 import type { XY } from './path';
 import { typeSize } from './pose';
-import { insectLimb, legLimb, legSpecOf, octopusLimb, prolegLimb, type Limb } from './limb';
+import { insectLimb, legLimb, legSpecOf, octopusLimb, prolegLimb, type Cone, type Limb } from './limb';
 import { edgesOf, sdPolys, slabDist, type Edge } from '../bake/field';
 
 export type ColorKey = 'c1' | 'c1dark' | 'c2' | 'c2soft' | 'c3' | 'ink' | 'white';
@@ -64,7 +64,7 @@ const centre = (): number => 0;
 
 /** `null` = deliberately not a 3D solid (render-only shading, or the mirror image of another slot). */
 export const SPEC_3D: Record<SlotId, Spec | null> = {
-  shadow: null, torsoClip: null, belly: null, glint: null, bones: null, iris: null, blush: null, toes: null, // render-only
+  shadow: null, torsoClip: null, belly: null, glint: null, bones: null, blush: null, toes: null, // render-only
   wingRibs: null, // drawn crests of the wing ribs; the ribs themselves are `ribs` on the wing, see buildParts3D
   legBFar: null, legFFar: null, wingFar: null,                          // mirror images, generated from the near slot
   torso: { color: 'c1', mirror: false, z: centre, t: (c) => c.W, bevel: (t) => round(0.48)(t) },
@@ -92,7 +92,9 @@ export const SPEC_3D: Record<SlotId, Spec | null> = {
   saddle: { color: 'c2', mirror: false, z: centre, t: (c) => c.W * 0.96, bevel: (t) => round(0.45)(t) },
   collar: { color: 'c2', mirror: false, z: centre, t: (c) => c.neckT + 1.6, bevel: (t) => round(0.3)(t) },
   eye: { color: 'white', mirror: true, z: (c) => c.headW / 2 - 0.35, t: () => 2.3, bevel: (t) => round(0.35)(t) }, // sits 1.5 mm in, stands 0.8 mm proud
-  pupil: { color: 'ink', mirror: true, z: (c) => c.headW / 2 + 0.8, t: () => 0.4, bevel: () => 0.08 },
+  iris: { color: 'c2soft', mirror: true, z: (c) => c.headW / 2 + 0.8, t: () => 0.3, bevel: () => 0.05 },  // painted on the eyeball's front
+  pupil: { color: 'ink', mirror: true, z: (c) => c.headW / 2 + 0.8, t: () => 0.4, bevel: () => 0.08 }, // likewise, over the iris
+  lids: { color: 'c1', mirror: true, z: (c) => c.headW / 2, t: () => 1, bevel: () => 0.4 }, // rolled round the eyeball, see eyeballs
   brow: { color: 'ink', mirror: true, z: (c) => c.headW / 2 - 0.1, t: () => 0.5, bevel: () => 0.1 },
   // open mouth: the inside is set back 1.2 mm from each side of the jaws, the tongue narrower still
   maw: { color: 'ink', mirror: false, z: centre, t: (c) => Math.max(1.6, c.snoutW - 2.4), bevel: (t) => round(0.3)(t) },
@@ -139,9 +141,9 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
   for (const p of out) if (p.slot === 'teeth' || p.slot === 'tongue') p.inset = true;
   if (g.face!.eyes === EYES.stalks) for (const p of out) { // eyes on stalks: a ball on top of each stalk, the pupil on its outer side
     const zs = ctx.headW * 0.25 * p.side;
-    if (p.slot === 'eye') { p.z = zs; p.thickness = 4.4; p.bevel = 2.1; }
-    if (p.slot === 'pupil') p.z = zs + 2.2 * p.side;
+    if (p.slot === 'eye') p.z = zs;
   }
+  eyeballs(out, g.face!.eyes === EYES.stalks);
   for (const p of out) if (p.slot === 'stand') standTop(p, g, rig);
   // jointed legs of four- and two-legged creatures are real 3D chains (insects and caterpillars keep their slabs)
   const plan = rig.dims.plan, biped = plan === D.PLAN.biped;
@@ -258,6 +260,51 @@ function whiskerTop(p: Part3D, g: MorphotypeGenome, ctx: Ctx, print: boolean): v
   p.polys = polys;
   p.plane = 'xz';
   p.z = cy;
+}
+
+/** How far an eyeball stands out of the head, as a share of its radius: most of the ball shows, like a real eye. */
+const EYE_OUT = 0.75;
+
+/**
+ * Eyes as real balls: every eye outline becomes a sphere that stands out of the head (or sits on its stalk), the iris
+ * and pupil are painted on its front, and the eyelids are round folds rolled over the top and under the bottom of the
+ * ball, following the arcs the 2D sketch draws (eyelids in shapes.ts).
+ */
+function eyeballs(out: Part3D[], stalks: boolean): void {
+  const head = out.find((p) => p.slot === 'head'), he = head ? edgesOf(head.polys) : [];
+  for (const eye of out.filter((p) => p.slot === 'eye')) {
+    const side = eye.side || 1, cones: Cone[] = [], lidCones: Cone[] = [];
+    let front = -Infinity;
+    for (const poly of eye.polys) {
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      for (const [x, y] of poly) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, r = (x1 - x0) / 2;
+      // where the head's surface is at the eye (it curves away from the 2D outline's centre plane)
+      let surf = Math.abs(eye.z) + eye.thickness / 2 - 0.8;
+      if (!stalks && head) { surf = head.thickness / 2; while (surf > 0 && slabSd(head, he, cx, cy, surf) > 0) surf -= 0.1; }
+      const zc = stalks ? eye.z : side * (surf + (EYE_OUT - 1) * r);
+      cones.push({ a: [cx, cy, zc], b: [cx, cy, zc], ra: r, rb: r });
+      front = Math.max(front, Math.abs(zc) + r);
+      for (const lid of eyelids(r)) {
+        // the fold's centre line lies just above the ball, so the tube hugs it and reaches past its rim into the head
+        const pts = lid.arc.map(([a, m, w]): [number, number, number, number] => {
+          const R = r + 0.3 * w, proj = Math.min(0.98 * R, m), cosP = Math.sqrt(1 - (proj / R) ** 2);
+          return [cx + Math.cos(a) * proj, cy + Math.sin(a) * proj * 1.08, zc + side * R * cosP, w];
+        });
+        for (let i = 1; i < pts.length; i++) {
+          const [ax, ay, az, ra] = pts[i - 1]!, [bx, by, bz, rb] = pts[i]!;
+          lidCones.push({ a: [ax, ay, az], b: [bx, by, bz], ra, rb });
+        }
+      }
+    }
+    eye.limb = { cones, domes: [] };
+    eye.inset = true; // a ball in its socket, not a lump grown out of the head
+    for (const p of out) {
+      if (p.side !== eye.side) continue;
+      if (p.slot === 'pupil' || p.slot === 'iris') p.z = side * front;
+      if (p.slot === 'lids') { p.limb = { cones: lidCones, domes: [] }; p.inset = true; }
+    }
+  }
 }
 
 /** Signed distance to a part's rounded slab (the shape the bake fuses). */
