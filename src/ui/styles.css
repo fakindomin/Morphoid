@@ -129,7 +129,7 @@ kbd { font: 10.5px ui-monospace, Menlo, monospace; padding: 1px 6px; border: 1px
 
 /* ---- blueprint canvas ---- */
 .blueprint {
-  position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center;
+  position: relative; overflow: hidden; display: flex; flex-direction: column;
   background-color: var(--bg-canvas);
   background-image: radial-gradient(var(--grid-dot) 1.5px, transparent 1.5px),
     linear-gradient(var(--grid-line) 1px, transparent 1px), linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
@@ -363,6 +363,7 @@ button.status-bake:hover { color: var(--cyan); }
 .dna-code-field:focus { outline: none; }
 .link-btn { font-size: 12px; font-weight: 700; color: var(--cyan); padding: 2px 0; text-align: left; }
 .link-btn:hover { text-decoration: underline; }
+.dna-actions { display: flex; flex-direction: column; gap: 6px; }
 .mods { list-style: none; display: flex; flex-direction: column; gap: 2px; counter-reset: m; margin-top: 4px; }
 .mods li { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 8px; font-size: 12.5px; }
 .mods li:nth-child(odd) { background: var(--bg-input); }
@@ -394,3 +395,16 @@ button.status-bake:hover { color: var(--cyan); }
 .tool-btn { width: 34px; height: 34px; border-radius: 10px; background: var(--bg-card); border: 1px solid var(--border); display: grid; place-items: center; color: var(--muted); }
 .tool-btn svg { width: 18px; height: 18px; }
 .tool-btn.on { color: var(--cyan); border-color: var(--cyan); }
+
+/* the sketch or 3D view under the DNA strip: overlays (tags, tools, notices) are placed inside it */
+.stage { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+
+/* the creature's DNA above the sketch: one click copies it */
+.dna-strip { flex: none; align-self: center; margin: 12px 16px 0; width: min(620px, calc(100% - 32px));
+  display: flex; flex-direction: column; gap: 4px; padding: 8px 14px; text-align: left; border-radius: 12px;
+  background: var(--bg-card); border: 1px solid var(--border); transition: border-color .2s, box-shadow .2s; }
+.dna-strip:hover { border-color: var(--cyan); box-shadow: 0 0 14px var(--cyan-glow); }
+.dna-strip code { font: 11.5px/1.45 ui-monospace, Menlo, monospace; color: var(--text); overflow-wrap: anywhere; }
+.dna-strip-head { display: flex; justify-content: space-between; font-size: 10px; font-weight: 800; letter-spacing: .5px; color: var(--muted); }
+.dna-strip-hint { color: var(--cyan); }
+.dna-strip.copied .dna-strip-hint { color: var(--red); }

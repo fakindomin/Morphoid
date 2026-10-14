@@ -44,26 +44,27 @@ function Category({ id, title, value, badge, open, setOpen, children }: {
   );
 }
 
-/** Name, dice, mutation and the DNA code (editable: paste a code or change a gene, B01 -> B03). */
+/** Name, dice, mutation and a field to paste a new DNA code into (the creature's own code is above the sketch). */
 function MorphoidBody() {
   const { genome } = useStudioState();
   const who = studio.creature();
   const [nameDraft, setNameDraft] = useState<string | null>(null);
-  const [draft, setDraft] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ text: string; warn: boolean } | null>(null);
-  const [copied, setCopied] = useState(false);
   const saveName = (): void => { if (nameDraft !== null) studio.setName(nameDraft); setNameDraft(null); };
-  const edit = (value: string): void => {
-    setDraft(value);
-    const r = parse(value, genome);
+  // a separate field to paste someone else's creature into (the code above stays this creature's, to copy)
+  const [paste, setPaste] = useState('');
+  const load = (value: string): void => {
+    const code = value.trim();
+    if (!code) return setMsg({ text: 'Wklej kod DNA, np. MPH2:B01.33:…', warn: true });
+    const r = parse(code, genome);
     if (!r.ok) return setMsg({ text: r.message, warn: true });
-    studio.loadCode(value, genome);
-    setMsg(r.badGenes.length ? { text: `Nieznane geny: ${r.badGenes.join(', ')}. Te części zostają bez zmian.`, warn: true } : null);
+    studio.loadCode(code, genome);
+    setPaste('');
+    setMsg(r.badGenes.length ? { text: `Wczytano. Nieznane geny: ${r.badGenes.join(', ')}. Te części zostają bez zmian.`, warn: true }
+      : { text: r.checksumOk ? 'Wczytano stwora z kodu DNA.' : 'Wczytano, ale suma kontrolna się nie zgadza: sprawdź, czy kod jest cały.', warn: !r.checksumOk });
   };
-  const copy = async (): Promise<void> => {
-    if (!(await copyText(who.code))) return;
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1600);
+  const pasteClipboard = async (): Promise<void> => {
+    try { load(await navigator.clipboard.readText()); } catch { setMsg({ text: 'Przeglądarka nie dała dostępu do schowka: wklej kod w pole (Ctrl+V).', warn: true }); }
   };
   return (
     <>
@@ -78,12 +79,16 @@ function MorphoidBody() {
         <button type="button" className="btn-soft" onClick={() => studio.mutateLight(newSeed())}>🧬 Mutuj</button>
       </div>
       <div>
-        <div className="control-label">DNA</div>
+        <div className="control-label">Wklej nowe DNA</div>
         <div className="dna-box">
-          <textarea className="dna-code-field" rows={3} value={draft ?? who.code} spellCheck={false} aria-label="Kod DNA"
-            onChange={(e) => edit(e.target.value)} onBlur={() => setDraft(null)}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLTextAreaElement).blur(); } }} />
-          <button type="button" className="link-btn" onClick={copy}>{copied ? 'Skopiowano' : 'Kopiuj'}</button>
+          <textarea className="dna-code-field" rows={2} value={paste} spellCheck={false} aria-label="Wklej kod DNA" placeholder="MPH2:B01.33:L01.3:…"
+            onChange={(e) => setPaste(e.target.value)}
+            onPaste={(e) => { const t = e.clipboardData.getData('text'); if (t) { e.preventDefault(); load(t); } }}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); load(paste); } }} />
+          <div className="dna-actions">
+            <button type="button" className="link-btn" onClick={pasteClipboard}>Wklej</button>
+            <button type="button" className="link-btn" onClick={() => load(paste)}>Wczytaj</button>
+          </div>
         </div>
       </div>
       {msg && <div className={`msg${msg.warn ? ' warn' : ''}`} role="status">{msg.text}</div>}

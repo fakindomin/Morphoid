@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { solveRig, type SocketId } from '../core';
 import { Canvas2D } from './components/Canvas2D';
 import { Viewport3D } from './components/Viewport3D';
+import { DnaStrip } from './components/DnaStrip';
 import { Header, type Theme } from './components/Header';
 import { LeftColumn } from './components/LeftColumn';
 import { RadialMenu, useRadial } from './components/RadialMenu';
@@ -66,6 +67,8 @@ export function App() {
       <main className="studio">
         <LeftColumn activeSocket={radial.state.open ? radial.state.socket : null} />
         <section className="blueprint">
+          <DnaStrip />
+          <div className="stage">
           {notice && <SupportNotice key={notice.key} notice={notice} previousPlan={prevPlan.current} dismiss={dismiss} />}
           {view === '2d' && (
             <div className="canvas-tools">
@@ -83,6 +86,7 @@ export function App() {
           ) : (
             <Viewport3D variant="main" explode={explode} baked={job.showBaked && job.result && job.signature === signatureOf(studio.code(), plan.separate) ? job.result : null} />
           )}
+          </div>
         </section>
         <RightColumn explode={explode} setExplode={setExplode} view={view} />
       </main>
