@@ -9,7 +9,7 @@ import { buildPaths, type SlotId } from '../art/shapes';
 import { buildParts3D, type Part3D } from '../art/spec3d';
 import { GROUPS, isSeparate, pieceOf, type PartGroup, type PrintPlan } from '../print';
 import { closeSmallHoles, restore } from './close';
-import { addPart, clipBelow, clipMid, gridDims, makeGrid, partBox } from './field';
+import { addPart, fuseParts, clipBelow, clipMid, gridDims, makeGrid, partBox } from './field';
 import { flipMesh, validateMesh, type MeshValidation } from './mesh';
 import { JOIN_MARGIN_MM, crop, cutAway, joinPart, newHostSockets, type HostSockets, type Joint } from './joint';
 import { paintMesh } from './paint';
@@ -195,9 +195,7 @@ export function bake(
     const ps = byPiece.get(id)!;
     report(n, 0, PHASE_LABEL.field);
     const grid = makeGrid(ps, h, margin(id));
-    for (const p of ps) if (!p.inset && !p.carve) addPart(grid, p, BLEND_MM);
-    for (const p of ps) if (p.inset) addPart(grid, p, INSET_BLEND_MM); // teeth and tongue in an open mouth
-    for (const p of ps) if (p.carve) addPart(grid, p, CARVE_BLEND_MM); // nostrils, a closed mouth's groove
+    fuseParts(grid, ps, BLEND_MM, INSET_BLEND_MM, CARVE_BLEND_MM); // body masses soft, appendages tight, then insets and cuts
     // flat cuts so a piece has a real footprint on the bed
     if (id === 'head') clipBelow(grid, rig.nodes.neckBase.y);
     // wings print lying on their inner face: the ribs' smooth blend must not bulge through it

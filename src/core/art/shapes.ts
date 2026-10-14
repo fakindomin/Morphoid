@@ -49,7 +49,6 @@ export type SlotId = (typeof SLOTS)[number][0];
 export type Shapes = Record<SlotId, string>;
 
 const p = (pose: Pose, id: NodeId): XY => pose.pos[id];
-const R = D.HEAD_RADIUS;
 
 /** Insect legs per slot: the hind pair in legB, the front and middle pairs in legF (see insectLimb). */
 export function insectHips(hipB: XY, shF: XY): { legB: { hip: XY; dir: number }[]; legF: { hip: XY; dir: number }[] } {
@@ -112,7 +111,11 @@ function spike(x: number, y: number, bx0: number, bx1: number, tx: number, ty: n
   return polygon([[x + bx0, y], [tx, ty], [tx + TIP, ty], [x + bx1, y]]);
 }
 
-function headShape(hx: number, hy: number, skull: number): { rx: number; ry: number; path: Path } {
+/** Torso outline: how flat the back is (1 = an ellipse, lower = straighter) and how much the belly deepens at the chest. */
+const BACK_FLAT = 0.6;
+const BELLY_TUCK = 0.14;
+
+function headShape(hx: number, hy: number, skull: number, R: number): { rx: number; ry: number; path: Path } {
   const [rx, ry] = skull === 1 ? [R * 1.12, R * 0.82] : skull === 2 ? [R * 1.1, R * 0.7] : [R, R * 0.96];
   return { rx, ry, path: ellipse(hx, hy, rx, ry) };
 }
@@ -416,11 +419,18 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
   const bump = (a: number, at: number, h: number, wd: number): number => h * Math.exp(-(((Math.atan2(Math.sin(a - at), Math.cos(a - at))) / wd) ** 2));
   const trunkPts: XY[] = [];
   const belly = D.onBelly(n.plan);
+  // rule "prosta kontra łuk": every legged, non-round trunk gets a straight back and a curved belly
+  const shaped = (n.plan === D.PLAN.quadruped || n.plan === D.PLAN.biped) && n.build !== 3;
   const segs = n.plan === D.PLAN.caterpillar ? Math.max(4, Math.round(n.bodyL / 9)) : n.plan === D.PLAN.insect ? 3 : 1;
   for (let i = 0; i < 72; i++) {
     const a = (i / 72) * Math.PI * 2;
     const k = muscular ? 1 + bump(a, 0.55, 0.16, 0.45) + bump(a, Math.PI - 0.6, 0.13, 0.45) - bump(a, Math.PI / 2, 0.07, 0.3) : 1;
     let lx = Math.cos(a) * tRx * k, ly = Math.sin(a) * tRy * k; // torso frame, then tilted (biped: nose up)
+    if (shaped) { // straight against curved: a calm, nearly straight back over a belly that is deep at the chest and tucks up to the hips
+      const sa = Math.sin(a), ca = Math.cos(a);
+      if (sa > 0) ly = Math.pow(sa, BACK_FLAT) * tRy * k;
+      else ly *= 1 + BELLY_TUCK * ca;
+    }
     if (segs > 1 && ly > 0) ly *= 1 - 0.14 * Math.abs(Math.sin((Math.PI * segs * (lx / tRx + 1)) / 2)) ** 6; // notches between segments
     if (n.plan === D.PLAN.fish) lx *= 1 + 0.12 * Math.sin(a) ** 2 * Math.sign(lx); // a fuller front, a slimmer back
     const wx = torso[0] + lx * Math.cos(n.tilt) - ly * Math.sin(n.tilt), wy = torso[1] + lx * Math.sin(n.tilt) + ly * Math.cos(n.tilt);
@@ -435,7 +445,7 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
     }
     return top === -Infinity ? torso[1] : top;
   };
-  const trunk = (): Path => (muscular || belly || segs > 1 ? polygon(trunkPts) : ellipse(torso[0], torso[1], tRx, tRy, n.tilt));
+  const trunk = (): Path => (muscular || shaped || belly || segs > 1 ? polygon(trunkPts) : ellipse(torso[0], torso[1], tRx, tRy, n.tilt));
   /** a shape drawn in the torso's own (untilted) frame, turned with the torso */
   const tilted = (path: Path): Path => path.rotated(torso[0], torso[1], n.tilt);
   put('torso', trunk());
@@ -512,11 +522,11 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
   const dir: XY = [head[0] - neckBase[0], head[1] - neckBase[1]];
   const dl = Math.hypot(dir[0], dir[1]) || 1;
   const up: XY = [-dir[1] / dl, dir[0] / dl];
-  put('neck', tube(neckBase, head, n.bodyG * 0.72, R * 1.15));
+  put('neck', tube(neckBase, head, n.bodyG * 0.72, n.headR * 1.15));
   const neckType = g.head!.neck!;
   const at = (t: number, off: number): XY => [neckBase[0] + dir[0] * t + up[0] * off, neckBase[1] + dir[1] * t + up[1] * off];
   const upSign = up[1] >= 0 ? 1 : -1;
-  const neckW = (t: number): number => (n.bodyG * 0.72) * (1 - t) + R * 1.15 * t;
+  const neckW = (t: number): number => (n.bodyG * 0.72) * (1 - t) + n.headR * 1.15 * t;
   const deco = new Path();
   if (neckType === 1) { // crested: raised zig-zag ridge, 1.6 mm wide
     const pts: XY[] = [];
@@ -533,7 +543,7 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
 
   // ---- head ---------------------------------------------------------------------
   const skull = g.head!.skull!;
-  const hs = headShape(head[0], head[1], skull);
+  const hs = headShape(head[0], head[1], skull, n.headR);
   put('head', hs.path);
 
   const snoutType = g.snout!.type!;

@@ -30,6 +30,18 @@ export const ANTENNA_LEN = table([6, 8, 10, 13, 16, 20]);
 /** Head ellipse radius (mm); the muzzle starts at the head's front edge. */
 export const HEAD_RADIUS = 9.5;
 
+/**
+ * Head radius of a creature (rule "duży, średni, mały"): the head follows the torso's girth, so it is always clearly the
+ * medium mass next to the big torso (about 0.85 of the girth across), never a second ball as big as the body. Belly
+ * plans (caterpillar, fish, octopus) keep the fixed head their outlines are tuned for.
+ */
+export const HEAD_SHARE = 0.42;
+export const HEAD_MIN = 7.5, HEAD_MAX = 10.5;
+export function headRadius(girth: number, plan: number): number {
+  if (plan === 2 || plan === 4 || plan === 5) return HEAD_RADIUS;
+  return Math.round(Math.min(HEAD_MAX, Math.max(HEAD_MIN, girth * HEAD_SHARE)) * 10) / 10;
+}
+
 /** Body width (Z) as a fraction of its girth, per body shape. */
 export const BODY_WIDTH_RATIO = [0.9, 0.7, 1.15] as const;
 
@@ -45,6 +57,16 @@ export const BUILD: readonly Build[] = [
   { girth: 1.5, length: 0.78, width: 1.25, leg: 0.6, legW: (G) => Math.max(7, G * 0.42), sole: 1 }, // round
   { girth: 0.7, length: 1.05, width: 0.8, leg: 1.3, legW: () => 4.8, sole: 1.3 },                  // skeletal
 ];
+
+/**
+ * Silhouette test (rule "test sylwetki"): the light under a standing creature's belly, in mm. The belly sits about
+ * 0.15 of the girth plus 1.5 mm below the hips, so legs shorter than this leave the body lying on the bed.
+ */
+export const BELLY_GAP_MM = 3.5;
+export const minLegForGap = (girth: number): number => BELLY_GAP_MM + 1.5 + 0.15 * girth;
+
+/** Gesture: how far (rad) a quadruped's chest rises over its hips. */
+export const GESTURE = { chestUp: 0.07 } as const;
 
 /**
  * Body plan (gene Y). A biped stands on its hind legs under the middle of a torso tilted nose-up; its legs are longer

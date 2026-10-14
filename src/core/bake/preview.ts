@@ -9,7 +9,7 @@ import { targetPose } from '../art/pose';
 import { buildPaths } from '../art/shapes';
 import { buildParts3D, type ColorKey } from '../art/spec3d';
 import { BLEND_MM, CARVE_BLEND_MM, INSET_BLEND_MM, MIN_SOLID_MM, SMOOTH_MOVE } from './bake';
-import { addPart, makeGrid } from './field';
+import { fuseParts, gridDims, makeGrid } from './field';
 import { flipMesh, validateMesh } from './mesh';
 import { painter } from './paint';
 import { smoothMesh } from './smooth';
@@ -17,6 +17,8 @@ import { surfaceNets, type Grid3 } from './surfacenets';
 
 /** Voxel size (mm) of the preview: fine enough for teeth and the coat, quick enough for every click. */
 export const PREVIEW_VOXEL_MM = 0.4;
+/** The most grid cells a preview may use (about 3 M: well under a second, and a mesh of 150-250 k triangles). */
+export const PREVIEW_MAX_CELLS = 3_000_000;
 
 export interface PreviewSolid {
   positions: Float32Array;
@@ -36,10 +38,11 @@ export function previewSolid(genome: MorphotypeGenome, h = PREVIEW_VOXEL_MM): Pr
   const paths = buildPaths(targetPose(rig, genome, 0, false, { x: 0, y: 0 }), genome, rig, false);
   const all = buildParts3D(paths, genome, rig);
   const parts = all.filter((p) => p.thickness >= MIN_SOLID_MM);
+  // a fixed budget of cells: a big creature (long wings, a tall stand) gets a slightly coarser preview instead of a heavy one
+  const d = gridDims(parts, h, 3), cells = d.nx * d.ny * d.nz;
+  if (cells > PREVIEW_MAX_CELLS) h *= Math.cbrt(cells / PREVIEW_MAX_CELLS);
   const grid = makeGrid(parts, h, 3);
-  for (const p of parts) if (!p.inset && !p.carve) addPart(grid, p, BLEND_MM);
-  for (const p of parts) if (p.inset) addPart(grid, p, INSET_BLEND_MM);
-  for (const p of parts) if (p.carve) addPart(grid, p, CARVE_BLEND_MM);
+  fuseParts(grid, parts, BLEND_MM, INSET_BLEND_MM, CARVE_BLEND_MM); // body masses soft, appendages tight, then insets and cuts
   let mesh = surfaceNets(grid);
   if (validateMesh(mesh).volume < 0) mesh = flipMesh(mesh);
   mesh = smoothMesh(mesh, SMOOTH_MOVE * h);

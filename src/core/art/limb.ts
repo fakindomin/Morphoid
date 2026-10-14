@@ -47,6 +47,11 @@ const RADII: Record<LegKind, number[]> = {
   bird: [0.52, 0.36, 0.28, 0.27],
 };
 
+/** Muscle bellies per segment (top-knee, knee-hock): where along it (0..1) and how full, times its wider end. */
+const BELLY: readonly ([number, number] | null)[] = [[0.42, 1.06], [0.3, 1.1], null];
+/** Joints are drawn in to this share of their radius. */
+const PINCH = 0.86;
+
 export interface LegSpec {
   kind: LegKind;
   /** hip or shoulder (side view, mm) and the foot node on the bed */
@@ -79,6 +84,17 @@ export function legLimb(s: LegSpec, z: number): Limb {
     pts.push({ p: [x, Math.max(paw.ankleY + 0.5, H * fy), z], r: r(i + 1) });
   });
   pts.push({ p: ankle, r: r(3) });
+  // pinch and bulge (rule "zwężenia i nabrzmienia"): narrow at every joint, full in the thigh and the calf
+  const shaped: { p: V3; r: number }[] = [pts[0]!];
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1]!, b = pts[i]!, belly = BELLY[i - 1];
+    if (belly) {
+      const [t, k] = belly, lerp = (u: number, v: number): number => u + (v - u) * t;
+      shaped.push({ p: [lerp(a.p[0], b.p[0]), lerp(a.p[1], b.p[1]), z], r: Math.max(a.r, b.r) * k });
+    }
+    shaped.push(i < pts.length - 1 ? { p: b.p, r: Math.max(LIMB_MIN_R, b.r * PINCH) } : b);
+  }
+  pts.splice(0, pts.length, ...shaped);
   // drop joints too close to the next one (very short legs): the chain then runs straight
   const chain = pts.filter((q, i) => i === 0 || i === pts.length - 1 || dist(q.p, pts[i - 1]!.p) > Math.abs(q.r - pts[i - 1]!.r) + 1);
   const cones: Cone[] = [];

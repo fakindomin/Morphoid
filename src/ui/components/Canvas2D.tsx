@@ -7,6 +7,8 @@ import { buildShapes, SLOTS, rigSize, type Shapes, type SlotKind } from '../../c
 
 const W = 820, H = 520, SCALE = 4.6, CX = 430, GROUND = 440;
 const to = (x: number, y: number) => [CX - x * SCALE, GROUND - y * SCALE] as const;
+/** Breathing alone is redrawn at this rate (frames per second). */
+const BREATH_FPS = 20;
 
 /** Solid parts that make up the figurine's silhouette: drawn once more underneath as one outline. */
 const SOLID: readonly SlotKind[] = ['skin', 'skinFar', 'accent', 'accentFar', 'accentSoft', 'white'];
@@ -76,6 +78,7 @@ export function Canvas2D({ showBones, breathing, frozen, onSocket, markers = [] 
     let dirty = true;
     let lastBones = live.current.showBones;
     let lastPalette = -1;
+    let lastDraw = 0;
 
     const frame = (now: number): void => {
       const dt = Math.min(0.05, (now - last) / 1000);
@@ -98,7 +101,11 @@ export function Canvas2D({ showBones, breathing, frozen, onSocket, markers = [] 
       const remaining = easePose(cur, tgt, 1 - Math.exp(-dt * 14));
       if (rig.code !== lastCode || sb !== lastBones) { dirty = true; lastCode = rig.code; lastBones = sb; }
 
-      if (dirty || remaining > 1e-3 || (br && !fz)) {
+      // breathing alone is drawn at BREATH_FPS (the eye does not see more in so slow a motion); a gene change or the
+      // mouse still redraws every frame
+      const breathe = br && !fz && now - lastDraw >= 1000 / BREATH_FPS;
+      if (dirty || remaining > 0.05 || breathe || (remaining > 1e-3 && !(br && !fz))) {
+        lastDraw = now;
         const shapes = buildShapes(cur, g, rig, to, sb);
         insectRef.current?.setAttribute('visibility', rig.dims.plan === D.PLAN.insect ? 'visible' : 'hidden');
         for (const [id] of SLOTS) {
@@ -154,8 +161,12 @@ export function Canvas2D({ showBones, breathing, frozen, onSocket, markers = [] 
             <path ref={reg('torsoClip', 0)} d="" />
           </clipPath>
           {/* the coat texture shows only on the parts that carry it in 3D, and not where a part in front hides them */}
+          {/* rest zones: the coat fades out towards the belly, as in 3D (coat.ts restZone) */}
+          <linearGradient id="coatRest" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#fff" /><stop offset="0.5" stopColor="#fff" /><stop offset="1" stopColor="#000" />
+          </linearGradient>
           <mask id="coatMask" maskUnits="userSpaceOnUse" x={-W} y={-H} width={3 * W} height={3 * H}>
-            <path ref={reg('coatOn', 3)} fill="#fff" d="" />
+            <path ref={reg('coatOn', 3)} fill="url(#coatRest)" d="" />
             {COAT_CUT.map((id) => <path key={id} ref={reg(id, 3)} fill="#000" d="" />)}
           </mask>
           <mask id="coatLegMask" maskUnits="userSpaceOnUse" x={-W} y={-H} width={3 * W} height={3 * H}>

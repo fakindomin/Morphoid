@@ -21,6 +21,10 @@ interface Props {
 }
 
 const GREY_KEY = 'morphoid.grey';
+/** Sharpest canvas the preview draws (device pixels per CSS pixel): 2x on a retina screen costs 4x the pixels for little. */
+const MAX_DPR = 1.5;
+/** The turntable stops after this long (ms); "Wyśrodkuj widok" sets it going again. */
+const AUTO_ROTATE_MS = 8000;
 
 export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
   const host = useRef<HTMLDivElement>(null);
@@ -42,7 +46,7 @@ export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
     try {
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     } catch { setFailed(true); return; }
-    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    renderer.setPixelRatio(Math.min(MAX_DPR, window.devicePixelRatio || 1)); // a sharper canvas costs the GPU the square of it
     el.appendChild(renderer.domElement);
     renderer.domElement.style.display = 'block';
 
@@ -51,6 +55,8 @@ export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
     // studio lighting: a soft room for reflections, a warm key that casts a soft shadow, a cool fill, a rim from behind
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // the key light and the model stand still while the camera orbits: the shadow is drawn once per model, not per frame
+    renderer.shadowMap.autoUpdate = false;
     const pmrem = new THREE.PMREMGenerator(renderer);
     const room = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     scene.environment = room;
@@ -86,6 +92,28 @@ export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
     controls.maxPolarAngle = Math.PI * 0.499;
     renderer.domElement.addEventListener('pointerdown', () => { controls.autoRotate = false; });
 
+    // render on demand: a frame only while something moves (orbit, damping, the turntable), never when it stands still
+    let raf = 0;
+    const tick = (): void => {
+      raf = 0;
+      const moving = controls.update();
+      renderer.render(scene, camera);
+      if (moving || controls.autoRotate) invalidate();
+    };
+    const invalidate = (): void => { if (!raf && !document.hidden) raf = requestAnimationFrame(tick); };
+    controls.addEventListener('change', invalidate);
+    controls.addEventListener('start', invalidate);
+    // the turntable stops by itself after a while
+    let spinTimer = 0;
+    const spin = (): void => {
+      controls.autoRotate = true;
+      window.clearTimeout(spinTimer);
+      spinTimer = window.setTimeout(() => { controls.autoRotate = false; }, AUTO_ROTATE_MS);
+      invalidate();
+    };
+    const onVisible = (): void => { if (document.hidden) { cancelAnimationFrame(raf); raf = 0; } else invalidate(); };
+    document.addEventListener('visibilitychange', onVisible);
+
     let model: Model | null = null;
     let framed = false;
     const frame = (): void => {
@@ -116,6 +144,8 @@ export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
       scene.add(model.root);
       model.explode(explodeRef.current);
       if (!framed || variant === 'mini') { frame(); framed = true; }
+      renderer.shadowMap.needsUpdate = true;
+      invalidate();
     };
     rebuild();
 
@@ -132,17 +162,20 @@ export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
       renderer.setSize(w, h, false);
       renderer.domElement.style.width = '100%'; renderer.domElement.style.height = '100%';
       camera.aspect = w / h; camera.updateProjectionMatrix();
+      invalidate();
     };
     const ro = new ResizeObserver(resize);
     ro.observe(el); resize();
 
-    let raf = 0;
-    const loop = (): void => { controls.update(); renderer.render(scene, camera); raf = requestAnimationFrame(loop); };
-    raf = requestAnimationFrame(loop);
-    api.current = { explode: (f) => model?.explode(f), resetView: () => { controls.autoRotate = true; frame(); }, rebuild };
+    spin();
+    api.current = {
+      explode: (f) => { model?.explode(f); renderer.shadowMap.needsUpdate = true; invalidate(); },
+      resetView: () => { frame(); spin(); },
+      rebuild,
+    };
 
     return () => {
-      cancelAnimationFrame(raf); unsubs.forEach((u) => u()); ro.disconnect(); controls.dispose();
+      cancelAnimationFrame(raf); window.clearTimeout(spinTimer); document.removeEventListener('visibilitychange', onVisible); unsubs.forEach((u) => u()); ro.disconnect(); controls.dispose();
       model?.dispose(); room.dispose(); pmrem.dispose(); renderer.dispose(); renderer.domElement.remove(); api.current = null;
     };
   }, [variant]);

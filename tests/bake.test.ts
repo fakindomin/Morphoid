@@ -106,11 +106,18 @@ describe('print orientation and export', () => {
     const whiskers = r.pieces.find((p) => p.id === 'whiskers')!;
     expect(whiskers.orientation).toBe('upright'); // a horizontal plate: printed as it lies
     const m = printMesh(whiskers);
-    // all strands/pad touch the bed (both sides at the same height): many vertices at z ~ 0 and nothing below
-    let low = 0, below = 0;
-    for (let i = 2; i < m.positions.length; i += 3) { if (m.positions[i]! < 0.01) low++; if (m.positions[i]! < -0.001) below++; }
+    // all strands/pad touch the bed (both sides at the same height): on each side many vertices at z ~ 0, nothing below
+    let ymid = 0;
+    for (let i = 1; i < m.positions.length; i += 3) ymid += m.positions[i]!;
+    ymid /= m.positions.length / 3;
+    const low = [0, 0];
+    let below = 0;
+    for (let i = 0; i < m.positions.length; i += 3) {
+      if (m.positions[i + 2]! < 0.05) low[m.positions[i + 1]! < ymid ? 0 : 1]!++;
+      if (m.positions[i + 2]! < -0.001) below++;
+    }
     expect(below).toBe(0);
-    expect(low).toBeGreaterThan(20);
+    expect(Math.min(...low)).toBeGreaterThan(10);
   });
 
   it('modular export is a ZIP with one STL per piece, whole export is a single STL', { timeout: 60000 }, () => {

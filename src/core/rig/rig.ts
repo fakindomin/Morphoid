@@ -48,6 +48,8 @@ export interface Rig {
     legLength: number; neckLength: number; tailLength: number;
     /** leg width in the side view = its thickness across the body = the sole's width on the bed */
     legWidth: number;
+    /** head radius (mm), see dimensions headRadius */
+    headR: number;
     soleLength: number; soleWidth: number;
     /** build variant (gene J): 0 normal, 1 stick, 2 muscular, 3 round, 4 skeletal */
     build: number;
@@ -104,7 +106,8 @@ function build(g: MorphotypeGenome, code: string): Rig {
   const build = g.build?.type ?? 0, B = D.BUILD[build]!;
   const plan = g.plan?.type ?? 0, biped = plan === D.PLAN.biped, belly = D.onBelly(plan), insect = plan === D.PLAN.insect;
   const fish = plan === D.PLAN.fish, octopus = plan === D.PLAN.octopus;
-  const tilt = biped ? D.BIPED.tilt : 0;
+  // a quadruped carries its chest a little higher than its hips (rule "linia gestu"): the spine is never a level line
+  const tilt = biped ? D.BIPED.tilt : plan === D.PLAN.quadruped ? D.GESTURE.chestUp : 0;
   const L = D.snap(D.BODY_LENGTH[g.body!.length!]! * B.length);
   const G = D.snap(D.BODY_GIRTH[g.body!.girth!]! * B.girth);
   const W = D.snap(D.BODY_GIRTH[g.body!.girth!]! * D.BODY_WIDTH_RATIO[g.body!.shape!]! * B.width);
@@ -112,14 +115,18 @@ function build(g: MorphotypeGenome, code: string): Rig {
   // octopus: the mantle stands on the arms' hub (arms ARM_MM thick, the mantle's underside rests on them)
   const legLen = octopus ? (G / 2 + 1.5) * 0.85 - G * 0.35 + D.OCTOPUS.armMm
     : belly ? (G / 2 + 1.5) * (1 - D.BELLY_FLAT) - G * 0.35
-    : D.snap(D.LEG_LENGTH[g.legs!.length!]! * B.leg * (biped ? D.BIPED.leg : insect ? 1.15 : 1));
+    // silhouette test: a standing creature always shows light under its belly, so its legs read as legs
+    : Math.max(D.snap(D.LEG_LENGTH[g.legs!.length!]! * B.leg * (biped ? D.BIPED.leg : insect ? 1.15 : 1)), insect ? 0 : D.snap(D.minLegForGap(G)));
   const legW = D.snap(B.legW(G));
+  const headR = D.headRadius(G, plan);
   const neckLen = D.NECK_LENGTH[g.head!.neckLength!]! * (fish || octopus ? 0.25 : plan === D.PLAN.caterpillar ? 0.5 : 1);
   const tailLen = g.tail!.type === 0 ? 0 : D.TAIL_LENGTH[g.tail!.length!]!;
   const sole = { length: D.snap(D.FOOT_SOLE[g.legs!.foot!]!.length * B.sole * (biped ? D.BIPED.sole : 1)), width: legW };
   // caterpillar prolegs peek out of the flanks
   const legZ = W * (plan === D.PLAN.caterpillar ? 0.45 : 0.32);
   const legX = Math.max(5, L * (insect ? 0.27 : 0.3));
+  // a raised chest lifts the shoulders: the front legs grow by as much, so all four feet stay on the bed
+  const legLenF = biped ? legLen : legLen + 2 * legX * Math.sin(tilt);
 
   // Local offsets are a function of the dims only -> hierarchy: stretching the
   // torso moves neck/head/front legs forward and tail/hind legs backward.
@@ -127,13 +134,13 @@ function build(g: MorphotypeGenome, code: string): Rig {
     torso: [0, 0, 0],
     shoulderF: [legX, -G * 0.35, 0],
     hipB: [biped ? L * D.BIPED.hipX : -legX, -G * 0.35, 0],
-    footFL: [0, biped ? 0 : -legLen, legZ], // a biped has no front legs: the unused feet stay at the shoulder
-    footFR: [0, biped ? 0 : -legLen, -legZ],
+    footFL: [0, biped ? 0 : -legLenF, legZ], // a biped has no front legs: the unused feet stay at the shoulder
+    footFR: [0, biped ? 0 : -legLenF, -legZ],
     footBL: [0, -legLen, legZ],
     footBR: [0, -legLen, -legZ],
     neckBase: octopus ? [L * 0.3, -G * 0.2, 0] : fish ? [L * 0.42, 0, 0] : belly ? [L * 0.4, G * 0.15, 0] : [L * 0.36, G * 0.25, 0],
     head: [neckLen, 0, 0], // along the neck's rotated frame
-    muzzle: [D.HEAD_RADIUS + D.SNOUT_REACH[g.snout!.reach!]!, -2, 0],
+    muzzle: [headR + D.SNOUT_REACH[g.snout!.reach!]!, -2, 0],
     hornRoot: [1, 4, 0],
     earRoot: [-2, 4, 0],
     crestRoot: [0, 2, 0],
@@ -178,7 +185,7 @@ function build(g: MorphotypeGenome, code: string): Rig {
     code, nodes, order,
     dims: {
       bodyLength: L, bodyGirth: G, bodyWidth: W, legLength: legLen, neckLength: neckLen,
-      tailLength: tailLen, legWidth: legW, soleLength: sole.length, soleWidth: sole.width, build, plan, tilt,
+      tailLength: tailLen, legWidth: legW, headR, soleLength: sole.length, soleWidth: sole.width, build, plan, tilt,
     },
     bounds, issues: [],
   };

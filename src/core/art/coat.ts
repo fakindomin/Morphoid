@@ -70,10 +70,18 @@ function armourH(u: number): number {
  * Fur and scales are projected onto the side, the top and the front and blended by the normal (the top is mirrored at
  * the spine so both flanks match); armour depends only on the position along the body.
  */
+/**
+ * Rest zones (rule "strefy odpoczynku"): the coat is strongest on the back and the top of the flanks, where the eye
+ * looks first, and fades out under the belly, so the form shows and the pattern only accents it. `ny` is the surface
+ * normal's height component (1 on the back, -1 under the belly).
+ */
+export const REST_ZONE: readonly [number, number] = [-0.55, 0.15];
+export const restZone = (ny: number): number => sstep(REST_ZONE[0], REST_ZONE[1], ny);
+
 export function coatDepth(c: Coat, x: number, y: number, z: number, nx: number, ny: number, nz: number): number {
   const cs = Math.cos(c.tilt), sn = Math.sin(c.tilt), dx = x - c.cx, dy = y - c.cy;
   const u = dx * cs + dy * sn, v = -dx * sn + dy * cs;
-  const k = COAT_DEPTH * c.depth * sstep(BED_FADE[0], BED_FADE[1], y);
+  const k = COAT_DEPTH * c.depth * sstep(BED_FADE[0], BED_FADE[1], y) * restZone(ny);
   if (c.kind === 3) return k * armourH(c.bands === 'v' ? v : u);
   const nu = nx * cs + ny * sn, nv = -nx * sn + ny * cs;
   const ws = nz * nz, wt = nv * nv, wf = nu * nu, sum = ws + wt + wf || 1;
@@ -114,7 +122,7 @@ float armourH(float u) {
 float coatDepth(vec4 c, vec2 e, vec3 p, vec3 n) {
   float cs = cos(c.w), sn = sin(c.w), dx = p.x - c.y, dy = p.y - c.z;
   float u = dx * cs + dy * sn, v = -dx * sn + dy * cs;
-  float k = ${COAT_DEPTH.toFixed(3)} * e.x * smoothstep(${BED_FADE[0].toFixed(2)}, ${BED_FADE[1].toFixed(2)}, p.y);
+  float k = ${COAT_DEPTH.toFixed(3)} * e.x * smoothstep(${BED_FADE[0].toFixed(2)}, ${BED_FADE[1].toFixed(2)}, p.y) * smoothstep(${REST_ZONE[0].toFixed(2)}, ${REST_ZONE[1].toFixed(2)}, n.y);
   if (c.x > 2.5) return k * armourH(e.y > 0.5 ? v : u);
   float nu = n.x * cs + n.y * sn, nv = -n.x * sn + n.y * cs;
   float ws = n.z * n.z, wt = nv * nv, wf = nu * nu, sum = max(ws + wt + wf, 1e-4);

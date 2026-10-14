@@ -4,7 +4,7 @@
  * wrap this in Zustand/React with `subscribe` + `getState` unchanged.
  */
 import {
-  creatureName, defaultGenome, mulberry32, mutate, parse, randomGenome, serialize,
+  creatureName, defaultGenome, mulberry32, mutate, parse, serialize, surpriseGenome,
   type MorphotypeGenome, type ParseResult,
 } from './genome';
 import { applyOp, type Op } from './radial';
@@ -64,7 +64,7 @@ export function createStudioStore(initial: MorphotypeGenome = defaultGenome()) {
       if (r.ok) commit(r.genome);
       return r;
     },
-    randomize(seed: number): void { commit(randomGenome(mulberry32(seed))); },
+    randomize(seed: number): void { commit(surpriseGenome(mulberry32(seed))); }, // one signature feature, the rest calm
     mutateLight(seed: number): void { commit(mutate(state.genome, mulberry32(seed))); },
     reset(): void { commit(defaultGenome()); },
 

@@ -17,6 +17,7 @@ import { typeSize } from './pose';
 import { insectLimb, legLimb, legSpecOf, octopusLimb, prolegLimb, type Cone, type Dome, type Limb } from './limb';
 import { blendGroup, edgesOf, sdPolys, slabDist, type Edge } from '../bake/field';
 import { hostsOf, mountAt, skinZ, slabSd, type Host } from './mounts';
+import { cutPlanes, langOf, speakLanguage, type Cut } from './form';
 
 export type ColorKey = 'c1' | 'c1dark' | 'c2' | 'c2soft' | 'c3' | 'ink' | 'white';
 
@@ -61,6 +62,10 @@ export interface Part3D {
   carve?: boolean;
   /** raised 3D ribs fused onto the slab (wing bones, feather shafts), world mm */
   ribs?: Limb;
+  /** blend radius of this appendage as a share of its thickness (its shape language), see blendOf in field.ts */
+  blendShare?: number;
+  /** flat planes cut into the part (cheeks, temples, the back), see form.ts */
+  cuts?: Cut[];
   /** coat texture (fur, scales, armour): a shallow relief sunk into the surface, see coat.ts */
   coat?: Coat;
 }
@@ -122,7 +127,7 @@ export const SPEC_3D: Record<SlotId, Spec | null> = {
 
 export function ctxFor(rig: Rig): Ctx {
   const W = rig.dims.bodyWidth, G = rig.dims.bodyGirth;
-  const headW = Math.max(8, W * 0.9);
+  const headW = Math.max(8, Math.min(W * 0.9, rig.dims.headR * 1.7)); // never wider than the head is tall (rule 1)
   return { W, G, legW: rig.dims.legWidth, legZ: W * 0.32, headW, snoutW: headW * 0.62, neckT: Math.max(6, W * 0.7) };
 }
 
@@ -150,6 +155,9 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
   }
   const head = out.find((p) => p.slot === 'head');
   if (head) for (const p of out) if (p.slot === 'ear') p.polys = seatOn(p, head);
+  const lang = langOf(g, rig);
+  speakLanguage(out, lang); // round, square or sharp edges
+  cutPlanes(out, lang, rig.dims.plan); // planes on the head, the Pysk and the back, before anything is mounted on them
   { const muzzle = hostsOf(out, ['snout', 'head']); for (const p of out) if (p.slot === 'whiskers') whiskerTop(p, g, ctx, muzzle, print); }
   // teeth and tongue stay crisp shapes in the open mouth (tight blend, see bake)
   for (const p of out) if (p.slot === 'teeth' || p.slot === 'tongue') p.inset = true;
