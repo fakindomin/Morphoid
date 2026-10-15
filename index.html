@@ -1,13 +1,526 @@
 <!doctype html>
 <html lang="pl">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Morphoid Studio</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 500 500%27%3E%3Cpolygon points=%27200,240 250,330 280,260 240,160%27 fill=%27%2300e5ff%27/%3E%3Cpath d=%27M 340,80 C 330,150 315,220 280,260 C 315,260 350,310 330,390 C 350,330 365,220 340,80 Z%27 fill=%27%23ff1744%27/%3E%3C/svg%3E" />
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Morphoid Studio</title>
+<meta name="description" content="Figurki do druku 3D, które składasz z klocków w przeglądarce.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 500 500%27%3E%3Cpolygon points=%27200,240 250,330 280,260 240,160%27 fill=%27%2300e5ff%27/%3E%3Cpath d=%27M 340,80 C 330,150 315,220 280,260 C 315,260 350,310 330,390 C 350,330 365,220 340,80 Z%27 fill=%27%23ff1744%27/%3E%3C/svg%3E" />
+<style>:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one statement, then three large tiles (2D, 3D, model) in sequence. Everything else lives in the menu drawer. Monochrome, product-page restraint. */
+:root {
+  --bg: #000000;
+  --tile: #0d0e12;
+  --fg: #f5f5f7;
+  --muted: #8b909a;
+  --line: rgba(255,255,255,0.12);
+  --blue: #2e6bff;
+  --red: #ff2a3c;
+  --btn: #2e6bff;
+  --btn-fg: #ffffff;
+  --veil: rgba(0,0,0,0.72);
+  --shadow: .7;
+  --input: #16171c;
+  --f: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter Tight", "Helvetica Neue", Arial, sans-serif;
+  color-scheme: dark;
+}
+/* Dark is the brand default; light follows the system or the toggle. */
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --bg: #ffffff; --tile: #f5f5f7; --fg: #1d1d1f; --muted: #6e6e73; --line: rgba(0,0,0,0.1); --blue: #0a5cff; --red: #e0192b; --btn: #0a5cff; --btn-fg: #ffffff; --veil: rgba(255,255,255,0.72); --shadow: .3; --input: #ffffff; color-scheme: light; } }
+:root[data-theme="light"] { --bg: #ffffff; --tile: #f5f5f7; --fg: #1d1d1f; --muted: #6e6e73; --line: rgba(0,0,0,0.1); --blue: #0a5cff; --red: #e0192b; --btn: #0a5cff; --btn-fg: #ffffff; --veil: rgba(255,255,255,0.72); --shadow: .3; --input: #ffffff; color-scheme: light; }
+:root[data-theme="dark"] { --bg: #000000; --tile: #0d0e12; --fg: #f5f5f7; --muted: #8b909a; --line: rgba(255,255,255,0.12); --blue: #2e6bff; --red: #ff2a3c; --btn: #2e6bff; --btn-fg: #ffffff; --veil: rgba(0,0,0,0.72); --shadow: .7; --input: #16171c; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 400 17px/1.47 var(--f); letter-spacing: -0.01em; -webkit-font-smoothing: antialiased; }
+h1, h2, h3, p { margin: 0; }
+h1, h2 { text-wrap: balance; }
+a { color: inherit; text-decoration: none; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--fg); outline-offset: 3px; border-radius: 6px; }
+.wrap { max-width: 1080px; margin: 0 auto; padding-inline: 16px; }
+
+/* bar */
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10; background: var(--veil); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); border-bottom: 1px solid var(--line); }
+.bar .wrap { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; height: 48px; }
+.burger { width: 40px; height: 40px; margin-left: -10px; display: grid; place-items: center; }
+.burger span { display: block; width: 18px; height: 1.5px; background: var(--fg); border-radius: 1px; box-shadow: 0 -6px 0 var(--fg), 0 6px 0 var(--fg); }
+.mark { font-weight: 600; font-size: 17px; letter-spacing: -0.02em; }
+.brand { display: inline-flex; align-items: center; gap: 8px; }
+.brand .logo { width: 26px; height: 26px; }
+.hero-logo { display: flex; justify-content: center; margin-bottom: 8px; }
+.hero-logo .logo { width: clamp(64px, 8vw, 88px); height: auto; aspect-ratio: 1; }
+/* Brand marks that live. The logo nods its head, twitches its horns, blinks and sways its tail; each part turns
+   about its own joint (viewBox units). Type badges breathe the way their creature type moves. */
+.logo-mark { flex: none; overflow: visible; }
+.logo-mark .head, .logo-mark .horns, .logo-mark .tail, .logo-mark .tip { transform-box: view-box; }
+.logo-mark .head { transform-origin: 205px 150px; }
+.logo-mark .horns { transform-origin: 210px 80px; }
+.logo-mark .tail { transform-origin: 300px 300px; }
+.logo-mark .tip { transform-origin: 400px 60px; }
+.logo-mark .eye { transform-box: fill-box; transform-origin: center; }
+.logo-live .head { animation: logo-nod 3.6s ease-in-out infinite; }
+.logo-live .horns { animation: logo-twitch 3.6s ease-in-out infinite; }
+.logo-live .eye { animation: logo-blink 4.4s 1.2s infinite; }
+.logo-live .tail { animation: logo-sway 2.6s ease-in-out infinite alternate; }
+.logo-live .tip { animation: logo-sway 2.6s .35s ease-in-out infinite alternate; }
+@keyframes logo-nod { 0%, 100% { transform: rotate(0); } 45% { transform: rotate(-3deg); } 60% { transform: rotate(1deg); } }
+@keyframes logo-twitch { 0%, 66%, 76%, 100% { transform: rotate(0); } 70% { transform: rotate(7deg); } 73% { transform: rotate(-3deg); } }
+@keyframes logo-blink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(.1); } }
+@keyframes logo-sway { from { transform: rotate(-2.5deg); } to { transform: rotate(2.5deg); } }
+@media (prefers-reduced-motion: reduce) { .logo-live * { animation: none; } }
+
+.bar-right { justify-self: end; display: flex; align-items: center; gap: 2px; margin-right: -8px; }
+.icon { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; color: var(--fg); }
+.icon:hover { background: var(--line); }
+.icon svg { width: 19px; height: 19px; }
+.bar .open { justify-self: end; font-size: 12px; font-weight: 500; padding: 5px 12px; border-radius: 980px; background: var(--btn); color: var(--btn-fg); white-space: nowrap; }
+
+/* hero */
+.hero { text-align: center; padding-block: clamp(10px, 1.6vw, 20px) clamp(24px, 3vw, 36px); }
+.hero .kicker { font-size: 19px; font-weight: 600; color: var(--muted); }
+.hero h1 { font-size: clamp(40px, 6.4vw, 76px); line-height: 1; font-weight: 700; letter-spacing: -0.035em; margin-top: 6px; }
+.hero h1 .l2 { display: block; background: linear-gradient(90deg, #5b8cff 0%, var(--blue) 45%, var(--red) 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.hero .sub { font-size: clamp(19px, 2vw, 22px); color: var(--muted); max-width: 30em; margin: 14px auto 0; line-height: 1.38; }
+.hero .ctas { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 14px 28px; margin-top: 20px; }
+.pill { display: inline-block; font-size: 17px; font-weight: 500; padding: 12px 24px; border-radius: 980px; background: var(--btn); color: var(--btn-fg); }
+.more { font-size: 17px; color: var(--blue); }
+.more::after { content: " ›"; }
+.more:hover { text-decoration: underline; }
+
+/* sequence */
+.seq { display: flex; justify-content: center; gap: 14px; font-size: 13px; font-weight: 500; color: var(--muted); letter-spacing: 0.02em; margin-bottom: 10px; }
+.seq i { font-style: normal; opacity: .5; }
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; padding-bottom: clamp(36px, 5vw, 60px); }
+.tile { background: var(--tile); border-radius: 24px; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+.tile .art { aspect-ratio: 440 / 300; max-width: 100%; }
+.tile .art svg { display: block; width: 100%; height: 100%; }
+.tile .txt { padding: 0 24px 22px; }
+.tile .step { font-size: 13px; font-weight: 600; color: var(--muted); letter-spacing: 0.02em; }
+.tile h2 { font-size: clamp(28px, 3vw, 38px); line-height: 1.05; font-weight: 700; letter-spacing: -0.03em; margin-top: 6px; }
+.tile p { font-size: 16px; color: var(--muted); margin-top: 6px; line-height: 1.45; }
+.tile .step { color: var(--blue); }
+.tile.dark { background: #0b0b0c; color: #f5f5f7; }
+.tile.dark p { color: #a1a1a6; }
+.tile.dark .step { color: #ff2a3c; }
+@media (max-width: 820px) {
+  .tiles { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; margin-inline: -16px; padding-inline: 16px; scrollbar-width: none; }
+  .tiles::-webkit-scrollbar { display: none; }
+  .tile { flex: 0 0 84%; scroll-snap-align: center; }
+}
+
+.closer { text-align: center; padding-block: clamp(40px, 6vw, 72px); }
+.closer h2 { font-size: clamp(30px, 4.4vw, 52px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.08; }
+.closer .pill { margin-top: 28px; }
+footer { border-top: 1px solid var(--line); padding-block: 20px 36px; font-size: 12px; color: var(--muted); }
+
+/* drawer */
+.scrim { position: fixed; inset: 0; z-index: 20; background: rgba(0,0,0,0.6); opacity: 0; pointer-events: none; transition: opacity .3s ease; }
+.drawer { position: fixed; z-index: 21; top: 0; left: 0; bottom: 0; width: min(440px, 100%); background: var(--tile); border-right: 1px solid var(--line); transform: translateX(-102%); visibility: hidden; transition: transform .45s cubic-bezier(.32,.72,0,1), visibility 0s linear .45s; display: flex; flex-direction: column; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); box-shadow: 0 0 60px rgba(0,0,0,0.18); }
+body.menu .scrim { opacity: 1; pointer-events: auto; }
+body.menu .drawer { transform: none; visibility: visible; transition: transform .45s cubic-bezier(.32,.72,0,1); }
+@media (prefers-reduced-motion: reduce) { .drawer, .scrim, body.menu .drawer { transition: none; } }
+.d-head { display: flex; align-items: center; justify-content: space-between; height: 48px; padding-inline: 16px 12px; flex: none; }
+.x { width: 40px; height: 40px; display: grid; place-items: center; position: relative; }
+.x::before, .x::after { content: ""; position: absolute; width: 18px; height: 1.5px; background: var(--fg); transform: rotate(45deg); }
+.x::after { transform: rotate(-45deg); }
+.d-body { overflow-y: auto; padding: 8px 32px 40px; flex: 1; }
+.d-nav { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 4px; }
+.d-nav button { font-size: 28px; font-weight: 600; letter-spacing: -0.025em; padding: 6px 0; text-align: left; width: 100%; }
+.d-nav button:hover { color: var(--muted); }
+.d-note { margin-top: 40px; font-size: 13px; color: var(--muted); }
+
+/* full-screen pages */
+.view { position: fixed; inset: 0; z-index: 25; background: var(--bg); overflow-y: auto; overscroll-behavior: contain; animation: rise .4s cubic-bezier(.32,.72,0,1); }
+.view[hidden] { display: none; }
+.v-bar { position: sticky; top: 0; z-index: 2; background: var(--veil); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); border-bottom: 1px solid var(--line); padding-top: env(safe-area-inset-top, 0px); }
+.v-bar .wrap { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; height: 48px; }
+.v-bar .x { margin-left: -10px; }
+.v-page { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 72px); }
+.v-head { text-align: center; padding-block: clamp(28px, 4vw, 48px) clamp(20px, 3vw, 32px); }
+.v-head .kicker { font-size: 17px; font-weight: 600; color: var(--blue); }
+.v-head h2 { font-size: clamp(36px, 5.6vw, 64px); font-weight: 700; letter-spacing: -0.035em; line-height: 1.05; margin-top: 10px; }
+.v-head p { font-size: clamp(17px, 1.8vw, 21px); color: var(--muted); max-width: 32em; margin: 18px auto 0; line-height: 1.4; }
+.steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.step-card { background: var(--tile); border-radius: 22px; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+.step-card .art { aspect-ratio: 440 / 300; max-width: 100%; }
+.step-card .art svg { display: block; width: 100%; height: 100%; }
+.step-card .txt { padding: 2px 22px 26px; }
+.step-card .n { font-size: 13px; font-weight: 600; color: var(--blue); }
+.step-card h3 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; margin-top: 4px; }
+.step-card.dark { background: #0b0b0c; color: #f5f5f7; }
+.step-card.dark p:not(.n) { color: #a1a1a6; }
+.step-card.dark .n { color: #ff2a3c; }
+.step-card p { font-size: 15px; color: var(--muted); margin-top: 8px; line-height: 1.45; }
+@media (max-width: 960px) { .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) {
+  .steps { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; margin-inline: -16px; padding-inline: 16px; scrollbar-width: none; }
+  .steps::-webkit-scrollbar { display: none; }
+  .step-card { flex: 0 0 84%; scroll-snap-align: center; }
+}
+.faq { max-width: 760px; margin: clamp(40px, 5vw, 64px) auto 0; }
+.faq > h3, .specs > h3 { font-size: clamp(28px, 3.4vw, 40px); font-weight: 700; letter-spacing: -0.03em; text-align: center; margin-bottom: 28px; }
+.faq details { border-bottom: 1px solid var(--line); }
+.faq details:first-of-type { border-top: 1px solid var(--line); }
+.faq summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 20px 0; font-size: 19px; font-weight: 600; letter-spacing: -0.015em; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: "+"; font-size: 26px; font-weight: 300; color: var(--muted); transition: transform .25s ease; flex: none; }
+.faq details[open] summary::after { transform: rotate(45deg); }
+.faq details p { color: var(--muted); font-size: 16px; line-height: 1.5; padding-bottom: 22px; max-width: 62ch; }
+.feats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.feat { background: var(--tile); border-radius: 22px; padding: 30px 26px 32px; min-width: 0; }
+.feat .tag { font-size: 13px; font-weight: 600; color: var(--blue); }
+.feat h3 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; margin-top: 6px; }
+.feat p { font-size: 15.5px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
+@media (max-width: 900px) { .feats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .feats { grid-template-columns: minmax(0, 1fr); } }
+.specs { max-width: 820px; margin: 0 auto; }
+.specs dl { margin: 0; border-top: 1px solid var(--line); }
+.specs dl div { display: grid; grid-template-columns: minmax(0, 13em) minmax(0, 1fr); gap: 8px 24px; padding: 20px 0; border-bottom: 1px solid var(--line); }
+.specs dt { font-weight: 600; font-size: 17px; }
+.specs dd { margin: 0; color: var(--muted); font-size: 16px; line-height: 1.5; }
+.specs dd b { color: var(--fg); font-weight: 600; }
+@media (max-width: 600px) { .specs dl div { grid-template-columns: minmax(0, 1fr); } }
+.next { display: flex; justify-content: center; margin-top: clamp(36px, 5vw, 56px); }
+.next button { font-size: 19px; color: var(--blue); }
+.next button::after { content: " ›"; }
+.next button:hover { text-decoration: underline; }
+/* sign-in sheet */
+.modal { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px; background: rgba(0,0,0,0.55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.sheet { position: relative; width: min(400px, 100%); max-height: 100%; overflow-y: auto; background: var(--tile); border: 1px solid var(--line); border-radius: 24px; padding: 36px 28px 26px; box-shadow: 0 30px 80px rgba(0,0,0,0.35); animation: rise .35s cubic-bezier(.32,.72,0,1); }
+.modal[hidden] { display: none; }
+@keyframes rise { from { transform: translateY(16px) scale(.98); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .sheet { animation: none; } }
+.sheet .x { position: absolute; top: 10px; right: 10px; }
+.sheet h3 { font-size: 28px; font-weight: 700; letter-spacing: -0.03em; }
+.sheet .lede { color: var(--muted); font-size: 15px; margin-top: 6px; }
+.auth-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 15px; font-weight: 500; padding: 13px 16px; border-radius: 12px; background: var(--input); color: var(--fg); box-shadow: inset 0 0 0 1px var(--line); }
+.auth-btn:hover { box-shadow: inset 0 0 0 1px var(--muted); }
+.auth-btn.primary { background: var(--btn); color: var(--btn-fg); box-shadow: none; margin-top: 24px; }
+.auth-btn svg { width: 20px; height: 20px; }
+.hint { font-size: 12.5px; color: var(--muted); text-align: center; margin-top: 8px; }
+.or { display: flex; align-items: center; gap: 12px; margin: 20px 0; font-size: 12px; color: var(--muted); }
+.or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.auth-row { display: grid; gap: 8px; }
+.mail { display: grid; gap: 8px; margin-top: 16px; }
+.mail label { font-size: 13px; font-weight: 500; color: var(--muted); }
+.mail input { font: inherit; font-size: 15px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--input); color: var(--fg); }
+.mail input:focus { outline: 2px solid var(--blue); outline-offset: 0; border-color: transparent; }
+.status { font-size: 13px; color: var(--blue); margin-top: 12px; min-height: 1.2em; text-align: center; }
+.fine { font-size: 12px; color: var(--muted); text-align: center; margin-top: 4px; }
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="wrap">
+    <button class="burger" id="burger" type="button" aria-label="Otwórz menu" aria-expanded="false" aria-controls="drawer"><span></span></button>
+    <a class="mark brand" href="#top" aria-label="Morphoid Studio"><svg class="logo logo-mark logo-live" viewBox="60 0 400 460" aria-hidden="true"><polygon points="120,440 210,440 250,330 200,240 140,240" fill="#334155"/><polygon points="140,240 200,240 240,160 170,140" fill="#0284c7"/><polygon points="200,240 250,330 280,260 240,160" fill="#00e5ff"/><polygon points="120,440 150,330 210,440" fill="#0369a1"/><g class="head"><polygon points="170,140 240,160 236,104 186,92" fill="#38bdf8"/><polygon points="186,92 236,104 222,70 196,72" fill="#7dd3fc"/><polygon points="170,140 186,92 112,112" fill="#0ea5e9"/><polygon points="112,112 170,140 132,138" fill="#0369a1"/><g class="horns"><polygon points="196,72 210,74 188,18" fill="#e0f2fe"/><polygon points="214,76 228,82 252,30" fill="#bae6fd"/></g><polygon class="eye" points="160,104 176,100 172,112" fill="#000"/></g><path d="M 250,330 L 290,440 L 380,440 C 370,300 375,180 340,80 C 330,140 310,210 280,260 Z" fill="#3f2a33"/><g class="tail"><path d="M 340,80 C 330,150 315,220 280,260 C 315,260 350,310 330,390 C 350,330 368,200 356,112 C 360,84 378,64 402,58 C 378,50 350,58 340,80 Z" fill="#ff1744"/><g class="tip"><polygon points="396,46 426,40 412,72" fill="#b91c1c"/><polygon points="396,46 412,72 400,62" fill="#7f1d1d"/></g></g><polygon points="290,440 380,440 340,350" fill="#991b1b"/></svg><span>Morphoid</span></a>
+    <div class="bar-right">
+      <button class="icon" id="theme" type="button" aria-label="Przełącz tryb jasny lub ciemny"></button>
+      <button class="icon" id="account" type="button" aria-label="Zaloguj się" aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3.4"/><path d="M5.8 18.6c1.4-2.4 3.6-3.6 6.2-3.6s4.8 1.2 6.2 3.6"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero wrap">
+    <div class="hero-logo"><svg class="logo logo-mark logo-live" viewBox="60 0 400 460" aria-hidden="true"><polygon points="120,440 210,440 250,330 200,240 140,240" fill="#334155"/><polygon points="140,240 200,240 240,160 170,140" fill="#0284c7"/><polygon points="200,240 250,330 280,260 240,160" fill="#00e5ff"/><polygon points="120,440 150,330 210,440" fill="#0369a1"/><g class="head"><polygon points="170,140 240,160 236,104 186,92" fill="#38bdf8"/><polygon points="186,92 236,104 222,70 196,72" fill="#7dd3fc"/><polygon points="170,140 186,92 112,112" fill="#0ea5e9"/><polygon points="112,112 170,140 132,138" fill="#0369a1"/><g class="horns"><polygon points="196,72 210,74 188,18" fill="#e0f2fe"/><polygon points="214,76 228,82 252,30" fill="#bae6fd"/></g><polygon class="eye" points="160,104 176,100 172,112" fill="#000"/></g><path d="M 250,330 L 290,440 L 380,440 C 370,300 375,180 340,80 C 330,140 310,210 280,260 Z" fill="#3f2a33"/><g class="tail"><path d="M 340,80 C 330,150 315,220 280,260 C 315,260 350,310 330,390 C 350,330 368,200 356,112 C 360,84 378,64 402,58 C 378,50 350,58 340,80 Z" fill="#ff1744"/><g class="tip"><polygon points="396,46 426,40 412,72" fill="#b91c1c"/><polygon points="396,46 412,72 400,62" fill="#7f1d1d"/></g></g><polygon points="290,440 380,440 340,350" fill="#991b1b"/></svg></div>
+    <p class="kicker">Morphoid Studio</p>
+    <h1>Wymyśl stwora wieczorem.<span class="l2">Zdejmij go z drukarki rano.</span></h1>
+    <p class="sub">Figurki do druku 3D, które składasz z klocków w przeglądarce.</p>
+    <div class="ctas">
+      <a class="pill" href="/studio/">Otwórz studio</a>
+      <button class="more" type="button" data-view="jak">Jak to działa</button>
+    </div>
+  </section>
+
+  <div class="wrap">
+    <div class="seq" aria-hidden="true"><span>2D</span><i>—</i><span>3D</span><i>—</i><span>Druk</span></div>
+    <div class="tiles">
+      <article class="tile">
+        <div class="art" id="art-2d"></div>
+        <div class="txt">
+          <p class="step">2D</p>
+          <h2>Narysuj.</h2>
+          <p>Składasz stwora z klocków na płaskim szkicu. Każdy wybór od razu widać na rysunku.</p>
+        </div>
+      </article>
+      <article class="tile">
+        <div class="art" id="art-3d"></div>
+        <div class="txt">
+          <p class="step">3D</p>
+          <h2>Obejrzyj.</h2>
+          <p>Jeden przełącznik i ten sam stwór nabiera bryły. Zmiana w jednym widoku od razu trafia do drugiego.</p>
+        </div>
+      </article>
+      <article class="tile dark">
+        <div class="art" id="art-print"></div>
+        <div class="txt">
+          <p class="step">Druk</p>
+          <h2>Wydrukuj.</h2>
+          <p>Szczelna bryła STL prosto na stół Bambu Lab P1S. Podział na części i kolory AMS, kiedy ich potrzebujesz.</p>
+        </div>
+      </article>
+    </div>
+  </div>
+
+  
+</main>
+
+<footer><div class="wrap">Morphoid Studio · ilustracje są poglądowe</div></footer>
+
+<div class="scrim" id="scrim"></div>
+<div class="modal" id="auth" role="dialog" aria-modal="true" aria-labelledby="auth-title" hidden>
+  <div class="sheet">
+    <button class="x" id="auth-close" type="button" aria-label="Zamknij"></button>
+    <h3 id="auth-title">Zaloguj się</h3>
+    <p class="lede">Zapisuj stwory i wracaj do nich na każdym urządzeniu.</p>
+    <button class="auth-btn primary" type="button" data-auth>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="9" r="4"/><path d="M2 21c.8-3.4 3.2-5 6-5 1.4 0 2.6.4 3.6 1.1"/><circle cx="17.5" cy="13.5" r="2.5"/><path d="M17.5 16v5l1.5-1.2M17.5 19l1.4 1"/></svg>
+      Zaloguj kluczem dostępu
+    </button>
+    <p class="hint">Face ID, Touch ID albo Windows Hello. Bez hasła.</p>
+    <div class="or"><span>lub</span></div>
+    <div class="auth-row">
+      <button class="auth-btn" type="button" data-auth>Kontynuuj z Apple</button>
+      <button class="auth-btn" type="button" data-auth>Kontynuuj z Google</button>
+    </div>
+    <form id="mail" class="mail" novalidate>
+      <label for="email">E-mail</label>
+      <input id="email" name="email" type="email" autocomplete="email webauthn" placeholder="ty@przyklad.pl">
+      <button class="auth-btn" type="submit">Wyślij link do logowania</button>
+    </form>
+    <p class="status" id="auth-status" aria-live="polite"></p>
+    <p class="fine">Pierwsze logowanie od razu zakłada konto.</p>
+  </div>
+</div>
+<aside class="drawer" id="drawer" aria-label="Menu" aria-hidden="true">
+  <div class="d-head">
+    <span></span>
+    <button class="x" id="close" type="button" aria-label="Zamknij menu"></button>
+  </div>
+  <div class="d-body">
+    <ul class="d-nav">
+      <li><button type="button" data-view="jak">Jak to działa</button></li>
+      <li><button type="button" data-view="funkcje">Funkcje</button></li>
+      <li><button type="button" data-view="druk">Druk</button></li>
+    </ul>
+    <p class="d-note">Działa w przeglądarce. Bez instalacji.</p>
+  </div>
+</aside>
+
+<div class="view" id="view" role="dialog" aria-modal="true" aria-labelledby="v-title" hidden>
+  <div class="v-bar">
+    <div class="wrap">
+      <button class="x" id="v-close" type="button" aria-label="Wróć do strony głównej"></button>
+      <span class="mark" id="v-title">Morphoid</span>
+      <span></span>
+    </div>
+  </div>
+
+  <section class="v-page wrap" data-v="jak" hidden>
+    <header class="v-head">
+      <p class="kicker">Jak to działa</p>
+      <h2>Od pomysłu do figurki w&nbsp;czterech krokach.</h2>
+      <p>Nie musisz znać modelowania 3D. Składasz stwora z gotowych części, a resztę robi aplikacja.</p>
+    </header>
+    <div class="steps">
+      <article class="step-card"><div class="art" id="st-1"></div><div class="txt"><p class="n">Krok 1</p><h3>Wylosuj albo zacznij od zera.</h3><p>Jedno kliknięcie daje gotowego stwora. Losuj, aż trafisz na tego, który Ci się spodoba.</p></div></article>
+      <article class="step-card"><div class="art" id="st-2"></div><div class="txt"><p class="n">Krok 2</p><h3>Dopasuj każdy szczegół.</h3><p>Kliknij uszy, rogi, ogon albo łapy i wybierz wariant z koła wokół kursora. Na koniec dobierz kolory.</p></div></article>
+      <article class="step-card"><div class="art" id="st-3"></div><div class="txt"><p class="n">Krok 3</p><h3>Sprawdź w 3D.</h3><p>Obróć stwora jak prawdziwą figurkę. Jeśli jakaś część nie wydrukuje się dobrze, od razu to zobaczysz.</p></div></article>
+      <article class="step-card dark"><div class="art" id="st-4"></div><div class="txt"><p class="n">Krok 4</p><h3>Pobierz i drukuj.</h3><p>Dostajesz gotowy plik dla drukarki. W całości albo w częściach, które łączą się na wcisk.</p></div></article>
+    </div>
+    <div class="faq">
+      <h3>Najczęstsze pytania</h3>
+      <details><summary>Czy muszę umieć modelować 3D?</summary><p>Nie. Wybierasz części z gotowych wariantów, a aplikacja sama buduje z nich zamkniętą bryłę gotową do druku.</p></details>
+      <details><summary>Na jakiej drukarce wydrukuję figurkę?</summary><p>Na każdej drukarce FDM, która przyjmuje pliki STL lub 3MF. Ustawienia domyślne są dobrane pod Bambu Lab P1S, którą polecamy.</p></details>
+      <details><summary>Czy figurka potrzebuje podpór?</summary><p>Części są projektowane tak, żeby drukowały się bez podpór. Gdy Twoja zmiana będzie ich wymagać, aplikacja to pokaże i zaproponuje podział na części.</p></details>
+      <details><summary>Jak połączyć części?</summary><p>Podzielone części mają czopy i gniazda z luzem dobranym do druku FDM. Wystarczy je wcisnąć, a w razie potrzeby dodać kroplę kleju.</p></details>
+      <details><summary>Ile to kosztuje?</summary><p>Pierwszy plik pobierasz za darmo. Kolejne wykupisz w aplikacji.</p></details>
+      <details><summary>Czy muszę coś instalować?</summary><p>Nie. Morphoid Studio działa w przeglądarce, a model liczy się na Twoim komputerze.</p></details>
+    </div>
+    <div class="next"><button type="button" data-view="funkcje">Dalej: Funkcje</button></div>
+  </section>
+
+  <section class="v-page wrap" data-v="funkcje" hidden>
+    <header class="v-head">
+      <p class="kicker">Funkcje</p>
+      <h2>Proste w obsłudze. Dokładne jak narzędzie inżyniera.</h2>
+      <p>Wszystko, czego potrzebujesz, żeby stwór z ekranu stał się figurką na półce.</p>
+    </header>
+    <div class="feats">
+      <article class="feat"><p class="tag">Edycja</p><h3>Menu wokół kursora</h3><p>Klikasz część stwora i wybierasz wariant z koła. Cofnięcie jest zawsze tam, gdzie kliknąłeś.</p></article>
+      <article class="feat"><p class="tag">Podgląd</p><h3>Rysunek i bryła</h3><p>Przełącznik 2D | 3D pokazuje tego samego stwora jako szkic i jako model na stole drukarki.</p></article>
+      <article class="feat"><p class="tag">Kontrola druku</p><h3>Ostrzega, zanim zmarnujesz filament</h3><p>Aplikacja na bieżąco sprawdza nawisy, mosty i grubość ścianek, a problem zaznacza na rysunku.</p></article>
+      <article class="feat"><p class="tag">Podział</p><h3>W całości albo w częściach</h3><p>Głowa, ogon i łapy mogą drukować się osobno. Części łączą się czopami bez śrubek.</p></article>
+      <article class="feat"><p class="tag">Plik</p><h3>Szczelna bryła za każdym razem</h3><p>Każdy plik jest sprawdzany przed pobraniem: jedna zamknięta bryła i płaska podstawa, która trzyma się stołu.</p></article>
+      <article class="feat"><p class="tag">Kolor</p><h3>Trzy filamenty, jeden plik</h3><p>Ciało, akcenty i detale w osobnych kolorach. Plik 3MF ma je przypisane do AMS.</p></article>
+    </div>
+    <div class="next"><button type="button" data-view="druk">Dalej: Druk</button></div>
+  </section>
+
+  <section class="v-page wrap" data-v="druk" hidden>
+    <header class="v-head">
+      <p class="kicker">Druk</p>
+      <h2>Drukuj na tym, co masz.</h2>
+      <p>Działa z każdą drukarką FDM. Ustawienia domyślne dobraliśmy pod Bambu Lab P1S.</p>
+    </header>
+    <div class="specs">
+      <dl>
+        <div><dt>Drukarki</dt><dd>Każda drukarka FDM, która przyjmuje STL lub 3MF. <b>Polecana: Bambu Lab P1S.</b></dd></div>
+        <div><dt>Pliki</dt><dd>STL do każdego slicera. 3MF z kolorami przypisanymi do AMS.</dd></div>
+        <div><dt>Kolory</dt><dd>Do trzech filamentów: ciało, akcenty i detale.</dd></div>
+        <div><dt>Podpory</dt><dd>Domyślnie zbędne. Aplikacja ostrzega, gdy zmiana ich wymaga.</dd></div>
+        <div><dt>Mosty</dt><dd>Do 12 mm bez podpór. Wartość zmienisz w ustawieniach pod swoją drukarkę.</dd></div>
+        <div><dt>Łączenie części</dt><dd>Czopy 3×3×5 mm lub 5×5×8 mm z luzem 0,2 mm, na wcisk.</dd></div>
+        <div><dt>Instalacja</dt><dd>Niepotrzebna. Działa w przeglądarce.</dd></div>
+      </dl>
+    </div>
+    <div class="next"><button type="button" data-view="jak">Wróć do: Jak to działa</button></div>
+  </section>
+</div>
+
+<script>
+(() => {
+  // One creature, three renderings. Side view, facing left, table at y=250.
+  const G = 250;
+  const S = {
+    legsBack: '<rect x="208" y="190" width="26" height="60" rx="13"/><rect x="298" y="190" width="26" height="60" rx="13"/>',
+    tail: '<path d="M316 162 q34 -4 44 -46 q22 6 26 32 q-22 -4 -28 22 q-16 -2 -42 -8 z"/>',
+    body: '<ellipse cx="244" cy="172" rx="84" ry="52"/>',
+    legsFront: '<rect x="190" y="190" width="28" height="60" rx="14"/><rect x="282" y="190" width="28" height="60" rx="14"/>',
+    neck: '<ellipse cx="186" cy="146" rx="32" ry="28"/>',
+    earBack: '<path d="M136 86 L134 48 L160 76 Z"/>',
+    head: '<circle cx="154" cy="116" r="43"/>',
+    earFront: '<path d="M152 80 L164 40 L188 76 Z"/>',
+    horn: '<path d="M170 80 q4 -22 20 -28 q-6 16 -3 32 z"/>',
+    snout: '<ellipse cx="112" cy="134" rx="26" ry="18"/>',
+  };
+  const order = ['legsBack', 'tail', 'body', 'legsFront', 'neck', 'earBack', 'head', 'earFront', 'horn', 'snout'];
+  const g = (shape, attrs) => `<g ${attrs}>${S[shape]}</g>`;
+  const silhouette = order.map(k => S[k]).join('');
+
+  function line() {
+    const st = 'fill="var(--tile)" stroke="var(--blue)" stroke-width="1.6" stroke-linejoin="round"';
+    const parts = order.map(k => g(k, st)).join('');
+    const joints = [[154,116],[186,146],[244,172],[336,150],[204,196],[296,196],[204,246],[296,246]];
+    const rig = `<g stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 4" fill="none"><path d="M154 116 L186 146 L244 172 L336 150 M204 196 V246 M296 196 V246"/></g>
+      <g fill="var(--tile)" stroke="var(--muted)" stroke-width="1.2">${joints.map(([x,y]) => `<circle cx="${x}" cy="${y}" r="3.4"/>`).join('')}</g>`;
+    const face = `<circle cx="140" cy="110" r="9.5" fill="var(--tile)" stroke="var(--blue)" stroke-width="1.6"/><circle cx="138" cy="111" r="4.6" fill="var(--blue)"/>
+      <ellipse cx="90" cy="128" rx="5.5" ry="4" fill="var(--blue)"/><path d="M104 148 q10 7 20 0" fill="none" stroke="var(--blue)" stroke-width="1.6" stroke-linecap="round"/>`;
+    const dim = `<g stroke="var(--muted)" stroke-width="1" fill="none"><path d="M404 ${G} V40 M398 ${G} h12 M398 40 h12"/></g>
+      <text x="418" y="145" font-size="11" fill="var(--muted)" font-family="-apple-system, 'Inter Tight', sans-serif" transform="rotate(90 418 145)" text-anchor="middle">68 mm</text>
+      <path d="M40 ${G} H420" stroke="var(--red)" stroke-width="1.2"/>
+      ${Array.from({length: 20}, (_, i) => `<path d="M${48 + i * 19} ${G} l-8 9" stroke="var(--muted)" stroke-width=".8"/>`).join('')}`;
+    return `<svg viewBox="0 0 440 300" role="img" aria-label="Szkic stwora w 2D z zaznaczonym szkieletem">${parts}${face}${rig}${dim}</svg>`;
+  }
+
+  function shaded(id, print) {
+    const body = print ? ['#ff7a80', '#e01f30', '#5a0910'] : ['#a9c0ff', '#3b63e0', '#0f1a45'];
+    const back = print ? ['#d9505a', '#a3141f', '#3d060b'] : ['#7f98e6', '#2846a8', '#0a1233'];
+    const acc = print ? ['#4a4a50', '#1c1c20', '#050506'] : ['#ff6a74', '#e01f30', '#5a0910'];
+    const rg = (n, c) => `<radialGradient id="${id}${n}" cx="38%" cy="30%" r="78%"><stop offset="0" stop-color="${c[0]}"/><stop offset=".55" stop-color="${c[1]}"/><stop offset="1" stop-color="${c[2]}"/></radialGradient>`;
+    const defs = `<defs>${rg('b', body)}${rg('k', back)}${rg('a', acc)}
+      <filter id="${id}blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="7"/></filter>
+      <clipPath id="${id}clip">${silhouette}</clipPath>
+      <pattern id="${id}layers" width="8" height="2.3" patternUnits="userSpaceOnUse"><rect width="8" height=".7" fill="#000" opacity=".11"/><rect y="1.15" width="8" height=".35" fill="#fff" opacity=".18"/></pattern>
+      <pattern id="${id}pei" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r=".6" fill="#fff" opacity=".07"/><circle cx="4.5" cy="4" r=".5" fill="#fff" opacity=".05"/></pattern>
+      <linearGradient id="${id}plate" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a2a2c"/><stop offset="1" stop-color="#121213"/></linearGradient>
+      <radialGradient id="${id}glow" cx="50%" cy="40%" r="60%"><stop offset="0" stop-color="#fff" stop-opacity=".10"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+    </defs>`;
+    const floor = print
+      ? `<rect x="0" y="0" width="440" height="300" fill="url(#${id}glow)"/><path d="M0 ${G - 2} H440 V300 H0 Z" fill="url(#${id}plate)"/><path d="M0 ${G - 2} H440 V300 H0 Z" fill="url(#${id}pei)"/><path d="M0 ${G - 1.5} H440" stroke="#fff" stroke-opacity=".12"/>`
+      : '';
+    const shadow = `<ellipse cx="236" cy="${G + 2}" rx="132" ry="10" fill="#000" style="opacity:${print ? .7 : 'var(--shadow)'}" filter="url(#${id}blur)"/>`;
+    const fillFor = k => (k === 'horn' || (print && k === 'earFront')) ? 'a' : (k === 'legsBack' || k === 'earBack') ? 'k' : 'b';
+    const parts = order.map(k => g(k, `fill="url(#${id}${fillFor(k)})"`)).join('');
+    const layers = print ? `<rect x="0" y="0" width="440" height="${G}" fill="url(#${id}layers)" clip-path="url(#${id}clip)"/>` : '';
+    const face = `<circle cx="140" cy="110" r="9.5" fill="url(#${id}a)"/><circle cx="137" cy="107" r="2.6" fill="#fff" opacity=".85"/>
+      <ellipse cx="90" cy="128" rx="5.5" ry="4" fill="url(#${id}a)"/><path d="M104 148 q10 7 20 0" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" opacity=".55"/>`;
+    const rim = `<ellipse cx="244" cy="172" rx="84" ry="52" fill="none" stroke="#fff" stroke-opacity="${print ? .10 : .35}" stroke-width="1"/>`;
+    const label = print ? 'Wydrukowana figurka na stole drukarki' : 'Ten sam stwór jako bryła 3D';
+    return `<svg viewBox="0 0 440 300" role="img" aria-label="${label}">${defs}${floor}${shadow}${parts}${layers}${face}</svg>`;
+  }
+
+  document.getElementById('art-2d').innerHTML = line();
+  document.getElementById('art-3d').innerHTML = shaded('s', false);
+  document.getElementById('art-print').innerHTML = shaded('p', true);
+
+  // Step illustrations for "Jak to działa"
+  const addTo = (svg, extra, before) => before ? svg.replace(/(<svg[^>]*>)/, `$1${extra}`) : svg.replace('</svg>', extra + '</svg>');
+  const dice = '<g transform="translate(350 34)"><rect width="58" height="58" rx="13" fill="var(--tile)" stroke="var(--blue)" stroke-width="1.6"/>' +
+    [[15,15],[43,15],[29,29],[15,43],[43,43]].map(([x,y]) => `<circle cx="${x}" cy="${y}" r="4.2" fill="${x === 29 ? 'var(--red)' : 'var(--blue)'}"/>`).join('') + '</g>';
+  const C = 2 * Math.PI * 82, seg = C / 6;
+  const ring = `<g transform="rotate(-120 154 116)"><circle cx="154" cy="116" r="82" fill="none" stroke="var(--blue)" stroke-opacity=".18" stroke-width="24" stroke-dasharray="${seg - 5} 5"/>
+    <circle cx="154" cy="116" r="82" fill="none" stroke="var(--red)" stroke-opacity=".85" stroke-width="24" stroke-dasharray="${seg - 5} ${C - seg + 5}"/></g>`;
+  const warn = '<path d="M182 228 q62 26 124 0" fill="none" stroke="#ff2a3c" stroke-width="2.2" stroke-dasharray="5 5"/><g transform="translate(352 206)"><circle r="13" fill="#ff2a3c"/><path d="M0 -6 V2" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><circle cy="7" r="1.6" fill="#fff"/></g>';
+  const step = { 'st-1': addTo(line(), dice), 'st-2': addTo(line(), ring, true), 'st-3': addTo(shaded('t', false), warn), 'st-4': shaded('u', true) };
+  Object.entries(step).forEach(([id, svg]) => { document.getElementById(id).innerHTML = svg; });
+
+  // Menu drawer and full-screen pages
+  const body = document.body, drawer = document.getElementById('drawer'), burger = document.getElementById('burger');
+  const view = document.getElementById('view'), pages = [...view.querySelectorAll('.v-page')], vTitle = document.getElementById('v-title');
+  const TITLES = { jak: 'Jak to działa', funkcje: 'Funkcje', druk: 'Druk' };
+  let viewOpener = burger;
+  function open() {
+    body.classList.add('menu'); drawer.setAttribute('aria-hidden', 'false'); burger.setAttribute('aria-expanded', 'true');
+    setTimeout(() => drawer.querySelector('.d-nav button').focus(), 60);
+  }
+  function close(keepFocus) {
+    body.classList.remove('menu'); drawer.setAttribute('aria-hidden', 'true'); burger.setAttribute('aria-expanded', 'false');
+    if (!keepFocus) burger.focus();
+  }
+  function openView(id, opener) {
+    if (opener && view.hidden) viewOpener = opener;
+    close(true);
+    pages.forEach(p => p.hidden = p.dataset.v !== id);
+    vTitle.textContent = TITLES[id];
+    view.hidden = false; view.scrollTop = 0; body.style.overflow = 'hidden';
+    setTimeout(() => document.getElementById('v-close').focus(), 30);
+  }
+  function closeView() { view.hidden = true; body.style.overflow = ''; (viewOpener || burger).focus(); }
+  burger.addEventListener('click', open);
+  document.getElementById('close').addEventListener('click', () => close());
+  document.getElementById('scrim').addEventListener('click', () => close());
+  document.getElementById('v-close').addEventListener('click', closeView);
+  document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => openView(b.dataset.view, drawer.contains(b) ? burger : b)));
+  // Theme: system by default, the toggle pins a choice for this viewer.
+  const root = document.documentElement, themeBtn = document.getElementById('theme');
+  const mq = window.matchMedia('(prefers-color-scheme: light)');
+  const SUN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg>';
+  const MOON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>';
+  const current = () => root.dataset.theme || (mq.matches ? 'light' : 'dark');
+  const paintIcon = () => { const dark = current() === 'dark'; themeBtn.innerHTML = dark ? SUN : MOON; themeBtn.setAttribute('aria-label', dark ? 'Włącz tryb jasny' : 'Włącz tryb ciemny'); };
+  try { const saved = localStorage.getItem('morphoid-theme'); if (saved === 'light' || saved === 'dark') root.dataset.theme = saved; } catch (e) {}
+  paintIcon();
+  mq.addEventListener && mq.addEventListener('change', paintIcon);
+  themeBtn.addEventListener('click', () => {
+    const next = current() === 'dark' ? 'light' : 'dark';
+    root.dataset.theme = next;
+    try { localStorage.setItem('morphoid-theme', next); } catch (e) {}
+    paintIcon();
+  });
+
+  // Sign-in sheet (design only: nothing is sent anywhere)
+  const auth = document.getElementById('auth'), account = document.getElementById('account'), status = document.getElementById('auth-status');
+  const openAuth = () => { status.textContent = ''; auth.hidden = false; setTimeout(() => auth.querySelector('.auth-btn').focus(), 30); };
+  const closeAuth = () => { auth.hidden = true; account.focus(); };
+  const demo = () => { status.textContent = 'To projekt strony. Logowanie podłączymy razem z aplikacją.'; };
+  account.addEventListener('click', openAuth);
+  document.getElementById('auth-close').addEventListener('click', closeAuth);
+  auth.addEventListener('click', e => { if (e.target === auth) closeAuth(); });
+  auth.querySelectorAll('[data-auth]').forEach(b => b.addEventListener('click', demo));
+  document.getElementById('mail').addEventListener('submit', e => { e.preventDefault(); demo(); });
+
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    if (!auth.hidden) closeAuth(); else if (!view.hidden) closeView(); else if (body.classList.contains('menu')) close();
+  });
+})();
+</script>
+</body>
 </html>

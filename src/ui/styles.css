@@ -404,12 +404,55 @@ button.status-bake:hover { color: var(--cyan); }
 .stage { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
 
 /* the creature's DNA above the sketch: one click copies it */
-.dna-strip { flex: none; align-self: center; margin: 12px 16px 0; max-width: calc(100% - 32px);
+.dna-row { flex: none; align-self: center; display: flex; align-items: center; gap: 8px; margin: 12px 16px 0; max-width: calc(100% - 32px); }
+.dna-types { flex: none; display: flex; gap: 4px; }
+.type-badge { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: var(--bg-card); border: 1px solid var(--border); }
+.type-badge svg { display: block; width: 22px; height: 22px; overflow: visible; }
+.dna-strip { flex: 0 1 auto; min-width: 0;
   padding: 7px 14px; border-radius: 10px; background: var(--bg-card); border: 1px solid var(--border); transition: border-color .2s, box-shadow .2s; }
 .dna-strip:hover { border-color: var(--cyan); box-shadow: 0 0 14px var(--cyan-glow); }
 .dna-strip.copied { border-color: var(--cyan); box-shadow: 0 0 0 2px var(--cyan-glow); }
 /* one line: the code (about 130 characters, a monospace character is 0.6 em) shrinks to fit the width */
-.dna-strip code { display: block; white-space: nowrap; font: 12px/1.3 ui-monospace, Menlo, monospace; font-size: min(12px, (100cqw - 64px) / 80); color: var(--text); }
+.dna-strip code { display: block; white-space: nowrap; font: 12px/1.3 ui-monospace, Menlo, monospace; font-size: min(12px, (100cqw - 140px) / 80); color: var(--text); }
 
 /* an insect's near legs over the body: a fat ink stroke under each leg's fill leaves one clean outline per leg */
 .leg-ink { fill: var(--ink); stroke: var(--ink); stroke-width: 4.5; stroke-linejoin: round; }
+
+/* Brand marks that live. The logo nods its head, twitches its horns, blinks and sways its tail; each part turns
+   about its own joint (viewBox units). Type badges breathe the way their creature type moves. */
+.logo-mark { flex: none; overflow: visible; }
+.logo-mark .head, .logo-mark .horns, .logo-mark .tail, .logo-mark .tip { transform-box: view-box; }
+.logo-mark .head { transform-origin: 205px 150px; }
+.logo-mark .horns { transform-origin: 210px 80px; }
+.logo-mark .tail { transform-origin: 300px 300px; }
+.logo-mark .tip { transform-origin: 400px 60px; }
+.logo-mark .eye { transform-box: fill-box; transform-origin: center; }
+.logo-live .head { animation: logo-nod 3.6s ease-in-out infinite; }
+.logo-live .horns { animation: logo-twitch 3.6s ease-in-out infinite; }
+.logo-live .eye { animation: logo-blink 4.4s 1.2s infinite; }
+.logo-live .tail { animation: logo-sway 2.6s ease-in-out infinite alternate; }
+.logo-live .tip { animation: logo-sway 2.6s .35s ease-in-out infinite alternate; }
+@keyframes logo-nod { 0%, 100% { transform: rotate(0); } 45% { transform: rotate(-3deg); } 60% { transform: rotate(1deg); } }
+@keyframes logo-twitch { 0%, 66%, 76%, 100% { transform: rotate(0); } 70% { transform: rotate(7deg); } 73% { transform: rotate(-3deg); } }
+@keyframes logo-blink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(.1); } }
+@keyframes logo-sway { from { transform: rotate(-2.5deg); } to { transform: rotate(2.5deg); } }
+
+.badge-mark > g { transform-box: fill-box; transform-origin: center; animation: var(--anim) var(--t) ease-in-out infinite; }
+.badge-mark .fc { animation: badge-facet calc(var(--t) * 1.6) ease-in-out infinite; animation-delay: calc(var(--i) * .1s); }
+.badge-normal { --anim: badge-normal; --t: 4s; } .badge-stick { --anim: badge-stick; --t: 1.8s; } .badge-muscular { --anim: badge-musc; --t: 5.4s; }
+.badge-round { --anim: badge-round; --t: 4.6s; } .badge-skeletal { --anim: badge-skel; --t: 3.6s; } .badge-quadruped { --anim: badge-step; --t: 1.4s; }
+.badge-biped { --anim: badge-flap; --t: 1.3s; } .badge-caterpillar { --anim: badge-inch; --t: 2.2s; } .badge-insect { --anim: badge-twitch; --t: 2.2s; }
+.badge-fish { --anim: badge-swim; --t: 2.6s; } .badge-octopus { --anim: badge-octo; --t: 3.4s; }
+@keyframes badge-facet { 0%, 100% { opacity: 1; } 50% { opacity: .72; } }
+@keyframes badge-normal { 0%, 100% { transform: scale(1) rotate(0); } 50% { transform: scale(1.05) rotate(3deg); } }
+@keyframes badge-stick { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(.86, 1.08); } }
+@keyframes badge-musc { 0%, 100% { transform: scale(1, 1); } 45% { transform: scale(1.08, .94); } 70% { transform: scale(.98, 1.02); } }
+@keyframes badge-round { 0%, 100% { transform: scale(.94); } 50% { transform: scale(1.06); } }
+@keyframes badge-skel { 0%, 100% { transform: scale(1) rotate(0); } 50% { transform: scale(1.03) rotate(-4deg); } }
+@keyframes badge-step { 0%, 100% { transform: translateY(0) scale(1.03, .97); } 50% { transform: translateY(-5%) scale(.98, 1.02); } }
+@keyframes badge-flap { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.04, .62); } }
+@keyframes badge-inch { 0%, 100% { transform: scale(1.06, .9); } 50% { transform: scale(.92, 1.08); } }
+@keyframes badge-twitch { 0%, 60%, 100% { transform: rotate(0) scale(1); } 64% { transform: rotate(-6deg) scale(1.04); } 68% { transform: rotate(5deg); } 72% { transform: rotate(-2deg) scale(1.02); } 76% { transform: rotate(0); } }
+@keyframes badge-swim { 0%, 100% { transform: translateX(-3%) rotate(-5deg); } 50% { transform: translateX(3%) rotate(5deg); } }
+@keyframes badge-octo { 0%, 100% { transform: rotate(-5deg) scale(1, 1); } 50% { transform: rotate(5deg) scale(1.04, .95); } }
+@media (prefers-reduced-motion: reduce) { .logo-live *, .badge-mark > g, .badge-mark .fc { animation: none; } }
