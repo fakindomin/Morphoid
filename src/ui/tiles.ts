@@ -85,3 +85,23 @@ export const TILES: TileDef[] = TILE_GROUPS.flatMap((g) => g.tiles);
 
 /** Which category a click on a part of the sketch (its radial-menu socket) opens. */
 export const SOCKET_TILE: Record<string, string> = { head: 'head', chest: 'neck', tail: 'tail', legF: 'legs', legB: 'legs' };
+
+/**
+ * Which category a part of the sketch belongs to: hovering it lights up the whole body element, clicking it opens that
+ * category in the left column.
+ */
+export const SLOT_TILE: Partial<Record<string, string>> = {
+  head: 'head', eye: 'head', iris: 'head', pupil: 'head', glint: 'head', lids: 'head', brow: 'head', stalks: 'head',
+  snout: 'snout', nose: 'snout', nostrils: 'snout', maw: 'snout', tongue: 'snout', mouth: 'snout', lips: 'snout', teeth: 'snout', whiskers: 'snout',
+  ear: 'ears', earIn: 'ears',
+  horns: 'horns', antennae: 'horns',
+  mane: 'crest', tuft: 'crest', spines: 'crest',
+  neck: 'neck', neckDecor: 'neck',
+  torso: 'body', pattern: 'body', finD: 'body', finP: 'body', arms: 'body',
+  wingNear: 'wings', wingFar: 'wings', wingRibs: 'wings',
+  legB: 'legs', legF: 'legs', legBFar: 'legs', legFFar: 'legs', claws: 'legs', toes: 'legs', legOver0: 'legs', legOver1: 'legs', legOver2: 'legs',
+  hands: 'hands', handsFar: 'hands',
+  tail: 'tail',
+  collar: 'accessory', saddle: 'accessory',
+  stand: 'stand',
+};

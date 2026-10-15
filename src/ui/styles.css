@@ -456,3 +456,22 @@ button.status-bake:hover { color: var(--cyan); }
 @keyframes badge-swim { 0%, 100% { transform: translateX(-3%) rotate(-5deg); } 50% { transform: translateX(3%) rotate(5deg); } }
 @keyframes badge-octo { 0%, 100% { transform: rotate(-5deg) scale(1, 1); } 50% { transform: rotate(5deg) scale(1.04, .95); } }
 @media (prefers-reduced-motion: reduce) { .logo-live *, .badge-mark > g, .badge-mark .fc { animation: none; } }
+
+/* ---- the faceted sketch (logo style): bed behind, facets on a canvas, sockets and size on top ---- */
+.creature-viewport.sketch { position: relative; }
+.creature-viewport.sketch > svg, .creature-viewport.sketch > canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.sketch-back .desk { fill: color-mix(in srgb, var(--bg-card) 80%, var(--cyan) 6%); }
+.sketch-front { pointer-events: none; }
+.sketch-front .socket { pointer-events: auto; }
+.sketch-info { position: absolute; left: 2.5%; right: 2.5%; bottom: 2.4%; display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; border-radius: 10px; background: color-mix(in srgb, var(--bg-card) 88%, transparent); border: 1px solid var(--border);
+  font-size: 12.5px; line-height: 1.3; color: var(--text); pointer-events: none; }
+.sketch-info .sk-sw { flex: none; width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+.sketch-info-t { flex: 1; min-width: 0; }
+.sketch-legend { flex: none; display: flex; gap: 10px; font-variant-numeric: tabular-nums; color: var(--muted); }
+.sketch-legend > span { display: inline-flex; align-items: center; gap: 4px; }
+.sketch-legend b { font-weight: 600; }
+@container (max-width: 560px) { .sketch-legend { display: none; } }
+.seg-mini { display: inline-flex; padding: 3px; gap: 2px; border-radius: 10px; background: var(--bg-card); border: 1px solid var(--border); }
+.seg-mini button { border: 0; background: transparent; color: var(--muted); font-family: inherit; font-size: 12px; font-weight: 600; line-height: 1; padding: 8px 10px; border-radius: 7px; cursor: pointer; }
+.seg-mini button.on { background: var(--text); color: var(--bg-card); }

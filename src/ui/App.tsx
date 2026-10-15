@@ -14,8 +14,10 @@ import { SupportNotice } from './components/SupportNotice';
 import { usePrintReport } from './printReport';
 import { useSupportNotice } from './useSupportNotice';
 import { storage, studio, useStudioState } from './studio';
+import type { SketchMode } from './sketch';
 
 const THEME_KEY = 'morphoid.theme';
+const SKETCH_KEY = 'morphoid.sketchMode';
 
 function initialTheme(): Theme {
   const saved = storage.get(THEME_KEY);
@@ -27,6 +29,11 @@ export function App() {
   const [theme, setTheme] = useState<Theme>(initialTheme);
   const [view, setView] = useState<ViewMode>('2d');
   const [showBones, setShowBones] = useState(false);
+  const [sketchMode, setSketchMode] = useState<SketchMode>(() => (storage.get(SKETCH_KEY) === 'color' ? 'color' : 'print'));
+  /** body element lit up on the sketch and in the left column (hovered in either) */
+  const [hotTile, setHotTile] = useState<string | null>(null);
+  /** a body element clicked on the sketch: the left column opens it */
+  const [pick, setPick] = useState<{ tile: string; n: number } | null>(null);
   const [explode, setExplode] = useState(0);
   const job = useBake();
   const radial = useRadial();
@@ -37,8 +44,9 @@ export function App() {
   const prevPlan = useRef(plan);
   const lastPlan = useRef(plan);
   if (lastPlan.current !== plan) { prevPlan.current = lastPlan.current; lastPlan.current = plan; }
-  const markers = report.issues.filter((i) => i.severity !== 'info').map((i) => ({ at: i.at, severity: i.severity, text: i.message }));
   const size = rigSize(rig);
+
+  useEffect(() => { storage.set(SKETCH_KEY, sketchMode); }, [sketchMode]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -63,21 +71,26 @@ export function App() {
     <div className="app">
       <Header view={view} setView={setView} theme={theme} setTheme={setTheme} />
       <main className="studio">
-        <LeftColumn activeSocket={radial.state.open ? radial.state.socket : null} />
+        <LeftColumn activeSocket={radial.state.open ? radial.state.socket : null} pick={pick} hotTile={hotTile} onHoverTile={setHotTile} />
         <section className="blueprint">
           <DnaStrip />
           <div className="stage">
           {notice && <SupportNotice key={notice.key} notice={notice} previousPlan={prevPlan.current} dismiss={dismiss} />}
           {view === '2d' && (
             <div className="canvas-tools">
+              <div className="seg-mini" role="group" aria-label="Kolory szkicu">
+                <button type="button" className={sketchMode === 'color' ? 'on' : ''} aria-pressed={sketchMode === 'color'} onClick={() => setSketchMode('color')}>Kolory stwora</button>
+                <button type="button" className={sketchMode === 'print' ? 'on' : ''} aria-pressed={sketchMode === 'print'} onClick={() => setSketchMode('print')}>Druk</button>
+              </div>
               <button type="button" className={`tool-btn${showBones ? ' on' : ''}`} aria-pressed={showBones} title="Pokaż kości" aria-label="Pokaż kości" onClick={() => setShowBones((b) => !b)}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><circle cx="5" cy="6" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="8" r="2" /><circle cx="12" cy="20" r="2" /><path d="M6.6 7.2l3.8 3.6M13.8 11.2l3.4-2M12 14v4" /></svg>
               </button>
             </div>
           )}
-          <div className="hud-tag">{view === '2d' ? 'WIDOK Z BOKU · kliknij pomarańczowy punkt, aby zmienić część' : '3D STUDIO · obracaj myszą, kółko = zbliżenie'}</div>
+          <div className="hud-tag">{view === '2d' ? 'WIDOK Z BOKU · kliknij część ciała, aby ją zmienić' : '3D STUDIO · obracaj myszą, kółko = zbliżenie'}</div>
           {view === '2d' ? (
-            <Canvas2D showBones={showBones} onSocket={onSocket} markers={markers} />
+            <Canvas2D showBones={showBones} mode={sketchMode} report={report} hotTile={hotTile} onHoverTile={setHotTile}
+              onPickTile={(tile) => setPick({ tile, n: Date.now() })} onSocket={onSocket} />
           ) : (
             <Viewport3D variant="main" explode={explode} baked={job.showBaked && job.result && job.signature === signatureOf(studio.code(), plan.separate) ? job.result : null} />
           )}
