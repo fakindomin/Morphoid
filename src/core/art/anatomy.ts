@@ -19,6 +19,8 @@ export interface TrunkSpec {
   L: number; G: number; W: number;
   /** torso tilt (rad, chest up) */
   tilt: number;
+  /** a two-legged animal (a bird, a monkey, a kangaroo): its own masses over hips under the middle */
+  biped?: boolean;
 }
 
 /** How softly the masses melt into each other, as a share of the girth. */
@@ -35,23 +37,38 @@ const MASSES: readonly Mass[] = [
   { c: [-0.27, -0.1, 0.28], r: [0.16, 0.27, 0.2], pair: true },   // haunches: the thigh muscles down to the stifle
   { c: [0.25, 0.15, 0.33], r: [0.1, 0.3, 0.14], pair: true },     // shoulder blades, standing up at the withers
 ];
+/**
+ * A two-legged animal's trunk, in the same frame (the torso is tilted nose-up, the hips sit under its middle): a full
+ * breast (a bird's keel, a monkey's chest), a softer belly, a rump tapering back to the tail, thighs over the hips and
+ * the shoulders at the top of the chest.
+ */
+const BIPED_MASSES: readonly Mass[] = [
+  { c: [0.17, -0.04, 0], r: [0.3, 0.5, 0.48] },                   // breast or chest
+  { c: [-0.04, -0.1, 0], r: [0.24, 0.42, 0.45] },                 // belly
+  { c: [-0.28, 0.03, 0], r: [0.2, 0.34, 0.4] },                   // rump, tapering to the tail
+  { c: [0.04, -0.22, 0.3], r: [0.15, 0.3, 0.2], pair: true },     // thighs over the hips
+  { c: [0.3, 0.18, 0.32], r: [0.1, 0.24, 0.14], pair: true },     // shoulders
+];
+const BIPED_SPINE = { pts: [[0.35, 0.27], [0, 0.3], [-0.38, 0.2]] as XY[], r: 0.17 };
+
 /** The back muscles: a column along the spine, from the withers over a slight rise at the loin to the croup. Points (x, y) and radius in G. */
 const SPINE = { pts: [[0.32, 0.27], [-0.06, 0.3], [-0.37, 0.26]] as XY[], r: 0.19 };
 
 export function trunkLimb(s: TrunkSpec): Limb {
   const { torso, L, G, W, tilt } = s;
+  const masses = s.biped ? BIPED_MASSES : MASSES, spinePts = s.biped ? BIPED_SPINE : SPINE;
   const c = Math.cos(tilt), sn = Math.sin(tilt);
   const at = (fx: number, fy: number, z: number): V3 => {
     const lx = fx * L, ly = fy * G;
     return [torso[0] + lx * c - ly * sn, torso[1] + lx * sn + ly * c, z];
   };
   const domes: Dome[] = [];
-  for (const m of MASSES) {
+  for (const m of masses) {
     const r: V3 = [m.r[0] * L, m.r[1] * G, m.r[2] * W];
     if (m.pair) for (const side of [1, -1]) domes.push({ c: at(m.c[0], m.c[1], side * m.c[2] * W), r });
     else domes.push({ c: at(m.c[0], m.c[1], 0), r });
   }
-  const spine: Cone[] = SPINE.pts.slice(1).map((b, i) => ({ a: at(SPINE.pts[i]![0], SPINE.pts[i]![1], 0), b: at(b[0], b[1], 0), ra: SPINE.r * G, rb: SPINE.r * G }));
+  const spine: Cone[] = spinePts.pts.slice(1).map((b, i) => ({ a: at(spinePts.pts[i]![0], spinePts.pts[i]![1], 0), b: at(b[0], b[1], 0), ra: spinePts.r * G, rb: spinePts.r * G }));
   return { cones: spine, domes, blend: Math.max(1.6, TRUNK_BLEND * G) };
 }
 

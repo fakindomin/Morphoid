@@ -506,7 +506,7 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
   }
   // an animal's trunk: the side silhouette of its anatomical masses (the same solid the print is made of)
   const anat = rig.dims.anatomical;
-  if (anat) trunkPts.splice(0, trunkPts.length, ...sideOutline(trunkLimb({ torso, L: n.bodyL, G: n.bodyG, W: n.bodyW, tilt: n.tilt }), torso, trunkDepths(n.bodyW)));
+  if (anat) trunkPts.splice(0, trunkPts.length, ...sideOutline(trunkLimb({ torso, L: n.bodyL, G: n.bodyG, W: n.bodyW, tilt: n.tilt, biped: n.plan === D.PLAN.biped }), torso, trunkDepths(n.bodyW)));
   /** height of the trunk's top outline at x (for parts that stand on the back) */
   const trunkTop = (x: number): number => {
     let top = -Infinity;
@@ -586,7 +586,7 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
       const width = (t: number): number => Math.max(1.8, w0 * (1 - t) + n.bodyG * 1.1 * t * t);
       // (one-sided: widths are the FULL thickness measured upwards from the spine)
       put('tail', taper(tailBase, ctrl, tailTip, width, 14, true).rotated(tailBase[0], tailBase[1], DIR_TURN.tail[g.tail!.dir ?? 0] ?? 0)); // lower edge = spine (>= 45 deg)
-    } else put('tail', limbOutline(roundTail(g, n.bodyG, tailBase, tailMid, tailTip, rig.dims.anatomical)!)); // wolf, fluffy: round in 3D
+    } else put('tail', limbOutline(roundTail(g, n.bodyG, tailBase, tailMid, tailTip, rig.dims.anatomical && n.plan === D.PLAN.quadruped)!)); // wolf, fluffy: round in 3D
   }
 
   // ---- neck ---------------------------------------------------------------------

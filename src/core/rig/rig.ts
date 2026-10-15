@@ -109,6 +109,8 @@ function build(g: MorphotypeGenome, code: string): Rig {
   const plan = g.plan?.type ?? 0, biped = plan === D.PLAN.biped, belly = D.onBelly(plan), insect = plan === D.PLAN.insect;
   const fish = plan === D.PLAN.fish, octopus = plan === D.PLAN.octopus;
   const anat = D.isAnatomical(plan, g.body!.shape!), A = D.ANATOMY;
+  // a two-legged animal gets the anatomical trunk and slim legs, but keeps its upright stance, neck and tail
+  const anatQ = anat && !biped;
   // a quadruped carries its chest a little higher than its hips (rule "linia gestu"): the spine is never a level line
   const tilt = biped ? D.BIPED.tilt : plan === D.PLAN.quadruped ? D.GESTURE.chestUp : 0;
   const L = D.snap(D.BODY_LENGTH[g.body!.length!]! * B.length);
@@ -119,19 +121,19 @@ function build(g: MorphotypeGenome, code: string): Rig {
   const legLen = octopus ? (G / 2 + 1.5) * 0.85 - G * 0.35 + D.OCTOPUS.armMm
     : belly ? (G / 2 + 1.5) * (1 - D.BELLY_FLAT) - G * 0.35
     // silhouette test: a standing creature always shows light under its belly, so its legs read as legs
-    : anat ? Math.max(D.snap(G * A.legK[g.legs!.length!]! * B.leg), D.snap(D.minLegForGap(G)))
+    : anatQ ? Math.max(D.snap(G * A.legK[g.legs!.length!]! * B.leg), D.snap(D.minLegForGap(G)))
     : Math.max(D.snap(D.LEG_LENGTH[g.legs!.length!]! * B.leg * (biped ? D.BIPED.leg : insect ? 1.15 : 1)), insect ? 0 : D.snap(D.minLegForGap(G)));
   const legW = D.snap(anat ? Math.max(A.legWMin, B.legW(G) * A.legW) : B.legW(G));
   const headR = D.headRadius(G, plan);
   const headK = headR / D.HEAD_RADIUS;
-  const neckLen = anat ? D.NECK_LENGTH[g.head!.neckLength!]! * A.neckK + headR * A.neckHead
+  const neckLen = anatQ ? D.NECK_LENGTH[g.head!.neckLength!]! * A.neckK + headR * A.neckHead
     : D.NECK_LENGTH[g.head!.neckLength!]! * (fish || octopus ? 0.25 : plan === D.PLAN.caterpillar ? 0.5 : 1);
-  const neckAngle = fish || octopus ? 0 : belly ? 0.5 : anat ? A.neckAngle : NECK_ANGLE;
+  const neckAngle = fish || octopus ? 0 : belly ? 0.5 : anatQ ? A.neckAngle(g.head!.neckLength!) : NECK_ANGLE;
   const tailLen = g.tail!.type === 0 ? 0 : D.TAIL_LENGTH[g.tail!.length!]!;
   const up = (mm: number): number => Math.ceil(mm / D.NOZZLE_MM - 1e-9) * D.NOZZLE_MM;
   const soleL = D.FOOT_SOLE[g.legs!.foot!]!.length * B.sole * (biped ? D.BIPED.sole : 1);
   // an animal's paw is round, not a long slipper (about as long as the slim leg is wide); no sole is below the minimum area
-  const sole = { length: Math.max(up(D.MIN_SOLE_AREA_MM2 / legW), anat ? Math.min(D.snap(soleL), up(legW * 1.7)) : D.snap(soleL)), width: legW };
+  const sole = { length: Math.max(up(D.MIN_SOLE_AREA_MM2 / legW), anatQ ? Math.min(D.snap(soleL), up(legW * 1.7)) : D.snap(soleL)), width: legW };
   // caterpillar prolegs peek out of the flanks
   const legZ = W * (plan === D.PLAN.caterpillar ? 0.45 : 0.32);
   const legX = Math.max(5, L * (insect ? 0.27 : 0.3));
@@ -149,7 +151,7 @@ function build(g: MorphotypeGenome, code: string): Rig {
     footBL: [0, -legLen, legZ],
     footBR: [0, -legLen, -legZ],
     neckBase: octopus ? [L * 0.3, -G * 0.2, 0] : fish ? [L * 0.42, 0, 0] : belly ? [L * 0.4, G * 0.15, 0]
-      : anat ? [L * A.neckBase[0], G * A.neckBase[1], 0] : [L * 0.36, G * 0.25, 0],
+      : anatQ ? [L * A.neckBase[0], G * A.neckBase[1], 0] : [L * 0.36, G * 0.25, 0],
     head: [neckLen, 0, 0], // along the neck's rotated frame
     muzzle: [headR + D.SNOUT_REACH[g.snout!.reach!]!, -2, 0],
     // ears and horns sit on the skull's crown, wherever its size puts it
@@ -157,7 +159,7 @@ function build(g: MorphotypeGenome, code: string): Rig {
     earRoot: [-2 * headK, 4 * headK, 0],
     crestRoot: [0, 2, 0],
     wingRoot: [L * 0.18, G * 0.45, W * 0.3],
-    tailBase: [-L * 0.5 + 4, fish ? 0 : anat ? G * A.tailY : G * 0.1, 0], // root buried in the rump (an animal's sits high on the croup)
+    tailBase: [-L * 0.5 + 4, fish ? 0 : anatQ ? G * A.tailY : G * 0.1, 0], // root buried in the rump (an animal's sits high on the croup)
     tailMid: [tailLen * 0.5, 0, 0], // along the tail's rotated frame
     tailTip: [tailLen * 0.5, 0, 0],
   };
