@@ -162,7 +162,7 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
   if (rig.dims.anatomical) {
     const n = rig.nodes, d = rig.dims;
     for (const p of out) {
-      if (p.slot === 'torso') { p.limb = trunkLimb({ torso: [n.torso.x, n.torso.y], L: d.bodyLength, G: d.bodyGirth, W: d.bodyWidth, tilt: d.tilt, biped: d.plan === D.PLAN.biped, sculpt: sculptOf(g) }); p.thickness = d.bodyWidth * 1.1; }
+      if (p.slot === 'torso') { p.limb = trunkLimb({ torso: [n.torso.x, n.torso.y], L: d.bodyLength, G: d.bodyGirth, W: d.bodyWidth, tilt: d.tilt, biped: D.isBiped(d.plan), humanoid: d.plan === D.PLAN.humanoid, sculpt: sculptOf(g) }); p.thickness = d.bodyWidth * 1.1; }
       else if (p.slot === 'neck') { p.limb = neckLimb([n.neckBase.x, n.neckBase.y], [n.head.x, n.head.y], d.bodyGirth, d.headR, sculptOf(g).neck); p.thickness = d.bodyGirth * 0.7; }
     }
   }
@@ -197,11 +197,11 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
   lipsAndNostrils(out, paths, ctx);
   for (const p of out) if (p.slot === 'stand') standTop(p, g, rig);
   // jointed legs of four- and two-legged creatures are real 3D chains (insects and caterpillars keep their slabs)
-  const plan = rig.dims.plan, biped = plan === D.PLAN.biped;
+  const plan = rig.dims.plan, biped = D.isBiped(plan), human = plan === D.PLAN.humanoid;
   if (plan === D.PLAN.quadruped || biped) for (const p of out) {
     if (p.slot !== 'legB' && p.slot !== 'legF') continue;
     const [top, foot] = p.slot === 'legB' ? [rig.nodes.hipB, rig.nodes.footBL] : [rig.nodes.shoulderF, rig.nodes.footFL];
-    p.limb = legLimb(legSpecOf(p.slot, biped, [top.x, top.y], [foot.x, foot.y], rig.dims.legWidth, g.legs!.foot!, rig.dims.soleLength, rig.dims.build === 2), p.z);
+    p.limb = legLimb(legSpecOf(p.slot, biped, [top.x, top.y], [foot.x, foot.y], rig.dims.legWidth, g.legs!.foot!, rig.dims.soleLength, rig.dims.build === 2, human), p.z);
   }
   // arms with hands: real 3D chains out of the upper chest, one per side
   { const n = rig.nodes, arm = armSpecOf(g, [n.torso.x, n.torso.y], rig.dims.bodyLength, rig.dims.bodyGirth, rig.dims.tilt, rig.dims.legWidth, plan);

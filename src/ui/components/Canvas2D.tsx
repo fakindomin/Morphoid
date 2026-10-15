@@ -135,7 +135,7 @@ export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPick
           const [x, y] = to(...cur.pos[SOCKET_NODE[s.id]]);
           socketEls.current[s.id]?.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})`);
           // a biped has no front legs: no shoulder socket
-          socketEls.current[s.id]?.setAttribute('visibility', s.id === 'legF' && rig.dims.plan === 1 ? 'hidden' : 'visible');
+          socketEls.current[s.id]?.setAttribute('visibility', s.id === 'legF' && D.isBiped(rig.dims.plan) ? 'hidden' : 'visible');
         }
         if (sizeRef.current) {
           const sz = rigSize(rig);

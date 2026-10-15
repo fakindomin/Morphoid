@@ -22,6 +22,8 @@ export interface TrunkSpec {
   tilt: number;
   /** a two-legged animal (a bird, a monkey, a kangaroo): its own masses over hips under the middle */
   biped?: boolean;
+  /** an upright humanoid (a monkey): its own masses, the trunk standing nearly vertical */
+  humanoid?: boolean;
   /** deformation sliders: the size of each group of masses (1 = as built) */
   sculpt?: Sculpt;
 }
@@ -59,6 +61,18 @@ const BIPED_MASSES: readonly Mass[] = [
   { c: [0.04, -0.22, 0.3], r: [0.15, 0.3, 0.2], pair: true, part: 'haunch' },     // thighs over the hips
   { c: [0.3, 0.18, 0.32], r: [0.1, 0.24, 0.14], pair: true, part: 'shoulder' },     // shoulders
 ];
+/**
+ * A humanoid's trunk, in the same frame (tilted almost upright, so +x is up and +y is the back): a broad ribcage with
+ * the shoulders at its top, a softer belly, the pelvis at the bottom with the buttocks behind the hips.
+ */
+const HUMANOID_MASSES: readonly Mass[] = [
+  { c: [0.2, -0.02, 0], r: [0.32, 0.36, 0.56], part: 'chest' },                    // ribcage, broad side to side, shallow front to back
+  { c: [-0.12, -0.05, 0], r: [0.24, 0.37, 0.48], part: 'waist' },                 // belly
+  { c: [-0.36, 0.02, 0], r: [0.17, 0.36, 0.5], part: 'haunch' },                  // pelvis
+  { c: [-0.38, 0.12, 0.2], r: [0.15, 0.24, 0.2], pair: true, part: 'haunch' },    // buttocks
+  { c: [0.4, 0.02, 0.44], r: [0.12, 0.22, 0.18], pair: true, part: 'shoulder' },  // shoulders, at the ribcage's top corners
+];
+const HUMANOID_SPINE = { pts: [[0.42, 0.18], [0.02, 0.22], [-0.34, 0.2]] as XY[], r: 0.15 };
 const BIPED_SPINE = { pts: [[0.35, 0.27], [0, 0.3], [-0.38, 0.2]] as XY[], r: 0.17 };
 
 /** The back muscles: a column along the spine, from the withers over a slight rise at the loin to the croup. Points (x, y) and radius in G. */
@@ -66,7 +80,7 @@ const SPINE = { pts: [[0.32, 0.27], [-0.06, 0.3], [-0.37, 0.26]] as XY[], r: 0.1
 
 export function trunkLimb(s: TrunkSpec): Limb {
   const { torso, L, G, W, tilt } = s;
-  const masses = s.biped ? BIPED_MASSES : MASSES, spinePts = s.biped ? BIPED_SPINE : SPINE;
+  const masses = s.humanoid ? HUMANOID_MASSES : s.biped ? BIPED_MASSES : MASSES, spinePts = s.humanoid ? HUMANOID_SPINE : s.biped ? BIPED_SPINE : SPINE;
   const c = Math.cos(tilt), sn = Math.sin(tilt);
   const at = (fx: number, fy: number, z: number): V3 => {
     const lx = fx * L, ly = fy * G;

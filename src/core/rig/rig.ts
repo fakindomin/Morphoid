@@ -106,39 +106,40 @@ export function solveRig(genome: MorphotypeGenome): Rig {
 
 function build(g: MorphotypeGenome, code: string): Rig {
   const build = g.build?.type ?? 0, B = D.BUILD[build]!;
-  const plan = g.plan?.type ?? 0, biped = plan === D.PLAN.biped, belly = D.onBelly(plan), insect = plan === D.PLAN.insect;
+  const plan = g.plan?.type ?? 0, biped = D.isBiped(plan), human = plan === D.PLAN.humanoid, belly = D.onBelly(plan), insect = plan === D.PLAN.insect;
   const fish = plan === D.PLAN.fish, octopus = plan === D.PLAN.octopus;
   const anat = D.isAnatomical(plan, g.body!.shape!), A = D.ANATOMY;
   // a two-legged animal gets the anatomical trunk and slim legs, but keeps its upright stance, neck and tail
   const anatQ = anat && !biped;
   // a quadruped carries its chest a little higher than its hips (rule "linia gestu"): the spine is never a level line
-  const tilt = biped ? D.BIPED.tilt : plan === D.PLAN.quadruped ? D.GESTURE.chestUp : 0;
+  const H = D.HUMANOID;
+  const tilt = human ? H.tilt : biped ? D.BIPED.tilt : plan === D.PLAN.quadruped ? D.GESTURE.chestUp : 0;
   // deformation sliders (3D view): a fraction of a step on top of the size genes, finer than the nozzle grid
   const sc = g.sculpt ?? {}, fine = (k: string): number => sc[k] ?? FINE_ZERO;
   const size = (table: readonly number[], step: number, k: string): number => stepAt(table, step, fineOffset(fine(k)));
   const snapF = (mm: number, k: string): number => (fine(k) === FINE_ZERO ? D.snap(mm) : D.snap(mm, 0.1));
-  const L = snapF(size(D.BODY_LENGTH, g.body!.length!, 'length') * B.length, 'length');
+  const L = snapF(size(D.BODY_LENGTH, g.body!.length!, 'length') * B.length * (human ? H.length : 1), 'length');
   const G = snapF(size(D.BODY_GIRTH, g.body!.girth!, 'girth') * B.girth, 'girth');
   // legs and head follow the girth gene alone: the height slider reshapes the trunk, not the whole creature
   const G0 = D.snap(D.BODY_GIRTH[g.body!.girth!]! * B.girth);
-  const W = D.snap(size(D.BODY_GIRTH, g.body!.girth!, 'girth') * D.BODY_WIDTH_RATIO[g.body!.shape!]! * B.width * fineScale(fine('width')), fine('girth') === FINE_ZERO && fine('width') === FINE_ZERO ? 0.4 : 0.1);
+  const W = D.snap(size(D.BODY_GIRTH, g.body!.girth!, 'girth') * D.BODY_WIDTH_RATIO[g.body!.shape!]! * (human ? H.width : 1) * B.width * fineScale(fine('width')), fine('girth') === FINE_ZERO && fine('width') === FINE_ZERO ? 0.4 : 0.1);
   // belly plans: the "feet" are the torso's flat underside (G/2 + 1.5 is the drawn torso's half height)
   // octopus: the mantle stands on the arms' hub (arms ARM_MM thick, the mantle's underside rests on them)
   const legLen = octopus ? (G / 2 + 1.5) * 0.85 - G * 0.35 + D.OCTOPUS.armMm
     : belly ? (G / 2 + 1.5) * (1 - D.BELLY_FLAT) - G * 0.35
     // silhouette test: a standing creature always shows light under its belly, so its legs read as legs
     : anatQ ? Math.max(D.snap(G0 * A.legK[g.legs!.length!]! * B.leg), D.snap(D.minLegForGap(G)))
-    : Math.max(D.snap(D.LEG_LENGTH[g.legs!.length!]! * B.leg * (biped ? D.BIPED.leg : insect ? 1.15 : 1)), insect ? 0 : D.snap(D.minLegForGap(G)));
+    : Math.max(D.snap(D.LEG_LENGTH[g.legs!.length!]! * B.leg * (human ? H.leg : biped ? D.BIPED.leg : insect ? 1.15 : 1)), insect ? 0 : D.snap(D.minLegForGap(G)));
   const legW = D.snap(anat ? Math.max(A.legWMin, B.legW(G0) * A.legW) : B.legW(G0));
-  const headR = D.headRadius(G0, plan);
+  const headR = D.snap(D.headRadius(G0, plan) * (human ? H.head : 1), 0.1);
   const headK = headR / D.HEAD_RADIUS;
   const neckT = size(D.NECK_LENGTH, g.head!.neckLength!, 'neckLength');
-  const neckLen = anatQ ? neckT * A.neckK + headR * A.neckHead
+  const neckLen = human ? neckT * H.neckK + headR * 0.5 : anatQ ? neckT * A.neckK + headR * A.neckHead
     : neckT * (fish || octopus ? 0.25 : plan === D.PLAN.caterpillar ? 0.5 : 1);
-  const neckAngle = fish || octopus ? 0 : belly ? 0.5 : anatQ ? A.neckAngle(g.head!.neckLength!) : NECK_ANGLE;
+  const neckAngle = human ? H.neckAngle : fish || octopus ? 0 : belly ? 0.5 : anatQ ? A.neckAngle(g.head!.neckLength!) : NECK_ANGLE;
   const tailLen = g.tail!.type === 0 ? 0 : D.TAIL_LENGTH[g.tail!.length!]!;
   const up = (mm: number): number => Math.ceil(mm / D.NOZZLE_MM - 1e-9) * D.NOZZLE_MM;
-  const soleL = D.FOOT_SOLE[g.legs!.foot!]!.length * B.sole * (biped ? D.BIPED.sole : 1);
+  const soleL = D.FOOT_SOLE[g.legs!.foot!]!.length * B.sole * (human ? H.sole : biped ? D.BIPED.sole : 1);
   // an animal's paw is round, not a long slipper (about as long as the slim leg is wide); no sole is below the minimum area
   const sole = { length: Math.max(up(D.MIN_SOLE_AREA_MM2 / legW), anatQ ? Math.min(D.snap(soleL), up(legW * 1.7)) : D.snap(soleL)), width: legW };
   // caterpillar prolegs peek out of the flanks
@@ -152,21 +153,21 @@ function build(g: MorphotypeGenome, code: string): Rig {
   const local: Record<NodeId, [number, number, number]> = {
     torso: [0, 0, 0],
     shoulderF: [legX, -G * 0.35, 0],
-    hipB: [biped ? L * D.BIPED.hipX : -legX, -G * 0.35, 0],
+    hipB: human ? [L * H.hipX, 0, 0] : [biped ? L * D.BIPED.hipX : -legX, -G * 0.35, 0],
     footFL: [0, biped ? 0 : -legLenF, legZ], // a biped has no front legs: the unused feet stay at the shoulder
     footFR: [0, biped ? 0 : -legLenF, -legZ],
     footBL: [0, -legLen, legZ],
     footBR: [0, -legLen, -legZ],
-    neckBase: octopus ? [L * 0.3, -G * 0.2, 0] : fish ? [L * 0.42, 0, 0] : belly ? [L * 0.4, G * 0.15, 0]
+    neckBase: human ? [L * H.neckBase[0], G * H.neckBase[1], 0] : octopus ? [L * 0.3, -G * 0.2, 0] : fish ? [L * 0.42, 0, 0] : belly ? [L * 0.4, G * 0.15, 0]
       : anatQ ? [L * A.neckBase[0], G * A.neckBase[1], 0] : [L * 0.36, G * 0.25, 0],
     head: [neckLen, 0, 0], // along the neck's rotated frame
     muzzle: [headR + D.SNOUT_REACH[g.snout!.reach!]!, -2, 0],
     // ears and horns sit on the skull's crown, wherever its size puts it
     hornRoot: [1 * headK, 4 * headK, 0],
-    earRoot: [-2 * headK, 4 * headK, 0],
+    earRoot: human ? [-1.5 * headK, 1.6 * headK, 0] : [-2 * headK, 4 * headK, 0], // an ape's ears sit on the sides of the head
     crestRoot: [0, 2, 0],
     wingRoot: [L * 0.18, G * 0.45, W * 0.3],
-    tailBase: [-L * 0.5 + 4, fish ? 0 : anatQ ? G * A.tailY : G * 0.1, 0], // root buried in the rump (an animal's sits high on the croup)
+    tailBase: human ? [L * H.tail[0], G * H.tail[1], 0] : [-L * 0.5 + 4, fish ? 0 : anatQ ? G * A.tailY : G * 0.1, 0], // root buried in the rump (an animal's sits high on the croup)
     tailMid: [tailLen * 0.5, 0, 0], // along the tail's rotated frame
     tailTip: [tailLen * 0.5, 0, 0],
   };

@@ -72,3 +72,16 @@ describe('rig', () => {
     for (const id of rig.order) if (rig.nodes[id].contact) expect(off[id]).toBeUndefined();
   });
 });
+
+describe('humanoid body plan (monkey)', () => {
+  it('stands upright: the head right above the hips, the trunk nearly vertical, on two feet', async () => {
+    const { PRESETS, presetGenome } = await import('../src/core/genome');
+    const rig = solveRig(presetGenome(PRESETS.find((p) => p.id === 'monkey')!));
+    const n = rig.nodes;
+    expect(rig.dims.tilt).toBeGreaterThan(1.2);
+    expect(n.head.y).toBeGreaterThan(n.hipB.y + rig.dims.bodyLength * 0.8);
+    expect(Math.abs(n.head.x - n.hipB.x)).toBeLessThan(rig.dims.bodyLength * 0.5);
+    expect(n.footFL.contact).toBe(false);
+    expect(rig.issues).toEqual([]);
+  });
+});

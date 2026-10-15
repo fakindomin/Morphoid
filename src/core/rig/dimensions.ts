@@ -80,7 +80,7 @@ export const ANATOMY = {
   neckBase: [0.38, 0.12] as const,
   tailY: 0.28,
 } as const;
-export const isAnatomical = (plan: number, shape: number): boolean => (plan === PLAN.quadruped || plan === PLAN.biped) && shape === ANATOMY.shape;
+export const isAnatomical = (plan: number, shape: number): boolean => (plan === PLAN.quadruped || isBiped(plan)) && shape === ANATOMY.shape;
 
 /** Gesture: how far (rad) a quadruped's chest rises over its hips. */
 export const GESTURE = { chestUp: 0.07 } as const;
@@ -92,6 +92,19 @@ export const GESTURE = { chestUp: 0.07 } as const;
 export const BIPED = { tilt: 0.32, hipX: 0.06, leg: 1.35, sole: 1.5 } as const;
 
 /**
+ * Humanoid (gene Y, a monkey, an ape): stands upright on two legs, the trunk nearly vertical (chest over belly over
+ * pelvis), the hips at its bottom, a short neck carrying the head on top, a broad chest and long arms. Its legs are
+ * nearly straight (knees forward, not a bird's), its feet long and flat.
+ */
+export const HUMANOID = {
+  tilt: 1.4, hipX: -0.4, leg: 2.0, sole: 1.6, width: 1.3, length: 0.72, head: 1.18,
+  neckBase: [0.46, -0.05] as const, neckAngle: 1.3, neckK: 0.35,
+  tail: [-0.42, 0.25] as const, arm: 1.3, shoulder: [0.36, -0.02] as const,
+} as const;
+/** Two-legged plans: the bird-like biped and the upright humanoid. */
+export const isBiped = (plan: number): boolean => plan === PLAN.biped || plan === PLAN.humanoid;
+
+/**
  * Arms with hands (gene X): a pair growing out of the upper chest, in front of the front legs. Length per size step
  * (shoulder to wrist, mm); the plans that have no chest to carry them (fish, octopus) show none.
  */
@@ -99,7 +112,7 @@ export const ARM_LEN: readonly number[] = [14, 17, 20, 23, 27, 31];
 export const hasArms = (plan: number): boolean => plan !== PLAN.fish && plan !== PLAN.octopus;
 
 /** Body plans by index (gene Y). Belly plans lie on the bed: the torso's flat underside is their sole. */
-export const PLAN = { quadruped: 0, biped: 1, caterpillar: 2, insect: 3, fish: 4, octopus: 5 } as const;
+export const PLAN = { quadruped: 0, biped: 1, caterpillar: 2, insect: 3, fish: 4, octopus: 5, humanoid: 6 } as const;
 export const onBelly = (plan: number): boolean => plan === PLAN.caterpillar || plan === PLAN.fish;
 /**
  * Octopus: eight arms lying flat on the bed around a hub under the mantle (the torso, standing on the hub). Arms are

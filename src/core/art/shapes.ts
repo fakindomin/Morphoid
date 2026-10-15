@@ -59,7 +59,9 @@ const p = (pose: Pose, id: NodeId): XY => pose.pos[id];
 export function armSpecOf(g: MorphotypeGenome, torso: XY, bodyL: number, bodyG: number, tilt: number, legW: number, plan: number): ArmSpec | null {
   const h = g.hands;
   if (!h || !h.type || !D.hasArms(plan)) return null;
-  return { shoulder: armShoulder(torso, bodyL, bodyG, tilt), len: D.ARM_LEN[h.length!]!, legW, hand: h.type, pose: h.dir! };
+  // a humanoid's arms hang from the top corners of its upright chest, and are long (an ape's reach the knees)
+  const human = plan === D.PLAN.humanoid;
+  return { shoulder: armShoulder(torso, bodyL, bodyG, tilt, human ? D.HUMANOID.shoulder : undefined), len: D.ARM_LEN[h.length!]! * (human ? D.HUMANOID.arm : 1), legW, hand: h.type, pose: h.dir!, human };
 }
 
 /** Insect legs per slot: the hind pair in legB, the front and middle pairs in legF (see insectLimb). */
@@ -183,7 +185,7 @@ export const EAR = { cat: 5, mouse: 6, horse: 7 } as const;
 export const BODY_ATHLETIC = 3;
 
 /** Muzzle types (gene S) with their own outline: a cat's and a dog's. */
-export const SNOUT = { beak: 2, cat: 3, dog: 4, horse: 5, bear: 6, rodent: 7 } as const;
+export const SNOUT = { beak: 2, cat: 3, dog: 4, horse: 5, bear: 6, rodent: 7, ape: 8 } as const;
 
 /** Eye shape (gene O, last digit): a round human-like eye, a cat's almond, or an animal's dark eye. */
 export const EYE_SHAPE = { round: 0, almond: 1, animal: 2, sleepy: 3, reptile: 4, goat: 5 } as const;
@@ -230,7 +232,7 @@ export function standSpan(pose: Pose, n: Pose['n']): [number, number] {
     const tx = pose.pos.torso[0], half = (n.bodyL / 2 + 2.5) * 0.85;
     return [tx - half - STAND_MARGIN_MM, tx + half + STAND_MARGIN_MM];
   }
-  const feet = (n.plan === 1 ? ['footBL'] : ['footBL', 'footFL']).map((id) => pose.pos[id as NodeId][0]);
+  const feet = (D.isBiped(n.plan) ? ['footBL'] : ['footBL', 'footFL']).map((id) => pose.pos[id as NodeId][0]);
   return [Math.min(...feet) - n.soleL * 0.3 - STAND_MARGIN_MM, Math.max(...feet) + n.soleL * 0.7 + 3.4 + STAND_MARGIN_MM];
 }
 
@@ -417,7 +419,7 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
   }
 
   // ---- shadow on the bed ------------------------------------------------------
-  const sx = n.plan === 1 ? p(pose, 'footBL')[0] : (p(pose, 'footFL')[0] + p(pose, 'footBL')[0]) / 2;
+  const sx = D.isBiped(n.plan) ? p(pose, 'footBL')[0] : (p(pose, 'footFL')[0] + p(pose, 'footBL')[0]) / 2;
   put('shadow', ellipse(sx, 0, n.bodyL * 0.72, 4.6));
 
   // ---- legs (far pair is darker and peeks out behind) -------------------------
@@ -425,10 +427,10 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
   const muscular = n.build === 2;
   // muscular build: a thigh / shoulder bulge at the top of each leg (inside the torso's lower half, never overhanging)
   // jointed legs: the drawing is the side view of the 3D leg (see limb.ts), so sketch and solid are one shape
-  const biped = n.plan === D.PLAN.biped;
+  const biped = D.isBiped(n.plan), human = n.plan === D.PLAN.humanoid;
   const claws = new Path();
   const limb = (slot: 'legB' | 'legF', top: XY, f: XY, near = false): Path => {
-    const l = legLimb(legSpecOf(slot, biped, top, f, legW, foot, n.soleL, muscular), 0);
+    const l = legLimb(legSpecOf(slot, biped, top, f, legW, foot, n.soleL, muscular, human), 0);
     if (near && l.tips?.length) claws.append(limbOutline({ cones: l.tips, domes: [] }));
     return limbOutline(l);
   };
@@ -483,7 +485,7 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
   const trunkPts: XY[] = [];
   const belly = D.onBelly(n.plan);
   // rule "prosta kontra łuk": every legged, non-round trunk gets a straight back and a curved belly
-  const shaped = (n.plan === D.PLAN.quadruped || n.plan === D.PLAN.biped) && n.build !== 3;
+  const shaped = (n.plan === D.PLAN.quadruped || D.isBiped(n.plan)) && n.build !== 3;
   const athletic = g.body!.shape === BODY_ATHLETIC;
   const segs = n.plan === D.PLAN.caterpillar ? Math.max(4, Math.round(n.bodyL / 9)) : n.plan === D.PLAN.insect ? 3 : 1;
   for (let i = 0; i < 72; i++) {
@@ -506,7 +508,7 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
   }
   // an animal's trunk: the side silhouette of its anatomical masses (the same solid the print is made of)
   const anat = rig.dims.anatomical;
-  if (anat) trunkPts.splice(0, trunkPts.length, ...sideOutline(trunkLimb({ torso, L: n.bodyL, G: n.bodyG, W: n.bodyW, tilt: n.tilt, biped: n.plan === D.PLAN.biped }), torso, trunkDepths(n.bodyW)));
+  if (anat) trunkPts.splice(0, trunkPts.length, ...sideOutline(trunkLimb({ torso, L: n.bodyL, G: n.bodyG, W: n.bodyW, tilt: n.tilt, biped: D.isBiped(n.plan), humanoid: n.plan === D.PLAN.humanoid }), torso, trunkDepths(n.bodyW)));
   /** height of the trunk's top outline at x (for parts that stand on the back) */
   const trunkTop = (x: number): number => {
     let top = -Infinity;
@@ -620,8 +622,10 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
   const snoutType = g.snout!.type!;
   const topB: XY = [head[0] + hs.rx * 0.5, head[1] + hs.ry * 0.5];
   const botB: XY = [head[0] + hs.rx * 0.45, head[1] - hs.ry * 0.78];
-  const tipX = Math.max(muzzle[0], head[0] + hs.rx * 0.95);
-  const tip: XY = [tipX, muzzle[1] - 0.5];
+  // an ape's face is flat: the muzzle (the mouth's bulge) stands just in front of the skull, low on the face
+  const ape = snoutType === SNOUT.ape;
+  const tipX = ape ? head[0] + hs.rx * (1.02 + g.snout!.reach! * 0.04) : Math.max(muzzle[0], head[0] + hs.rx * 0.95);
+  const tip: XY = [tipX, ape ? head[1] - hs.ry * 0.32 : muzzle[1] - 0.5];
   if (snoutType === 0) {
     put('snout', new Path().M(topB[0], topB[1]).Q(tipX + 1, tip[1] + 3, tipX, tip[1] - 1.5).Q(tipX - 0.5, tip[1] - 4, botB[0], botB[1]).Z());
   } else if (snoutType === 1) {
@@ -649,10 +653,17 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
     put('snout', new Path().M(topB[0], topB[1]).Q(topB[0] + 1.5, topB[1] + 0.2, tipX - 1.6, tip[1] + 2.2)
       .Q(tipX + 0.8, tip[1] + 1.8, tipX + 0.7, tip[1] - 0.6).Q(tipX + 0.4, tip[1] - 3.4, tipX - 2.4, tip[1] - 3.6)
       .Q(botB[0] + 1.2, botB[1] - 0.8, botB[0], botB[1]).Z());
+  } else if (ape) {
+    // an ape's face: a brow ridge over the eyes, a flat face down to a broad flat nose, the mouth's round bulge under
+    // it and a chin set back
+    const fx = head[0] + hs.rx * 0.86, browY = head[1] + hs.ry * 0.3;
+    put('snout', new Path().M(head[0] + hs.rx * 0.45, head[1] + hs.ry * 0.62).Q(fx + 0.6, browY + 1.2, fx + 0.4, browY - 0.6)
+      .Q(fx - 0.3, tip[1] + 2.6, tipX - 0.6, tip[1] + 1.4).Q(tipX + 0.7, tip[1] - 0.6, tipX - 0.3, tip[1] - 2.6)
+      .Q(tipX - 1.6, tip[1] - 3.8, botB[0] + 1.4, botB[1] - 0.2).L(botB[0], botB[1]).Z());
   } else if (snoutType === SNOUT.rodent) {
     // a rodent's muzzle: tapering to a round nose that overhangs a small, receding chin
     put('snout', new Path().M(topB[0], topB[1]).Q(tipX - 3.2, tip[1] + 2.2, tipX - 0.4, tip[1] + 0.9)
-      .Q(tipX + 0.8, tip[1] - 0.2, tipX - 0.5, tip[1] - 1.4).Q(tipX - 2.2, tip[1] - 2.4, tipX - 3.4, tip[1] - 2)
+      .Q(tipX + 0.8, tip[1] - 0.2, tipX - 0.5, tip[1] - 1.4).Q(tipX - 1.4, tip[1] - 3.4, tipX - 3.4, tip[1] - 3.2)
       .Q(botB[0] + 1, botB[1] - 0.4, botB[0], botB[1]).Z());
   } else {
     put('snout', new Path().M(topB[0], topB[1]).Q(tipX - 4, topB[1] + 2, tipX, tip[1] - 1.5)
@@ -663,7 +674,7 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
   else if (snoutType === SNOUT.dog) put('nose', ellipse(tipX - 0.8, tip[1] + 0.4, 1.8, 1.4));
   else if (snoutType === SNOUT.bear) put('nose', ellipse(tipX - 0.7, tip[1] + 0.7, 2, 1.5));
   else if (snoutType === SNOUT.rodent) put('nose', ellipse(tipX - 0.5, tip[1] + 0.1, 1.05, 0.95));
-  else if (snoutType !== SNOUT.beak && snoutType !== SNOUT.horse) put('nose', ellipse(tipX - 1.1, tip[1] + 0.7, 1.5, 1.2)); // a horse has no leathery nose, only nostrils
+  else if (snoutType !== SNOUT.beak && snoutType !== SNOUT.horse && !ape) put('nose', ellipse(tipX - 1.1, tip[1] + 0.7, 1.5, 1.2)); // a horse has no leathery nose, only nostrils
 
 
   // ---- ears (behind the head so their base is hidden) -----------------------------

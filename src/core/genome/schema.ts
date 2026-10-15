@@ -80,7 +80,7 @@ export const BLOCKS: readonly BlockDef[] = [
     s('neckLength', 'Długość szyi'),
   ] },
   { id: 'snout', letter: 'S', label: 'Pysk', fields: [
-    e('type', [['pug', 'Krótki'], ['wolf', 'Wilczy'], ['beak', 'Dziób'], ['cat', 'Koci'], ['dog', 'Psi'], ['horse', 'Koński'], ['bear', 'Niedźwiedzi'], ['rodent', 'Gryzonia']], 1),
+    e('type', [['pug', 'Krótki'], ['wolf', 'Wilczy'], ['beak', 'Dziób'], ['cat', 'Koci'], ['dog', 'Psi'], ['horse', 'Koński'], ['bear', 'Niedźwiedzi'], ['rodent', 'Gryzonia'], ['ape', 'Małpi']], 1),
     s('reach', 'Wysunięcie'),
   ] },
   { id: 'ears', letter: 'E', label: 'Uszy', noneMeansEmpty: true, fields: [
@@ -130,7 +130,7 @@ export const BLOCKS: readonly BlockDef[] = [
     e('type', [['normal', 'Normalna'], ['stick', 'Patyk'], ['muscular', 'Umięśniona'], ['round', 'Kulista'], ['skeletal', 'Szkieletowa']]),
   ] },
   { id: 'plan', letter: 'Y', label: 'Plan ciała', fields: [
-    e('type', [['quadruped', 'Czworonóg'], ['biped', 'Dwunóg / ptak'], ['caterpillar', 'Gąsienica'], ['insect', 'Owad (6 nóg)'], ['fish', 'Ryba'], ['octopus', 'Ośmiornica']]),
+    e('type', [['quadruped', 'Czworonóg'], ['biped', 'Dwunóg / ptak'], ['caterpillar', 'Gąsienica'], ['insect', 'Owad (6 nóg)'], ['fish', 'Ryba'], ['octopus', 'Ośmiornica'], ['humanoid', 'Człekokształtny']]),
   ] },
   { id: 'stand', letter: 'Q', label: 'Podstawka', noneMeansEmpty: true, fields: [
     e('type', [['none', 'Brak'], ['round', 'Okrągła'], ['stone', 'Kamień']]),

@@ -32,7 +32,8 @@
     "05": "dog",
     "06": "horse",
     "07": "bear",
-    "08": "rodent"
+    "08": "rodent",
+    "09": "ape"
   },
   "E": {
     "00": "none",
@@ -147,7 +148,8 @@
     "03": "caterpillar",
     "04": "insect",
     "05": "fish",
-    "06": "octopus"
+    "06": "octopus",
+    "07": "humanoid"
   },
   "Q": {
     "00": "none",

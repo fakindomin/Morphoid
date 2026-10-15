@@ -267,24 +267,29 @@ function hull(pts: XY[]): XY[] {
 }
 
 /** The leg of a slot: hind legs bend like a dog's, a biped's like a bird's, front legs stay nearly straight. */
-export function legSpecOf(slot: 'legB' | 'legF', biped: boolean, top: XY, foot: XY, legW: number, footType: number, soleL: number, muscular: boolean): LegSpec {
-  return { kind: slot === 'legF' ? 'fore' : biped ? 'bird' : 'hind', top, foot, legW, footType, soleL, muscular };
+export function legSpecOf(slot: 'legB' | 'legF', biped: boolean, top: XY, foot: XY, legW: number, footType: number, soleL: number, muscular: boolean, humanoid = false): LegSpec {
+  // a humanoid's legs are nearly straight, knees forward, like a front leg
+  return { kind: slot === 'legF' || humanoid ? 'fore' : biped ? 'bird' : 'hind', top, foot, legW, footType, soleL, muscular };
 }
 
 /** Hand kinds (gene X): 1 grasping hands, 2 talons, 3 mitts. Arm poses: 0 held in front, 1 raised, 2 hanging. */
 export const HAND = { grip: 1, talons: 2, mitts: 3 } as const;
 /** World angles (rad, from forward, counter-clockwise) of the upper arm and the forearm, per pose. */
 const ARM_POSE: readonly [number, number][] = [[-1.05, 0.2], [-0.3, 0.7], [-1.6, -0.75]];
+/** An upright humanoid's poses: elbows bent with the hands in front, raised, or hanging loose along the body. */
+const HUMAN_POSE: readonly [number, number][] = [[-1.75, -0.2], [-0.6, 1.2], [-1.62, -1.38]];
 
 export interface ArmSpec {
   /** shoulder (side view, mm), buried in the upper chest */
   shoulder: XY;
   len: number; legW: number; hand: number; pose: number;
+  /** an upright humanoid's arm (its own poses) */
+  human?: boolean;
 }
 
 /** Where the shoulder sits: in the torso's own frame (forward, up), turned with its tilt. */
-export function armShoulder(torso: XY, bodyL: number, bodyG: number, tilt: number): XY {
-  const a = bodyL * 0.3, b = bodyG * 0.12, c = Math.cos(tilt), s = Math.sin(tilt);
+export function armShoulder(torso: XY, bodyL: number, bodyG: number, tilt: number, at: readonly [number, number] = [0.3, 0.12]): XY {
+  const a = bodyL * at[0], b = bodyG * at[1], c = Math.cos(tilt), s = Math.sin(tilt);
   return [torso[0] + a * c - b * s, torso[1] + a * s + b * c];
 }
 
@@ -319,7 +324,7 @@ const ARM_BED_CLEAR = 1.5;
 function armAt(s: ArmSpec, z: number): Limb {
   const side = Math.sign(z) || 1, zo = Math.abs(z), zs = z === 0 ? 0 : side * Math.min(zo, zo * 0.7);
   const rU = Math.max(LIMB_MIN_R, s.legW * 0.36), rE = Math.max(LIMB_MIN_R, s.legW * 0.3), rW = Math.max(LIMB_MIN_R, s.legW * 0.26);
-  const [ua, fa] = ARM_POSE[s.pose] ?? ARM_POSE[0]!;
+  const poses = s.human ? HUMAN_POSE : ARM_POSE, [ua, fa] = poses[s.pose] ?? poses[0]!;
   const u = turn(ua), f = turn(fa);
   const sh: V3 = [s.shoulder[0], s.shoulder[1], zs];
   const el: V3 = [sh[0] + u[0] * s.len * 0.5, sh[1] + u[1] * s.len * 0.5, z];
