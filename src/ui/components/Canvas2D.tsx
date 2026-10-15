@@ -27,7 +27,7 @@ function extentOf(paths: Record<string, { empty: boolean; flatten: (n?: number) 
 
 const TITLE: Record<string, string> = Object.fromEntries(TILES.map((t) => [t.id, t.title]));
 const RANK: Record<Severity, number> = { info: 0, support: 1, warn: 2, error: 3 };
-const LEVELS: HeatLevel[] = [HEAT.none, HEAT.bed, HEAT.support, HEAT.attention];
+const LEVELS: HeatLevel[] = [HEAT.none, HEAT.support, HEAT.attention, HEAT.bed];
 
 /** The worst thing the print audit says about a body element, as one sentence and its colour. */
 function verdict(tile: string, report: PrintReport, hits: SketchOutput['hits']): { text: string; level: HeatLevel } {
@@ -149,7 +149,7 @@ export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPick
             swRef.current.style.background = md === 'print' ? HEAT_SWATCH[v.level] : 'var(--c1)';
           } else {
             infoRef.current.textContent = md === 'print'
-              ? 'Kolor mówi, jak dany fragment się wydrukuje. Najedź na część ciała po szczegóły, kliknij, żeby ją zmienić.'
+              ? 'Niebieskie drukuje się bezpiecznie, czerwone potrzebuje podpór. Kliknij część ciała, żeby ją zmienić.'
               : 'Najedź na część ciała, kliknij, żeby ją zmienić.';
             swRef.current.style.background = md === 'print' ? HEAT_SWATCH[HEAT.none] : 'var(--c1)';
           }
@@ -205,7 +205,7 @@ export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPick
         {mode === 'print' && (
           <span className="sketch-legend">
             {LEVELS.map((l, i) => (
-              <span key={l} title={HEAT_NAME[l]}><i className="sk-sw" style={{ background: HEAT_SWATCH[l] }} /><b ref={(el) => { legendRefs.current[i] = el; }} /></span>
+              <span key={l} title={HEAT_NAME[l]}><i className="sk-sw" style={{ background: HEAT_SWATCH[l] }} />{HEAT_NAME[l]} <b ref={(el) => { legendRefs.current[i] = el; }} /></span>
             ))}
           </span>
         )}

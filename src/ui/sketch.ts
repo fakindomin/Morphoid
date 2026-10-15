@@ -2,8 +2,8 @@
  * The side view drawn like the Morphoid logo: every part cut into flat facets lit from the upper front.
  * Two colourings:
  *   'color'  the creature's own colours (body c1, accents c2, pattern c3), facet by facet a shade lighter or darker;
- *   'print'  what the print audit found under each facet: blue prints as is, violet gets slicer supports, red needs
- *            attention (too thin, floating, parts grown into each other), steel stands on the bed.
+ *   'print'  what the print audit found under each facet, in the logo's colours: blue prints safely, red gets slicer
+ *            supports, deep red needs fixing (too thin, floating, parts grown into each other), steel stands on the bed.
  * No markers: the colour of the facet is the message.
  */
 import { SLOTS, type SlotId, type SlotKind, type SlotPaths } from '../core/art/shapes';
@@ -15,15 +15,19 @@ import { SLOT_TILE } from './tiles';
 export type SketchMode = 'color' | 'print';
 
 /** dark -> light */
+/**
+ * Print colours from the logo: blues = prints safely (as many shades as the facets need), reds = needs supports from the
+ * slicer (the deep reds: a spot to fix, too thin or touching), the logo's steel = lies on the bed.
+ */
 const PRINT_PAL: Record<HeatLevel, readonly string[]> = {
   [HEAT.none]: ['#0b3b63', '#0369a1', '#0284c7', '#38bdf8', '#7dd3fc'],
   [HEAT.bed]: ['#1e293b', '#334155', '#3f2a33', '#475569'],
-  [HEAT.support]: ['#3b1a78', '#5b21b6', '#6d28d9', '#8b5cf6', '#a78bfa'],
-  [HEAT.attention]: ['#4c1010', '#7f1d1d', '#991b1b', '#b91c1c', '#ff1744'],
+  [HEAT.support]: ['#b91c1c', '#e11d48', '#ff1744', '#ff4d63', '#ff8a9a'],
+  [HEAT.attention]: ['#3f0a12', '#5f0f1c', '#7f1d1d', '#991b1b'],
 };
 /** one colour per level for legends and the info line */
-export const HEAT_SWATCH: Record<HeatLevel, string> = { [HEAT.none]: '#0284c7', [HEAT.bed]: '#475569', [HEAT.support]: '#7c3aed', [HEAT.attention]: '#e11d48' };
-export const HEAT_NAME: Record<HeatLevel, string> = { [HEAT.none]: 'Drukuje się dobrze', [HEAT.bed]: 'Leży na stole', [HEAT.support]: 'Podpory ze slicera', [HEAT.attention]: 'Wymaga uwagi' };
+export const HEAT_SWATCH: Record<HeatLevel, string> = { [HEAT.none]: '#0284c7', [HEAT.bed]: '#334155', [HEAT.support]: '#ff1744', [HEAT.attention]: '#7f1d1d' };
+export const HEAT_NAME: Record<HeatLevel, string> = { [HEAT.none]: 'Bezpieczne', [HEAT.bed]: 'Na stole', [HEAT.support]: 'Podpory', [HEAT.attention]: 'Do poprawy' };
 
 const FACETED: readonly SlotKind[] = ['skin', 'skinFar', 'accent', 'accentFar', 'accentSoft', 'pattern'];
 const FAR: readonly SlotKind[] = ['skinFar', 'accentFar'];
