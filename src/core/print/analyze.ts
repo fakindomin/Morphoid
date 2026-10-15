@@ -59,7 +59,33 @@ export interface PrintReport {
   pieces: PieceInfo[];
   /** total side-view area (mm^2) that would need supports: the number to compare before/after a change */
   supportArea: number;
+  /** where each kind of problem sits, cell by cell: what the faceted sketch colours */
+  heat: HeatGrid[];
+  /** appendages that grow into each other in 3D (filled in by the caller that builds the 3D parts) */
+  touches?: { a: SlotId; b: SlotId; at: XY }[];
 }
+
+/** Print state of a spot of the side view. */
+export const HEAT = { none: 0, bed: 1, support: 2, attention: 3 } as const;
+export type HeatLevel = (typeof HEAT)[keyof typeof HEAT];
+
+/** One printed piece's raster (rig mm): every cell holds the HEAT level found there. */
+export interface HeatGrid { x0: number; y0: number; w: number; h: number; cell: number; st: Uint8Array }
+
+/** The worst HEAT level at (x, y) mm over every piece. */
+export function heatAt(grids: readonly HeatGrid[], x: number, y: number): HeatLevel {
+  let best = 0;
+  for (const g of grids) {
+    const i = Math.floor((x - g.x0) / g.cell), j = Math.floor((y - g.y0) / g.cell);
+    if (i < 0 || j < 0 || i >= g.w || j >= g.h) continue;
+    best = Math.max(best, g.st[j * g.w + i]!);
+  }
+  return best as HeatLevel;
+}
+
+/** Contact with the bed shows on the bottom this high (mm). */
+const BED_BAND = 1.2;
+const levelOf = (sev: Severity): HeatLevel => (sev === 'support' ? HEAT.support : sev === 'info' ? HEAT.none : HEAT.attention);
 
 const CELL = 0.3;
 const LOOK = 6;
@@ -168,6 +194,7 @@ export function touchIssues(contacts: { a: SlotId; b: SlotId; at: XY }[]): Print
 export function analyzePrint(paths: SlotPaths, rig: Rig, plan: PrintPlan): PrintReport {
   const issues: PrintIssue[] = [];
   const pieces: PieceInfo[] = [];
+  const heat: HeatGrid[] = [];
   const printer = PRINTERS[plan.printer] ?? PRINTERS.p1s!;
   const sep = (g: PartGroup): boolean => isSeparate(plan, g);
 
@@ -211,7 +238,7 @@ export function analyzePrint(paths: SlotPaths, rig: Rig, plan: PrintPlan): Print
   const warns = issues.some((i) => i.severity === 'warn');
   const supports = issues.some((i) => i.severity === 'support');
   const supportArea = issues.reduce((sum, i) => sum + (i.code === 'OVERHANG' || i.code === 'BRIDGE' ? (i.area ?? 0) : 0), 0);
-  return { ok: !errors, level: errors ? 'red' : warns ? 'yellow' : supports ? 'blue' : 'green', issues, pieces, supportArea };
+  return { ok: !errors, level: errors ? 'red' : warns ? 'yellow' : supports ? 'blue' : 'green', issues, pieces, supportArea, heat };
 
   // ---------------------------------------------------------------------------------------
   function analyzePiece(s: PieceSpec): void {
@@ -227,6 +254,10 @@ export function analyzePrint(paths: SlotPaths, rig: Rig, plan: PrintPlan): Print
     const w = Math.ceil((xmax + pad - x0) / CELL), h = Math.max(2, Math.ceil((ymax - y0 + pad) / CELL));
     const grid: Grid = { w, h, x0, y0, occ: new Uint8Array(w * h), owner: new Uint8Array(w * h) };
     solids.forEach((o, idx) => o.polys.forEach((poly) => fillPolygon(grid, poly, idx + 1)));
+    const st = new Uint8Array(w * h);
+    heat.push({ x0, y0, w, h, cell: CELL, st });
+    const mark = (q: number, lv: HeatLevel): void => { if (st[q]! < lv) st[q] = lv; };
+    for (let j = 0; j < h && y0 + (j + 0.5) * CELL < BED_BAND; j++) for (let i = 0; i < w; i++) if (grid.occ[j * w + i]) mark(j * w + i, HEAT.bed);
     const at = (i: number, j: number): [number, number] => [x0 + (i + 0.5) * CELL, y0 + (j + 0.5) * CELL];
     const slotAt = (i: number, j: number): SlotId | null => { const o = grid.owner[j * w + i]!; return o > 0 ? solids[o - 1]!.id : null; };
     const worst = new Map<string, PrintIssue>();
@@ -278,15 +309,16 @@ export function analyzePrint(paths: SlotPaths, rig: Rig, plan: PrintPlan): Print
             let b = a; while (b + 1 <= e && !sup[j * w + b + 1]) b++;
             const len = b - a + 1, mm = len * CELL, mid = (a + b) >> 1;
             const left = a > i && sup[j * w + a - 1] === 1, right = b < e && sup[j * w + b + 1] === 1;
+            const run = (sev: Severity): Severity => { for (let k = a; k <= b; k++) mark(j * w + k, levelOf(sev)); return sev; };
             if (left && right) {
               if (mm > plan.maxBridge) {
-                if (plan.supports === 'allowed') report('BRIDGE', 'support', mid, j, mm, (p) => `${p}: podpory pod spodem (rozpiętość ${mm.toFixed(0)} mm)`, columnArea(j, a, b));
-                else report('BRIDGE', mm > plan.maxBridge * 2 ? 'error' : 'warn', mid, j, mm,
+                if (plan.supports === 'allowed') report('BRIDGE', run('support'), mid, j, mm, (p) => `${p}: podpory pod spodem (rozpiętość ${mm.toFixed(0)} mm)`, columnArea(j, a, b));
+                else report('BRIDGE', run(mm > plan.maxBridge * 2 ? 'error' : 'warn'), mid, j, mm,
                   (p) => `${p}: wisi nad pustką na ${mm.toFixed(0)} mm (most do ${plan.maxBridge} mm)`, columnArea(j, a, b));
               }
             } else if (len > TOL_CELLS && mm > 2.5) {
-              if (plan.supports === 'allowed') report('OVERHANG', 'support', mid, j, mm, (p) => `${p}: potrzebne podpory (nawis ~${mm.toFixed(0)} mm)`, columnArea(j, a, b));
-              else report('OVERHANG', mm > 4 ? 'error' : 'warn', mid, j, mm,
+              if (plan.supports === 'allowed') report('OVERHANG', run('support'), mid, j, mm, (p) => `${p}: potrzebne podpory (nawis ~${mm.toFixed(0)} mm)`, columnArea(j, a, b));
+              else report('OVERHANG', run(mm > 4 ? 'error' : 'warn'), mid, j, mm,
                 (p) => `${p}: nawis ostrzejszy niż ${R.maxOverhangDeg}° (~${mm.toFixed(1)} mm bez podparcia)`, columnArea(j, a, b));
             }
             a = b + 1;
@@ -312,6 +344,7 @@ export function analyzePrint(paths: SlotPaths, rig: Rig, plan: PrintPlan): Print
             if (grid.occ[n] && !comp[n]) { comp[n] = nc; stack.push(n); }
           }
         }
+        if (!bed && count * CELL * CELL > 3) for (let c = 0; c < w * h; c++) if (comp[c] === nc) mark(c, HEAT.attention);
         if (!bed && count * CELL * CELL > 3) report('FLOATING', 'error', Math.round(sx / count), Math.round(sy / count), count * CELL * CELL, (p) => `${p}: element nie łączy się ze stołem ani z resztą modelu`);
       }
     }
@@ -334,9 +367,10 @@ export function analyzePrint(paths: SlotPaths, rig: Rig, plan: PrintPlan): Print
     for (let q = 0; q < w * h; q++) {
       if (!grid.occ[q] || opened[q] || seen[q]) continue;
       let count = 0, sx = 0, sy = 0; stack2.push(q); seen[q] = 1;
+      const cells: number[] = [];
       while (stack2.length) {
         const c = stack2.pop()!; const cj = (c / w) | 0, ci = c - cj * w;
-        count++; sx += ci; sy += cj;
+        count++; sx += ci; sy += cj; cells.push(c);
         for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
           const ni = ci + di, nj = cj + dj;
           if (ni < 0 || nj < 0 || ni >= w || nj >= h) continue;
@@ -345,6 +379,7 @@ export function analyzePrint(paths: SlotPaths, rig: Rig, plan: PrintPlan): Print
         }
       }
       const area = count * CELL * CELL;
+      if (area > R.tipTolerance) for (const c of cells) mark(c, HEAT.attention);
       if (area > R.tipTolerance) report('THIN', 'error', Math.round(sx / count), Math.round(sy / count), area, (p) => `${p}: zbyt cienki fragment (< ${R.minFeature} mm, ${area.toFixed(0)} mm²)`);
     }
 

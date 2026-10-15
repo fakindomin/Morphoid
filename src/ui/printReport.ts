@@ -21,8 +21,11 @@ export function reportFor(g: MorphotypeGenome, plan: PrintPlan): PrintReport {
   if (hit) return hit;
   const { rig, paths } = restGeometry(g);
   const base = analyzePrint(paths, rig, plan);
-  const touch = touchIssues(appendageContacts(buildParts3D(paths, g, rig)));
-  const rep: PrintReport = touch.length ? { ...base, issues: [...base.issues, ...touch], level: base.level === 'green' || base.level === 'blue' ? 'yellow' : base.level } : base;
+  const contacts = appendageContacts(buildParts3D(paths, g, rig));
+  const touch = touchIssues(contacts);
+  const rep: PrintReport = touch.length
+    ? { ...base, issues: [...base.issues, ...touch], touches: contacts, level: base.level === 'green' || base.level === 'blue' ? 'yellow' : base.level }
+    : base;
   if (cache.size > 200) cache.clear();
   cache.set(key, rep);
   return rep;

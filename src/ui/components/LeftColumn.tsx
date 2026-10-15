@@ -100,16 +100,29 @@ function PresetGrid() {
  * The creature's parts as categories from head to tail, all closed at first. Opening one closes the one that was open,
  * so the column never grows past the screen; clicking a part on the sketch opens its category and lights it up.
  */
-export function LeftColumn({ activeSocket }: { activeSocket: string | null }) {
+export function LeftColumn({ activeSocket, pick, hotTile, onHoverTile }: {
+  activeSocket: string | null;
+  /** a body element clicked on the sketch */
+  pick: { tile: string; n: number } | null;
+  /** a body element hovered on the sketch: its category lights up (and hovering a category lights the sketch) */
+  hotTile: string | null;
+  onHoverTile: (tile: string | null) => void;
+}) {
   const { genome } = useStudioState();
   const [open, setOpen] = useState<string | null>(null);
-  const hot = activeSocket ? SOCKET_TILE[activeSocket] ?? null : null;
+  const socketTile = activeSocket ? SOCKET_TILE[activeSocket] ?? null : null;
+  const hot = socketTile ?? hotTile;
   const refs = useRef<Record<string, HTMLElement | null>>({});
   useEffect(() => {
-    if (!hot) return;
-    setOpen(hot);
-    refs.current[hot]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [hot]);
+    if (!socketTile) return;
+    setOpen(socketTile);
+    refs.current[socketTile]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [socketTile]);
+  useEffect(() => {
+    if (!pick) return;
+    setOpen(pick.tile);
+    refs.current[pick.tile]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [pick]);
   let n = 0;
   const preset = PRESETS.find((p) => serialize(presetGenome(p)) === serialize(genome));
   return (
@@ -133,7 +146,8 @@ export function LeftColumn({ activeSocket }: { activeSocket: string | null }) {
             const on = open === tile.id;
             const num = ++n;
             return (
-              <section key={tile.id} ref={(el) => { refs.current[tile.id] = el; }} className={`cat${on ? ' open' : ''}${hot === tile.id ? ' hot' : ''}`}>
+              <section key={tile.id} ref={(el) => { refs.current[tile.id] = el; }} className={`cat${on ? ' open' : ''}${hot === tile.id ? ' hot' : ''}`}
+                onPointerEnter={() => onHoverTile(tile.id)} onPointerLeave={() => onHoverTile(null)}>
                 <button type="button" className="cat-h" aria-expanded={on} onClick={() => setOpen(on ? null : tile.id)}>
                   <span className="cat-n">{num}</span>
                   <span className="cat-t">{tile.title}</span>
