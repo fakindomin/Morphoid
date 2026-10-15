@@ -458,7 +458,7 @@ button.status-bake:hover { color: var(--cyan); }
 @media (prefers-reduced-motion: reduce) { .logo-live *, .badge-mark > g, .badge-mark .fc { animation: none; } }
 
 /* ---- the faceted sketch (logo style): bed behind, facets on a canvas, sockets and size on top ---- */
-.creature-viewport.sketch { position: relative; }
+.creature-viewport.sketch { position: absolute; inset: 0; width: auto; aspect-ratio: auto; } /* the sketch fills the stage, see Canvas2D */
 .creature-viewport.sketch > svg, .creature-viewport.sketch > canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .sketch-back .desk { fill: color-mix(in srgb, var(--bg-card) 80%, var(--cyan) 6%); }
 .sketch-front { pointer-events: none; }

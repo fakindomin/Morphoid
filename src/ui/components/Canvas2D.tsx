@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { dimensions as D, solveRig, withoutSculpt, SOCKET_NODE, type SocketId } from '../../core';
 import { PALETTES } from '../../core/palette';
 import { studio } from '../studio';
@@ -8,8 +8,22 @@ import { HEAT, type HeatLevel, type PrintReport, type Severity } from '../../cor
 import { drawSketch, HEAT_NAME, HEAT_SWATCH, insidePoly, type SketchMode, type SketchOutput } from '../sketch';
 import { TILES } from '../tiles';
 
-const W = 820, H = 520, SCALE = 4.6, CX = 430, GROUND = 440;
-const to = (x: number, y: number) => [CX - x * SCALE, GROUND - y * SCALE] as const;
+/**
+ * The sketch fills the whole stage: the creature is scaled to fit it (px per mm), standing on a desk line near the
+ * bottom (room for the info line under it), with room above for the tools. A new shape eases to its new scale.
+ */
+interface View { w: number; h: number; scale: number; cx: number; ground: number }
+const MARGIN_X = 36, TOP = 96, BELOW = 70, MAX_SCALE = 18, MIN_SCALE = 1.5;
+const groundOf = (h: number): number => h - Math.max(BELOW, h * 0.12);
+/** The creature's drawn extent (mm), from every part's outline (the shadow excluded). */
+function extentOf(paths: Record<string, { empty: boolean; flatten: (n?: number) => [number, number][][] }>): { x0: number; x1: number; y1: number } {
+  let x0 = Infinity, x1 = -Infinity, y1 = 0;
+  for (const [slot, p] of Object.entries(paths)) {
+    if (slot === 'shadow' || p.empty) continue;
+    for (const line of p.flatten(3)) for (const [x, y] of line) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y > y1) y1 = y; }
+  }
+  return Number.isFinite(x0) ? { x0, x1, y1 } : { x0: -40, x1: 40, y1: 60 };
+}
 
 const SOCKETS: { id: SocketId; title: string }[] = [
   { id: 'head', title: 'Głowa, pysk, uszy i rogi' },
@@ -61,12 +75,20 @@ export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPick
   const hitsRef = useRef<SketchOutput['hits']>([]);
   const dirtyRef = useRef(true);
   dirtyRef.current = true;
+  const [size, setSize] = useState({ w: 820, h: 520 });
+  const viewRef = useRef<View>({ w: 820, h: 520, scale: 4.6, cx: 410, ground: groundOf(520) });
+  const to = (x: number, y: number): readonly [number, number] => {
+    const v = viewRef.current;
+    return [v.cx - x * v.scale, v.ground - y * v.scale] as const;
+  };
 
   useEffect(() => {
     let raf = 0;
     let last = performance.now();
     let cur: Pose | null = null;
     let lastKey = '';
+    // the scale and centre the view eases to, refitted whenever the shape or the stage size changes
+    let fitKey = '', fit = { scale: 4.6, cx: 410 };
 
     const resize = (): void => {
       const c = canvasRef.current, box = boxRef.current;
@@ -74,6 +96,8 @@ export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPick
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       const w = Math.max(1, Math.round(box.clientWidth * dpr)), h = Math.max(1, Math.round(box.clientHeight * dpr));
       if (c.width !== w || c.height !== h) { c.width = w; c.height = h; dirtyRef.current = true; }
+      const v = viewRef.current, cw = Math.max(1, box.clientWidth), ch = Math.max(1, box.clientHeight);
+      if (v.w !== cw || v.h !== ch) { v.w = cw; v.h = ch; v.ground = groundOf(ch); fitKey = ''; setSize({ w: cw, h: ch }); }
     };
     const ro = new ResizeObserver(resize);
     if (boxRef.current) ro.observe(boxRef.current);
@@ -94,18 +118,29 @@ export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPick
       const key = `${rig.code}|${sb}|${md}|${hot}|${g.palette!.index}`;
       if (key !== lastKey) { dirtyRef.current = true; lastKey = key; }
 
-      const c = canvasRef.current;
-      if (c && (dirtyRef.current || remaining > 1e-3)) {
+      const c = canvasRef.current, v = viewRef.current;
+      if (rig.code !== fitKey) {
+        // fit the resting shape (not the easing one) into the stage
+        const e = extentOf(buildPaths(tgt, g, rig, false) as never);
+        const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, (v.w - 2 * MARGIN_X) / Math.max(1, e.x1 - e.x0), (v.ground - TOP) / Math.max(1, e.y1)));
+        fit = { scale, cx: v.w / 2 + ((e.x0 + e.x1) / 2) * scale };
+        if (!fitKey) { v.scale = fit.scale; v.cx = fit.cx; }
+        fitKey = rig.code;
+      }
+      const ease = 1 - Math.exp(-dt * 10);
+      const moving = Math.abs(fit.scale - v.scale) > 1e-3 || Math.abs(fit.cx - v.cx) > 0.05;
+      if (moving) { v.scale += (fit.scale - v.scale) * ease; v.cx += (fit.cx - v.cx) * ease; }
+      if (c && (dirtyRef.current || remaining > 1e-3 || moving)) {
         dirtyRef.current = false;
         const ctx = c.getContext('2d')!;
-        const k = c.width / W;
+        const k = c.width / v.w;
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, c.width, c.height);
         // rig mm -> canvas pixels: forward (+x) to the left, up (+y) up
-        ctx.setTransform(-SCALE * k, 0, 0, -SCALE * k, CX * k, GROUND * k);
+        ctx.setTransform(-v.scale * k, 0, 0, -v.scale * k, v.cx * k, v.ground * k);
         const paths = buildPaths(cur, g, rig, sb);
         const torso = cur.pos.torso;
-        const out = drawSketch(ctx, 1 / (SCALE * k), {
+        const out = drawSketch(ctx, 1 / (v.scale * k), {
           paths, mode: md, palette: PALETTES[g.palette!.index!] ?? PALETTES[0]!, report: rep, hot, showBones: sb,
           insect: rig.dims.plan === D.PLAN.insect, away: [torso[0], torso[1]], torso: [torso[0], torso[1]],
         });
@@ -153,8 +188,8 @@ export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPick
     const box = boxRef.current;
     if (!box) return null;
     const r = box.getBoundingClientRect();
-    const px = ((e.clientX - r.left) / r.width) * W, py = ((e.clientY - r.top) / r.height) * H;
-    const x = (CX - px) / SCALE, y = (GROUND - py) / SCALE;
+    const v = viewRef.current, px = e.clientX - r.left, py = e.clientY - r.top;
+    const x = (v.cx - px) / v.scale, y = (v.ground - py) / v.scale;
     const hits = hitsRef.current;
     for (let i = hits.length - 1; i >= 0; i--) if (hits[i]!.polys.some((p) => insidePoly(p, x, y))) return hits[i]!.tile;
     return null;
@@ -172,13 +207,13 @@ export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPick
       onPointerMove={(e) => { const t = tileAt(e); hover(t); (e.currentTarget as HTMLElement).style.cursor = t ? 'pointer' : ''; }}
       onPointerLeave={() => hover(null)}
       onClick={(e) => { const t = tileAt(e); if (t) onPickTile(t); }}>
-      <svg className="sketch-back" viewBox={`0 0 ${W} ${H}`} aria-hidden>
-        <rect className="desk" x={0} y={GROUND} width={W} height={H - GROUND} />
-        <line className="desk-edge" x1={0} x2={W} y1={GROUND} y2={GROUND} />
+      <svg className="sketch-back" viewBox={`0 0 ${size.w} ${size.h}`} aria-hidden>
+        <rect className="desk" x={0} y={groundOf(size.h)} width={size.w} height={size.h - groundOf(size.h)} />
+        <line className="desk-edge" x1={0} x2={size.w} y1={groundOf(size.h)} y2={groundOf(size.h)} />
       </svg>
       <canvas ref={canvasRef} className="sketch-canvas" role="img" aria-label="Rzut boczny Morphoida" />
-      <svg className="sketch-front" viewBox={`0 0 ${W} ${H}`}>
-        <text ref={sizeRef} className="size-label" x={W - 24} y={28} textAnchor="end" />
+      <svg className="sketch-front" viewBox={`0 0 ${size.w} ${size.h}`}>
+        <text ref={sizeRef} className="size-label" x={size.w - 24} y={28} textAnchor="end" />
         {SOCKETS.map((s) => (
           <g key={s.id} ref={(el) => { socketEls.current[s.id] = el; }} className="socket"
             onClick={(e) => {
