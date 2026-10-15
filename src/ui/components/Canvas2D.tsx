@@ -7,8 +7,6 @@ import { buildShapes, SLOTS, rigSize, type Shapes, type SlotKind } from '../../c
 
 const W = 820, H = 520, SCALE = 4.6, CX = 430, GROUND = 440;
 const to = (x: number, y: number) => [CX - x * SCALE, GROUND - y * SCALE] as const;
-/** Breathing alone is redrawn at this rate (frames per second). */
-const BREATH_FPS = 20;
 
 /** Solid parts that make up the figurine's silhouette: drawn once more underneath as one outline. */
 const SOLID: readonly SlotKind[] = ['skin', 'skinFar', 'accent', 'accentFar', 'accentSoft', 'white'];
@@ -46,15 +44,12 @@ const SOCKETS: { id: SocketId; title: string }[] = [
 
 interface Props {
   showBones: boolean;
-  breathing: boolean;
-  /** menu open: freeze idle + mouse tracking so sockets don't drift under the cursor */
-  frozen: boolean;
   onSocket: (socket: SocketId, screen: { x: number; y: number }) => void;
   /** print problems to point at (rig mm) */
   markers?: { at: [number, number]; severity: 'info' | 'support' | 'warn' | 'error'; text: string }[];
 }
 
-export function Canvas2D({ showBones, breathing, frozen, onSocket, markers = [] }: Props) {
+export function Canvas2D({ showBones, onSocket, markers = [] }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   /** every element drawing a slot (its fill, its silhouette copy, its clip copy) */
   const slotEls = useRef<Record<string, (SVGPathElement | null)[]>>({});
@@ -64,26 +59,23 @@ export function Canvas2D({ showBones, breathing, frozen, onSocket, markers = [] 
   const insectRef = useRef<SVGGElement>(null);
   const socketEls = useRef<Record<string, SVGGElement | null>>({});
   const sizeRef = useRef<SVGTextElement>(null);
-  const live = useRef({ showBones, breathing, frozen });
-  live.current = { showBones, breathing, frozen };
-  const mouse = useRef({ x: 0, y: 0 });
+  const live = useRef({ showBones });
+  live.current = { showBones };
 
   useEffect(() => {
     let raf = 0;
     let last = performance.now();
-    let t = 0;
     let cur: Pose | null = null;
     let lastCode = '';
     const cache: Partial<Record<keyof Shapes, string>> = {};
     let dirty = true;
     let lastBones = live.current.showBones;
     let lastPalette = -1;
-    let lastDraw = 0;
 
     const frame = (now: number): void => {
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
-      const { breathing: br, frozen: fz, showBones: sb } = live.current;
+      const { showBones: sb } = live.current;
       const g = studio.getState().genome;
       const rig = solveRig(g);
       const pal = g.palette!.index!;
@@ -94,18 +86,14 @@ export function Canvas2D({ showBones, breathing, frozen, onSocket, markers = [] 
         svgRef.current.style.setProperty('--c2', c2);
         svgRef.current.style.setProperty('--c3', c3);
       }
-      if (br && !fz) t += dt * 2;
-      const m = fz ? { x: 0, y: 0 } : mouse.current;
-      const tgt = targetPose(rig, g, t, br && !fz, m);
+      // the creature stands still: no breathing, the head does not follow the cursor
+      const tgt = targetPose(rig, g, 0, false, { x: 0, y: 0 });
       if (!cur) cur = clonePose(tgt);
       const remaining = easePose(cur, tgt, 1 - Math.exp(-dt * 14));
       if (rig.code !== lastCode || sb !== lastBones) { dirty = true; lastCode = rig.code; lastBones = sb; }
 
-      // breathing alone is drawn at BREATH_FPS (the eye does not see more in so slow a motion); a gene change or the
-      // mouse still redraws every frame
-      const breathe = br && !fz && now - lastDraw >= 1000 / BREATH_FPS;
-      if (dirty || remaining > 0.05 || breathe || (remaining > 1e-3 && !(br && !fz))) {
-        lastDraw = now;
+      // redrawn only while something changes (a gene, the bones toggle, the pose easing to a new shape)
+      if (dirty || remaining > 1e-3) {
         const shapes = buildShapes(cur, g, rig, to, sb);
         insectRef.current?.setAttribute('visibility', rig.dims.plan === D.PLAN.insect ? 'visible' : 'hidden');
         for (const [id] of SLOTS) {
@@ -138,14 +126,8 @@ export function Canvas2D({ showBones, breathing, frozen, onSocket, markers = [] 
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  const onMove = (e: React.PointerEvent): void => {
-    const r = e.currentTarget.getBoundingClientRect();
-    const rx = (e.clientX - r.left) / r.width - 0.5, ry = (e.clientY - r.top) / r.height - 0.5;
-    mouse.current = { x: -rx * 3.5, y: -ry * 2.5 }; // +x is "forward" = screen-left
-  };
-
     return (
-    <div className="creature-viewport" onPointerMove={onMove}>
+    <div className="creature-viewport">
       <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Rzut boczny Morphoida">
         <defs>
           <linearGradient id="skinGrad" x1="0" y1="0" x2="0" y2="1">
