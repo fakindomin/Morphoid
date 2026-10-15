@@ -3,7 +3,7 @@
  * creature (so a "Pióra ptaka" slice shows exactly the feathers this creature would get), cropped around that part,
  * with the body it grows from faintly behind it.
  */
-import { applyOp, solveRig, type BlockId, type MorphotypeGenome, type Op } from '../core';
+import { applyOp, solveRig, withoutSculpt, type BlockId, type MorphotypeGenome, type Op } from '../core';
 import { targetPose } from '../core/art/pose';
 import { buildPaths, SLOTS, type SlotId, type SlotKind } from '../core/art/shapes';
 import { PALETTES } from '../core/palette';
@@ -73,7 +73,7 @@ function fillOf(kind: SlotKind, [c1, c2, c3]: readonly [string, string, string])
 
 /** The sketch of `block`'s part on the creature `g` with `ops` applied. */
 export function makeThumb(g: MorphotypeGenome, ops: Op[], block: BlockId, field: string): Thumb {
-  const g2 = ops.reduce(applyOp, g);
+  const g2 = withoutSculpt(ops.reduce(applyOp, g));
   const rig = solveRig(g2);
   const paths = buildPaths(targetPose(rig, g2, 0, false, { x: 0, y: 0 }), g2, rig, false);
   const pal = PALETTES[g2.palette!.index!] ?? PALETTES[0]!;

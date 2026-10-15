@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { dimensions as D, solveRig, SOCKET_NODE, type SocketId } from '../../core';
+import { dimensions as D, solveRig, withoutSculpt, SOCKET_NODE, type SocketId } from '../../core';
 import { PALETTES } from '../../core/palette';
 import { studio } from '../studio';
 import { clonePose, easePose, targetPose, type Pose } from '../../core/art/pose';
@@ -83,7 +83,8 @@ export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPick
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       const { showBones: sb, mode: md, report: rep, hotTile: panelTile } = live.current;
-      const g = studio.getState().genome;
+      // the sketch draws the creature without its 3D-only deformation (fine sliders)
+      const g = withoutSculpt(studio.getState().genome);
       const rig = solveRig(g);
       // the creature stands still: no breathing, the head does not follow the cursor
       const tgt = targetPose(rig, g, 0, false, { x: 0, y: 0 });

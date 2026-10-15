@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { parse } from '../../core';
+import { FINE_LEVELS, FINE_ZERO, fineOffset, fineScale, BLOCKS, parse, sculptValue, solveRig, STEPS } from '../../core';
 import { exportBundle } from '../../core/bake/orient';
 import { export3mf } from '../../core/bake/threemf';
 import { PALETTES } from '../../core/palette';
@@ -177,6 +177,44 @@ function PrintBody({ view, explode, setExplode }: Props) {
   );
 }
 
+/** The creature's 3D deformation (gene I): sliders saved in the DNA; long pulls carry over into the size genes. */
+function SculptBody() {
+  const { genome } = useStudioState();
+  const anatomical = solveRig(genome).dims.anatomical;
+  const dragging = useRef(false);
+  const fields = BLOCKS.find((b) => b.id === 'sculpt')!.fields;
+  const moved = fields.some((f) => genome.sculpt?.[f.name] !== FINE_ZERO);
+  const MASS = new Set(['chest', 'waist', 'haunch', 'shoulder']);
+  return (
+    <>
+      <p className="hint">Każdy ruch zapisuje się w kodzie DNA. Drobne zmiany widać tylko w 3D; przeciągnięte za pół kroku zmieniają też rozmiar w szkicu 2D.</p>
+      {fields.map((f) => {
+        if (f.kind !== 'fine') return null;
+        const off = MASS.has(f.name) && !anatomical;
+        const v = genome.sculpt?.[f.name] ?? FINE_ZERO;
+        const coarse = !!f.coarse;
+        const val = coarse ? sculptValue(genome, f.name) : v;
+        const step = coarse ? genome[f.coarse!.block]![f.coarse!.field]! : 0;
+        const pct = Math.round(coarse ? fineOffset(v) * 100 : (fineScale(v) - 1) * 100);
+        const text = coarse ? `krok ${step + 1}${pct ? ` ${pct > 0 ? '+' : ''}${pct}%` : ''}` : `${pct > 0 ? '+' : ''}${pct}%`;
+        return (
+          <label key={f.name} className={`slider-row${off ? ' off' : ''}`}>
+            <span className="control-label">{f.label} <b>{text}</b></span>
+            <input type="range" disabled={off} aria-label={f.label}
+              min={coarse ? -0.5 : 0} max={coarse ? STEPS - 1 + (FINE_LEVELS - 1 - FINE_ZERO) / FINE_LEVELS : FINE_LEVELS - 1}
+              step={coarse ? 1 / FINE_LEVELS : 1} value={val}
+              onPointerDown={() => { dragging.current = false; }}
+              onChange={(e) => { studio.sculpt(f.name, Number(e.target.value), dragging.current); dragging.current = true; }}
+              onPointerUp={() => { dragging.current = false; }} />
+          </label>
+        );
+      })}
+      {!anatomical && <p className="hint">Klatka, talia, zad i łopatki działają na korpusie „Zwierzęcy”.</p>}
+      <button type="button" className="btn-soft" disabled={!moved} onClick={() => studio.resetSculpt()}>Wyzeruj deformację</button>
+    </>
+  );
+}
+
 type Format = 'stl' | '3mf';
 
 /**
@@ -251,11 +289,13 @@ export function RightColumn(props: Props) {
   const kind = planKind(plan);
   const parts = report.pieces.length;
   const issues = report.issues.filter((i) => i.severity !== 'info').length;
+  const sculptCount = Object.values(genome.sculpt ?? {}).filter((v) => v !== FINE_ZERO).length;
   return (
     <aside className="column right acc-column right-panel">
       <div className="right-scroll">
         <Category id="morphoid" title="Morphoid" value={studio.creature().name} open={open} setOpen={setOpen}><MorphoidBody /></Category>
         <Category id="project" title="Projekt" value={saved ? 'zapisany' : 'niezapisany'} open={open} setOpen={setOpen}><ProjectBody /></Category>
+        {props.view === '3d' && <Category id="sculpt" title="Deformacja" value={sculptCount ? `zmian: ${sculptCount}` : 'brak'} open={open} setOpen={setOpen}><SculptBody /></Category>}
         <Category id="print" title="Opcje druku" value={kind === 'whole' ? 'Całość' : `Moduły · ${parts}`} badge={issues} open={open} setOpen={setOpen}><PrintBody {...props} /></Category>
       </div>
       <ExportFooter />

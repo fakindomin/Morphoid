@@ -7,14 +7,20 @@
  *            A variant that should no longer be offered is `retired` (hidden from menus and dice, still drawn).
  *  - 'step': one of STEPS (=2N=6) rigid 3D positions. The 2D size class (N=3)
  *            is derived: class = floor(step / 2).
+ *  - 'fine': a 3D-only adjustment in FINE_LEVELS levels (one hex digit, FINE_ZERO = no change), set by the
+ *            deformation sliders. One with `coarse` is the fraction of a step of that size field: stretched past half a
+ *            step it carries over into the step itself (and so into the 2D drawing), see codec carryFine.
  */
 
 export const STEPS = 6; // 2N
 export const SIZE_CLASSES = 3; // N
+/** Levels of a 'fine' field (one hex digit) and the level that changes nothing. */
+export const FINE_LEVELS = 16;
+export const FINE_ZERO = 8;
 
 export type BlockId =
   | 'body' | 'legs' | 'head' | 'snout' | 'ears' | 'horns' | 'wings'
-  | 'tail' | 'crest' | 'face' | 'coat' | 'accessory' | 'palette' | 'build' | 'plan' | 'stand' | 'antennae' | 'hands';
+  | 'tail' | 'crest' | 'face' | 'coat' | 'accessory' | 'palette' | 'build' | 'plan' | 'stand' | 'antennae' | 'hands' | 'sculpt';
 
 export interface EnumOption { id: string; label: string; retired?: boolean }
 export interface EnumField {
@@ -32,7 +38,14 @@ export interface StepField {
   name: string;
   label: string;
 }
-export type Field = EnumField | StepField;
+export interface FineField {
+  kind: 'fine';
+  name: string;
+  label: string;
+  /** the step field this one fine-tunes (its value is a fraction of one of that field's steps) */
+  coarse?: { block: BlockId; field: string };
+}
+export type Field = EnumField | StepField | FineField;
 
 export interface BlockDef {
   id: BlockId;
@@ -50,6 +63,7 @@ export interface BlockDef {
 const e = (name: string, opts: [string, string][], def = 0, label?: string): EnumField =>
   ({ kind: 'enum', name, def, options: opts.map(([id, label]) => ({ id, label })), ...(label ? { label } : {}) });
 const s = (name: string, label: string): StepField => ({ kind: 'step', name, label });
+const fine = (name: string, label: string, coarse?: FineField['coarse']): FineField => ({ kind: 'fine', name, label, ...(coarse ? { coarse } : {}) });
 
 export const BLOCKS: readonly BlockDef[] = [
   { id: 'body', letter: 'B', label: 'Tułów', fields: [
@@ -131,6 +145,17 @@ export const BLOCKS: readonly BlockDef[] = [
     s('length', 'Długość'),
     e('dir', [['hold', 'Przed sobą'], ['raise', 'Uniesione'], ['down', 'Opuszczone']], 0, 'Ułożenie'),
   ] },
+  { id: 'sculpt', letter: 'I', label: 'Deformacja', fields: [
+    fine('length', 'Długość tułowia', { block: 'body', field: 'length' }),
+    fine('girth', 'Wysokość tułowia', { block: 'body', field: 'girth' }),
+    fine('width', 'Szerokość tułowia'),
+    fine('chest', 'Głębokość klatki'),
+    fine('waist', 'Talia'),
+    fine('haunch', 'Zad i uda'),
+    fine('shoulder', 'Łopatki'),
+    fine('neckLength', 'Długość szyi', { block: 'head', field: 'neckLength' }),
+    fine('neckThick', 'Grubość szyi'),
+  ] },
 ] as const;
 
 /**
@@ -181,6 +206,8 @@ export const GENES: readonly GeneDef[] = [
   gene('Q', 'Podstawka', 'stand', 'type'),
   gene('K', 'Czułki', 'antennae', 'type', 'length', 'dir'),
   gene('X', 'Ręce', 'hands', 'type', 'length', 'dir'),
+  // deformation sliders (3D view): one hex digit per slider, 8 = unchanged; no variant (always 00)
+  { letter: 'I', label: 'Deformacja', variant: null, sizes: ['length', 'girth', 'width', 'chest', 'waist', 'haunch', 'shoulder', 'neckLength', 'neckThick'].map((field) => ({ block: 'sculpt' as BlockId, field })) },
 ];
 
 export const PREFIX = 'MPH2';

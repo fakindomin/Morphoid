@@ -9,7 +9,7 @@
  * solveRig() is pure and cheap (~25 nodes, no allocation beyond the result),
  * so it is safe to call every frame; results are memoised per genome code.
  */
-import { serialize, type MorphotypeGenome } from '../genome';
+import { FINE_ZERO, fineOffset, fineScale, serialize, stepAt, type MorphotypeGenome } from '../genome';
 import * as D from './dimensions';
 
 export type NodeId =
@@ -113,21 +113,28 @@ function build(g: MorphotypeGenome, code: string): Rig {
   const anatQ = anat && !biped;
   // a quadruped carries its chest a little higher than its hips (rule "linia gestu"): the spine is never a level line
   const tilt = biped ? D.BIPED.tilt : plan === D.PLAN.quadruped ? D.GESTURE.chestUp : 0;
-  const L = D.snap(D.BODY_LENGTH[g.body!.length!]! * B.length);
-  const G = D.snap(D.BODY_GIRTH[g.body!.girth!]! * B.girth);
-  const W = D.snap(D.BODY_GIRTH[g.body!.girth!]! * D.BODY_WIDTH_RATIO[g.body!.shape!]! * B.width);
+  // deformation sliders (3D view): a fraction of a step on top of the size genes, finer than the nozzle grid
+  const sc = g.sculpt ?? {}, fine = (k: string): number => sc[k] ?? FINE_ZERO;
+  const size = (table: readonly number[], step: number, k: string): number => stepAt(table, step, fineOffset(fine(k)));
+  const snapF = (mm: number, k: string): number => (fine(k) === FINE_ZERO ? D.snap(mm) : D.snap(mm, 0.1));
+  const L = snapF(size(D.BODY_LENGTH, g.body!.length!, 'length') * B.length, 'length');
+  const G = snapF(size(D.BODY_GIRTH, g.body!.girth!, 'girth') * B.girth, 'girth');
+  // legs and head follow the girth gene alone: the height slider reshapes the trunk, not the whole creature
+  const G0 = D.snap(D.BODY_GIRTH[g.body!.girth!]! * B.girth);
+  const W = D.snap(size(D.BODY_GIRTH, g.body!.girth!, 'girth') * D.BODY_WIDTH_RATIO[g.body!.shape!]! * B.width * fineScale(fine('width')), fine('girth') === FINE_ZERO && fine('width') === FINE_ZERO ? 0.4 : 0.1);
   // belly plans: the "feet" are the torso's flat underside (G/2 + 1.5 is the drawn torso's half height)
   // octopus: the mantle stands on the arms' hub (arms ARM_MM thick, the mantle's underside rests on them)
   const legLen = octopus ? (G / 2 + 1.5) * 0.85 - G * 0.35 + D.OCTOPUS.armMm
     : belly ? (G / 2 + 1.5) * (1 - D.BELLY_FLAT) - G * 0.35
     // silhouette test: a standing creature always shows light under its belly, so its legs read as legs
-    : anatQ ? Math.max(D.snap(G * A.legK[g.legs!.length!]! * B.leg), D.snap(D.minLegForGap(G)))
+    : anatQ ? Math.max(D.snap(G0 * A.legK[g.legs!.length!]! * B.leg), D.snap(D.minLegForGap(G)))
     : Math.max(D.snap(D.LEG_LENGTH[g.legs!.length!]! * B.leg * (biped ? D.BIPED.leg : insect ? 1.15 : 1)), insect ? 0 : D.snap(D.minLegForGap(G)));
-  const legW = D.snap(anat ? Math.max(A.legWMin, B.legW(G) * A.legW) : B.legW(G));
-  const headR = D.headRadius(G, plan);
+  const legW = D.snap(anat ? Math.max(A.legWMin, B.legW(G0) * A.legW) : B.legW(G0));
+  const headR = D.headRadius(G0, plan);
   const headK = headR / D.HEAD_RADIUS;
-  const neckLen = anatQ ? D.NECK_LENGTH[g.head!.neckLength!]! * A.neckK + headR * A.neckHead
-    : D.NECK_LENGTH[g.head!.neckLength!]! * (fish || octopus ? 0.25 : plan === D.PLAN.caterpillar ? 0.5 : 1);
+  const neckT = size(D.NECK_LENGTH, g.head!.neckLength!, 'neckLength');
+  const neckLen = anatQ ? neckT * A.neckK + headR * A.neckHead
+    : neckT * (fish || octopus ? 0.25 : plan === D.PLAN.caterpillar ? 0.5 : 1);
   const neckAngle = fish || octopus ? 0 : belly ? 0.5 : anatQ ? A.neckAngle(g.head!.neckLength!) : NECK_ANGLE;
   const tailLen = g.tail!.type === 0 ? 0 : D.TAIL_LENGTH[g.tail!.length!]!;
   const up = (mm: number): number => Math.ceil(mm / D.NOZZLE_MM - 1e-9) * D.NOZZLE_MM;

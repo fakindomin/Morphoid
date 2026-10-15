@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
   BLOCKS, GENES, classToStep, defaultGenome, mulberry32, mutate, parse, randomGenome,
-  serialize, setField, setSizeClass, stepToClass, genomeEquals,
+  serialize, setField, setSizeClass, stepToClass, genomeEquals, setSculpt, sculptValue, withoutSculpt,
 } from '../src/core/genome';
 
 describe('Morphotyp codec (DNA v2)', () => {
   it('writes the default creature as the spec example, every gene always present, fixed length', () => {
     const code = serialize(defaultGenome());
-    expect(code.split("#")[0]).toBe("MPH2:B01.33:L01.3:N01.3:H01:S02.3:E01.31:R00.00:W00.0:T01.31:U00:C00.0:O02.11:M01:Z00:V00.0:F01:D00:A00:G00:P00:J01:Y01:Q00:K00.00:X00.00");
+    expect(code.split("#")[0]).toBe("MPH2:B01.33:L01.3:N01.3:H01:S02.3:E01.31:R00.00:W00.0:T01.31:U00:C00.0:O02.11:M01:Z00:V00.0:F01:D00:A00:G00:P00:J01:Y01:Q00:K00.00:X00.00:I00.888888888");
     expect(code).toMatch(/#[0-9A-F]{2}$/);
     const rnd = mulberry32(3);
     for (let i = 0; i < 50; i++) expect(serialize(randomGenome(rnd))).toHaveLength(code.length);
-    expect(GENES.map((g) => g.letter).join('')).toBe('BLNHSERWTUCOMZVFDAGPJYQKX');
+    expect(GENES.map((g) => g.letter).join('')).toBe('BLNHSERWTUCOMZVFDAGPJYQKXI');
   });
 
   it('round-trips 2000 random genomes losslessly with a valid checksum', () => {
@@ -175,5 +175,28 @@ describe('eye setting (gene O digit)', () => {
     expect(code).toContain(':O02.21:');
     const back = parse(code);
     expect(back.ok && back.genome.face!.eyeSet).toBe(1);
+  });
+});
+
+describe('deformation sliders (gene I)', () => {
+  it('a small pull stays fine (3D only), a long pull carries into the size step, and both survive the DNA code', () => {
+    const g = defaultGenome();
+    const base = g.body!.length!;
+    const small = setSculpt(g, 'length', base + 0.25);
+    expect(small.body!.length).toBe(base);
+    expect(small.sculpt!.length).toBe(12);
+    expect(serialize(withoutSculpt(small)).split('#')[0]).toBe(serialize(g).split('#')[0]);
+    const long = setSculpt(g, 'length', base + 1.75);
+    expect(long.body!.length).toBe(base + 2);
+    expect(sculptValue(long, 'length')).toBeCloseTo(base + 1.75);
+    const back = parse(serialize(long));
+    expect(back.ok && sculptValue(back.genome, 'length')).toBeCloseTo(base + 1.75);
+    const thick = setSculpt(g, 'neckThick', 13);
+    expect(parse(serialize(thick)).ok && (parse(serialize(thick)) as { genome: typeof g }).genome.sculpt!.neckThick).toBe(13);
+  });
+  it('an old code without gene I reads as no deformation', () => {
+    const old = serialize(defaultGenome()).split('#')[0]!.replace(':I00.888888888', '');
+    const r = parse(old);
+    expect(r.ok && Object.values(r.genome.sculpt!).every((v) => v === 8)).toBe(true);
   });
 });

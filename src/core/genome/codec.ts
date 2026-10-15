@@ -1,5 +1,5 @@
 import {
-  BLOCKS, GENES, PREFIX, SIZE_CLASSES, STEPS,
+  BLOCKS, FINE_LEVELS, FINE_ZERO, GENES, PREFIX, SIZE_CLASSES, STEPS,
   blockDef, type BlockDef, type BlockId, type Field, type GeneDef,
 } from './schema';
 import { readV1, V1_HEX_LENGTH } from './v1';
@@ -33,14 +33,14 @@ export function defaultGenome(): MorphotypeGenome {
 }
 
 function defaultValue(_b: BlockDef, f: Field): number {
-  return f.kind === 'step' ? 2 : f.def; // step 2 = first step of class 1 ("2: Średni")
+  return f.kind === 'step' ? 2 : f.kind === 'fine' ? FINE_ZERO : f.def; // step 2 = first step of class 1 ("2: Średni")
 }
 
 export const cloneGenome = (g: MorphotypeGenome): MorphotypeGenome =>
   Object.fromEntries(Object.entries(g).map(([k, v]) => [k, { ...v }])) as MorphotypeGenome;
 
 /** Fieldwise max value (exclusive) for validation. */
-export const fieldRange = (f: Field): number => (f.kind === 'step' ? STEPS : f.options.length);
+export const fieldRange = (f: Field): number => (f.kind === 'step' ? STEPS : f.kind === 'fine' ? FINE_LEVELS : f.options.length);
 
 /** Clamp every field into its legal range, zero 'none' blocks. Pure. */
 export function canonicalize(g: MorphotypeGenome): MorphotypeGenome {
@@ -78,6 +78,59 @@ export function classToStep(cls: number, currentStep: number): number {
   return stepToClass(currentStep) === c ? currentStep : c * (STEPS / SIZE_CLASSES);
 }
 
+// ------------------------------------------------------------- deformation
+
+/** A fine field as a fraction of one step (coarse) or a scale offset: level 8 = 0. */
+export const fineOffset = (v: number): number => (v - FINE_ZERO) / FINE_LEVELS;
+/** Scale of a plain deformation slider: 5% per level, 0.6 .. 1.35. */
+export const fineScale = (v: number): number => 1 + (v - FINE_ZERO) * 0.05;
+function fineText(f: Field, v: number): string {
+  if (f.kind !== 'fine') return '';
+  const pct = Math.round(f.coarse ? fineOffset(v) * 100 : (fineScale(v) - 1) * 100);
+  return f.coarse ? `${pct >= 0 ? '+' : ''}${pct}% kroku` : `${pct >= 0 ? '+' : ''}${pct}%`;
+}
+
+/** The slider position of a fine field with a coarse step: the step plus its fraction (-0.5 .. 0.44). */
+export function sculptValue(g: MorphotypeGenome, name: string): number {
+  const f = field('sculpt', name);
+  const v = g.sculpt![name]!;
+  if (f.kind !== 'fine' || !f.coarse) return v;
+  return g[f.coarse.block]![f.coarse.field]! + fineOffset(v);
+}
+
+/**
+ * Set a deformation slider. A slider with a coarse step works across the whole size range: stretched past half a
+ * step it carries over into the step (which changes the 2D drawing too) and keeps only the rest as the fine digit.
+ */
+export function setSculpt(g: MorphotypeGenome, name: string, value: number): MorphotypeGenome {
+  const f = field('sculpt', name);
+  const next = cloneGenome(g);
+  if (f.kind === 'fine' && f.coarse) {
+    const s = Math.max(-0.5, Math.min(STEPS - 1 + (FINE_LEVELS - 1 - FINE_ZERO) / FINE_LEVELS, value));
+    const step = Math.max(0, Math.min(STEPS - 1, Math.round(s)));
+    next[f.coarse.block]![f.coarse.field] = step;
+    next.sculpt![name] = Math.max(0, Math.min(FINE_LEVELS - 1, Math.round((s - step) * FINE_LEVELS) + FINE_ZERO));
+  } else next.sculpt![name] = Math.max(0, Math.min(FINE_LEVELS - 1, Math.round(value)));
+  return canonicalize(next);
+}
+
+/** The same creature without its 3D-only deformation (what the 2D sketch draws). */
+export function withoutSculpt(g: MorphotypeGenome): MorphotypeGenome {
+  const next = cloneGenome(g);
+  for (const k of Object.keys(next.sculpt ?? {})) next.sculpt![k] = FINE_ZERO;
+  return next;
+}
+
+/** Size table value at a step plus a fraction of a step (linear between steps, extended past the ends). */
+export function stepAt(table: readonly number[], step: number, frac: number): number {
+  const i = Math.max(0, Math.min(table.length - 1, step));
+  if (!frac) return table[i]!;
+  const j = frac > 0 ? Math.min(table.length - 1, i + 1) : Math.max(0, i - 1);
+  const k = j === i ? (frac > 0 ? i - 1 : i + 1) : j; // at the ends: the slope of the last step
+  const slope = (table[i]! - table[k]!) / (i - k);
+  return table[i]! + slope * frac;
+}
+
 // ------------------------------------------------------------------ genes
 
 const field = (block: BlockId, name: string): Field => blockDef(block).fields.find((f) => f.name === name)!;
@@ -103,7 +156,11 @@ const hex2 = (n: number): string => n.toString(16).toUpperCase().padStart(2, '0'
 export function geneText(g: MorphotypeGenome, gd: GeneDef): string {
   const id = gd.variant ? variantId(gd.variant.block, gd.variant.field, g[gd.variant.block]![gd.variant.field]!) : 0;
   const absent = id === 0 && gd.variant !== null && zeroBased(gd.variant.block, field(gd.variant.block, gd.variant.field));
-  const sizes = gd.sizes.map((sz) => (absent ? '0' : String(g[sz.block]![sz.field]! + 1))).join('');
+  const sizes = gd.sizes.map((sz) => {
+    const v = g[sz.block]![sz.field]!;
+    if (field(sz.block, sz.field).kind === 'fine') return v.toString(16).toUpperCase(); // one hex digit, 8 = unchanged
+    return absent ? '0' : String(v + 1);
+  }).join('');
   return gd.letter + hex2(id) + (gd.sizes.length ? '.' + sizes : '');
 }
 
@@ -135,6 +192,13 @@ export const genesOf = (genome: MorphotypeGenome): { gene: GeneDef; text: string
 
 /** What a gene says, in words: "Tułów: Beczka · Długość 3 · Pękatość 4". */
 export function describeGene(genome: MorphotypeGenome, gd: GeneDef): string {
+  if (!gd.variant && gd.sizes.length) { // the deformation sliders: only the ones moved
+    const moved = gd.sizes.flatMap((sz) => {
+      const sf = field(sz.block, sz.field), v = genome[sz.block]![sz.field]!;
+      return sf.kind === 'fine' && v !== FINE_ZERO ? [`${sf.label} ${fineText(sf, v)}`] : [];
+    });
+    return `${gd.label}: ${moved.length ? moved.join(' · ') : 'brak'}`;
+  }
   if (!gd.variant) return `${gd.label}: brak (wkrótce)`;
   const { block, field: name } = gd.variant;
   const f = field(block, name);
@@ -143,12 +207,13 @@ export function describeGene(genome: MorphotypeGenome, gd: GeneDef): string {
   const absent = variantId(block, name, v) === 0 && zeroBased(block, f);
   const sizes = absent ? [] : gd.sizes.map((sz) => {
     const sf = field(sz.block, sz.field), v2 = genome[sz.block]![sz.field]!;
-    return sf.kind === 'step' ? `${sf.label} ${v2 + 1}` : `${sf.label ?? 'Kierunek'}: ${sf.options[v2]?.label ?? '?'}`;
+    return sf.kind === 'step' ? `${sf.label} ${v2 + 1}` : sf.kind === 'fine' ? `${sf.label} ${fineText(sf, v2)}`
+      : `${sf.label ?? 'Kierunek'}: ${sf.options[v2]?.label ?? '?'}`;
   });
   return [`${gd.label}: ${variant}`, ...sizes].join(' · ');
 }
 
-const GENE_RE = /^([A-Z])([0-9A-F]{2})(?:\.([0-9]*))?$/;
+const GENE_RE = /^([A-Z])([0-9A-F]{2})(?:\.([0-9A-F]*))?$/;
 
 function parseV2(body: string, base?: MorphotypeGenome): ParseResult {
   const hash = body.indexOf('#');
@@ -173,6 +238,11 @@ function parseV2(body: string, base?: MorphotypeGenome): ParseResult {
     } else if (id !== 0) { badGenes.push(tok); continue; }
     const digits = m[3] ?? '';
     gd.sizes.forEach((sz, i) => {
+      if (field(sz.block, sz.field).kind === 'fine') { // one hex digit
+        const ch = digits[i];
+        if (ch !== undefined) g[sz.block]![sz.field] = parseInt(ch, 16);
+        return;
+      }
       const d = Number(digits[i] ?? NaN);
       if (d >= 1 && d <= fieldRange(field(sz.block, sz.field))) g[sz.block]![sz.field] = d - 1;
       else if (!(d === 0 || Number.isNaN(d))) badGenes.push(tok);
@@ -212,7 +282,7 @@ export function parse(input: string, base?: MorphotypeGenome): ParseResult {
   if (at2 >= 0) return parseV2(upper.slice(at2 + PREFIX.length), base);
   if (!upper.trim()) return { ok: false, code: 'EMPTY', message: 'Brak kodu Morphotypu' };
   // bare genes without the prefix
-  if (/^[\s:]*[A-Z][0-9A-F]{2}(\.\d*)?([\s:;,]+[A-Z][0-9A-F]{2}(\.\d*)?)*\s*(#.*)?$/.test(upper)) return parseV2(upper, base);
+  if (/^[\s:]*[A-Z][0-9A-F]{2}(\.[0-9A-F]*)?([\s:;,]+[A-Z][0-9A-F]{2}(\.[0-9A-F]*)?)*\s*(#.*)?$/.test(upper)) return parseV2(upper, base);
   return parseV1(upper, upper.indexOf('MPH'));
 }
 
@@ -246,7 +316,8 @@ export function mulberry32(seed: number): () => number {
 
 /** Values a menu or the dice may pick: every step, every enum option that is not retired. */
 export const offered = (f: Field): number[] =>
-  f.kind === 'step' ? Array.from({ length: STEPS }, (_, i) => i) : f.options.flatMap((o, i) => (o.retired ? [] : [i]));
+  f.kind === 'fine' ? [FINE_ZERO] // the dice never deform: that is the sculptor's job
+  : f.kind === 'step' ? Array.from({ length: STEPS }, (_, i) => i) : f.options.flatMap((o, i) => (o.retired ? [] : [i]));
 
 export function randomGenome(rand: () => number): MorphotypeGenome {
   const g = defaultGenome();

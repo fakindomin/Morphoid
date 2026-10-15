@@ -16,7 +16,7 @@ import type { XY } from './path';
 import { typeSize } from './pose';
 import { armLimb, armZ, insectLimb, legLimb, legSpecOf, octopusLimb, prolegLimb, type Cone, type Dome, type Limb } from './limb';
 import { blendGroup, edgesOf, sdPolys, slabDist, type Edge } from '../bake/field';
-import { neckLimb, trunkLimb } from './anatomy';
+import { neckLimb, sculptOf, trunkLimb } from './anatomy';
 import { hostsOf, mountAt, skinZ, slabSd, type Host } from './mounts';
 import { cutPlanes, langOf, speakLanguage, type Cut } from './form';
 
@@ -162,8 +162,8 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
   if (rig.dims.anatomical) {
     const n = rig.nodes, d = rig.dims;
     for (const p of out) {
-      if (p.slot === 'torso') { p.limb = trunkLimb({ torso: [n.torso.x, n.torso.y], L: d.bodyLength, G: d.bodyGirth, W: d.bodyWidth, tilt: d.tilt, biped: d.plan === D.PLAN.biped }); p.thickness = d.bodyWidth * 1.1; }
-      else if (p.slot === 'neck') { p.limb = neckLimb([n.neckBase.x, n.neckBase.y], [n.head.x, n.head.y], d.bodyGirth, d.headR); p.thickness = d.bodyGirth * 0.7; }
+      if (p.slot === 'torso') { p.limb = trunkLimb({ torso: [n.torso.x, n.torso.y], L: d.bodyLength, G: d.bodyGirth, W: d.bodyWidth, tilt: d.tilt, biped: d.plan === D.PLAN.biped, sculpt: sculptOf(g) }); p.thickness = d.bodyWidth * 1.1; }
+      else if (p.slot === 'neck') { p.limb = neckLimb([n.neckBase.x, n.neckBase.y], [n.head.x, n.head.y], d.bodyGirth, d.headR, sculptOf(g).neck); p.thickness = d.bodyGirth * 0.7; }
     }
   }
   const head = out.find((p) => p.slot === 'head');

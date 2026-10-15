@@ -31,10 +31,10 @@ export interface PartSpec {
 }
 
 export const PARTS: readonly PartSpec[] = [
-  { id: 'torso', blocks: ['body', 'build', 'plan'], slots: ['torso'], repr3D: 'ellipsoid', modular: false, note: 'elipsoida L x W x G, baza modelu' },
+  { id: 'torso', blocks: ['body', 'build', 'plan', 'sculpt'], slots: ['torso'], repr3D: 'ellipsoid', modular: false, note: 'elipsoida L x W x G, baza modelu' },
   { id: 'legs', blocks: ['legs'], slots: ['legB', 'legF', 'legBFar', 'legFFar', 'claws'], repr3D: 'sweep', modular: false,
     note: '4 nogi (druga para = lustro w Z), płaska podeszwa na Y=0, pazury jako klin leżący na stole' },
-  { id: 'neck', blocks: ['head'], slots: ['neck', 'neckDecor'], repr3D: 'sweep', modular: false, note: 'stożek ścięty; grzebień/pancerz jako grzbiety o wysokości 0,8 mm' },
+  { id: 'neck', blocks: ['head', 'sculpt'], slots: ['neck', 'neckDecor'], repr3D: 'sweep', modular: false, note: 'stożek ścięty; grzebień/pancerz jako grzbiety o wysokości 0,8 mm' },
   { id: 'head', blocks: ['head'], slots: ['head'], repr3D: 'ellipsoid', modular: false, note: 'elipsoida czaszki; żadnych sztucznych podpór pod pyskiem' },
   { id: 'snout', blocks: ['snout'], slots: ['snout', 'nose', 'nostrils'], repr3D: 'sweep', modular: false, note: 'zwężająca się kufa; nos jako kopułka z dwoma nozdrzami' },
   { id: 'ears', blocks: ['ears'], slots: ['ear', 'earIn', 'earFlop'], repr3D: 'plate', modular: false, note: 'płytka 1,6 mm; wnętrze jako zagłębienie koloru' },

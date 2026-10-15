@@ -475,3 +475,4 @@ button.status-bake:hover { color: var(--cyan); }
 .seg-mini { display: inline-flex; padding: 3px; gap: 2px; border-radius: 10px; background: var(--bg-card); border: 1px solid var(--border); }
 .seg-mini button { border: 0; background: transparent; color: var(--muted); font-family: inherit; font-size: 12px; font-weight: 600; line-height: 1; padding: 8px 10px; border-radius: 7px; cursor: pointer; }
 .seg-mini button.on { background: var(--text); color: var(--bg-card); }
+.slider-row.off { opacity: 0.45; }

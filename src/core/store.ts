@@ -4,7 +4,7 @@
  * wrap this in Zustand/React with `subscribe` + `getState` unchanged.
  */
 import {
-  creatureName, defaultGenome, mulberry32, mutate, parse, presetGenome, serialize, surpriseGenome,
+  creatureName, defaultGenome, mulberry32, mutate, parse, presetGenome, serialize, setSculpt, surpriseGenome, withoutSculpt,
   type MorphotypeGenome, type ParseResult, type Preset,
 } from './genome';
 import { applyOp, type Op } from './radial';
@@ -74,6 +74,19 @@ export function createStudioStore(initial: MorphotypeGenome = defaultGenome()) {
     randomize(seed: number): void { commit(surpriseGenome(mulberry32(seed))); }, // one signature feature, the rest calm
     mutateLight(seed: number): void { commit(mutate(state.genome, mulberry32(seed))); },
     reset(): void { commit(defaultGenome()); },
+    /**
+     * Move a deformation slider (gene I). `drag`: a continuation of the same drag, which replaces the last history
+     * entry instead of adding one per pixel, so one undo takes the whole drag back.
+     */
+    sculpt(name: string, value: number, drag = false): void {
+      const next = setSculpt(state.genome, name, value);
+      if (!drag || !state.past.length) { commit(next); return; }
+      if (serialize(next) === serialize(state.genome)) return;
+      state = { ...state, genome: next, future: [] };
+      emit();
+    },
+    /** all deformation sliders back to zero (the size genes they carried into stay) */
+    resetSculpt(): void { commit(withoutSculpt(state.genome)); },
 
     setPlan(plan: PrintPlan): void { state = { ...state, plan }; emit(); },
     planPreset(kind: 'whole' | 'modular'): void {
