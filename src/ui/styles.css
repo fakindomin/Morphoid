@@ -414,7 +414,7 @@ button.status-bake:hover { color: var(--cyan); }
 .dna-strip.copied { border-color: var(--cyan); box-shadow: 0 0 0 2px var(--cyan-glow); }
 /* the code (about 130 characters, a monospace character is 0.6 em) shrinks a little to stay on one line, but never
    below a readable size: in a narrow window it wraps between genes and stays inside its frame */
-.dna-strip code { display: block; white-space: normal; overflow-wrap: anywhere; text-align: center; font: 12px/1.35 ui-monospace, Menlo, monospace;
+.dna-strip code { display: block; white-space: normal; overflow-wrap: anywhere; text-align: center; text-wrap: balance; font: 12px/1.35 ui-monospace, Menlo, monospace;
   font-size: clamp(10.5px, (100cqw - 140px) / 80, 12px); color: var(--text); }
 .dna-toast { position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); z-index: 6; white-space: nowrap; pointer-events: none;
   padding: 5px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; background: var(--text); color: var(--bg-card);

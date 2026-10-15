@@ -31,7 +31,8 @@ function extentOf(paths: Record<string, { empty: boolean; flatten: (n?: number) 
 
 const TITLE: Record<string, string> = Object.fromEntries(TILES.map((t) => [t.id, t.title]));
 const RANK: Record<Severity, number> = { info: 0, support: 1, warn: 2, error: 3 };
-const LEVELS: HeatLevel[] = [HEAT.none, HEAT.support, HEAT.attention, HEAT.bed];
+/** the legend's three colours: blue safe, red supports, steel on the bed */
+const LEVELS: HeatLevel[] = [HEAT.none, HEAT.support, HEAT.bed];
 /** how long the sketch takes to turn from one view to another (ms), and to morph a new shape in a turned view */
 const TURN_MS = 750, RESHAPE_MS = 380;
 /** the full side drawing (eyes, mouth, pattern) fades out as a turn starts and back in as it ends (ms) */
@@ -48,7 +49,7 @@ function verdict(tile: string, report: PrintReport, hits: SketchOutput['hits']):
     .sort((a, b) => RANK[b.severity] - RANK[a.severity])[0];
   if (!worst) return { text: `${name}: drukuje się bez pomocy.`, level: HEAT.none };
   const msg = worst.message.replace(/^[^:]+:\s*/, '');
-  return { text: `${name}: ${msg}${/[.!?]$/.test(msg) ? '' : '.'}`, level: worst.severity === 'support' ? HEAT.support : HEAT.attention };
+  return { text: `${name}: ${msg}${/[.!?]$/.test(msg) ? '' : '.'}`, level: HEAT.support };
 }
 
 interface Props {
@@ -210,6 +211,8 @@ export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPick
         hitsRef.current = out.hits;
 
         // the line under the sketch: the lit element's verdict, or how the whole figure prints
+        out.area[HEAT.support] += out.area[HEAT.attention];
+        out.area[HEAT.attention] = 0;
         const total = LEVELS.reduce<number>((s2, l) => s2 + out.area[l], 0) || 1;
         LEVELS.forEach((l, i) => {
           const el = legendRefs.current[i];

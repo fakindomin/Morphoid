@@ -20,15 +20,16 @@ export type SketchMode = 'color' | 'print';
  * Print colours from the logo: blues = prints safely (as many shades as the facets need), reds = needs supports from the
  * slicer (the deep reds: a spot to fix, too thin or touching), the logo's steel = lies on the bed.
  */
-const PRINT_PAL: Record<HeatLevel, readonly string[]> = {
+const PRINT_PAL: Record<Exclude<HeatLevel, typeof HEAT.attention>, readonly string[]> = {
   [HEAT.none]: ['#0b3b63', '#0369a1', '#0284c7', '#38bdf8', '#7dd3fc'],
   [HEAT.bed]: ['#1e293b', '#334155', '#3f2a33', '#475569'],
   [HEAT.support]: ['#b91c1c', '#e11d48', '#ff1744', '#ff4d63', '#ff8a9a'],
-  [HEAT.attention]: ['#3f0a12', '#5f0f1c', '#7f1d1d', '#991b1b'],
 };
+/** what a spot shows: a spot to fix (too thin, touching) is red like one that needs supports; the legend has three colours */
+export const toneOf = (lv: HeatLevel): Exclude<HeatLevel, typeof HEAT.attention> => (lv === HEAT.attention ? HEAT.support : lv);
 /** one colour per level for legends and the info line */
-export const HEAT_SWATCH: Record<HeatLevel, string> = { [HEAT.none]: '#0284c7', [HEAT.bed]: '#334155', [HEAT.support]: '#ff1744', [HEAT.attention]: '#7f1d1d' };
-export const HEAT_NAME: Record<HeatLevel, string> = { [HEAT.none]: 'Bezpieczne', [HEAT.bed]: 'Na stole', [HEAT.support]: 'Podpory', [HEAT.attention]: 'Do poprawy' };
+export const HEAT_SWATCH: Record<HeatLevel, string> = { [HEAT.none]: '#0284c7', [HEAT.bed]: '#334155', [HEAT.support]: '#ff1744', [HEAT.attention]: '#ff1744' };
+export const HEAT_NAME: Record<HeatLevel, string> = { [HEAT.none]: 'Bezpieczne', [HEAT.bed]: 'Na stole', [HEAT.support]: 'Podpory', [HEAT.attention]: 'Podpory' };
 
 const FACETED: readonly SlotKind[] = ['skin', 'skinFar', 'accent', 'accentFar', 'accentSoft', 'pattern'];
 const FAR: readonly SlotKind[] = ['skinFar', 'accentFar'];
@@ -36,6 +37,10 @@ const FAR: readonly SlotKind[] = ['skinFar', 'accentFar'];
 const SKIP = new Set<string>(['shadow', 'torsoClip', 'belly', 'coat', 'coatLegs', 'coatOn', 'coatLegB', 'coatLegF', 'relief', 'blush']);
 /** smaller than this (mm²) a part is a detail: one flat colour */
 const MIN_FACET_AREA = 6;
+/** body parts whose red (supports under the belly, the chest) shows faintly through the legs drawn over them */
+const GHOSTED = new Set<string>(['torso', 'neck']);
+const GHOST_FADE = 7;
+const isLimb = (id: string): boolean => !id.endsWith('Far') && (id.startsWith('leg') || id === 'hands' || id === 'claws' || id === 'toes');
 
 const hex = (h: string): [number, number, number] => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) as [number, number, number];
 const toHex = (c: readonly number[]): string => '#' + c.map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('');
@@ -54,6 +59,43 @@ export function insidePoly(poly: readonly XY[], x: number, y: number): boolean {
     if ((a[1] > y) !== (b[1] > y) && x < ((b[0] - a[0]) * (y - a[1])) / (b[1] - a[1]) + a[0]) c = !c;
   }
   return c;
+}
+
+/** How far inside the outline a facet looks for print trouble (mm): the audit marks a thin band along the skin. */
+const EDGE_IN = 0.45;
+/**
+ * The worst heat under a facet: its middle, and along the stretch of outline it touches, just inside it (an overhang
+ * shows as a thin band under the belly, which a long facet would otherwise miss).
+ */
+/**
+ * Does the facet sit on a stretch of the outline that faces down more steeply than 45° (an overhang of this part's own
+ * skin, such as the belly over the legs)? The audit sees the legs holding the belly up in the side view; across the
+ * width of the body the belly still hangs over, so its red shows through the legs.
+ */
+function overhangs(pts: readonly XY[], edge: readonly XY[]): boolean {
+  if (edge.length !== 2) return false;
+  const [a, b] = edge as [XY, XY];
+  if (Math.min(a[1], b[1]) < 1.5) return false; // on the bed
+  const cx = (pts[0]![0] + pts[1]![0] + pts[2]![0]) / 3, cy = (pts[0]![1] + pts[1]![1] + pts[2]![1]) / 3;
+  let nx = b[1] - a[1], ny = a[0] - b[0];
+  const len = Math.hypot(nx, ny) || 1;
+  if (nx * ((a[0] + b[0]) / 2 - cx) + ny * ((a[1] + b[1]) / 2 - cy) < 0) { nx = -nx; ny = -ny; }
+  return ny / len < -Math.SQRT1_2;
+}
+
+export function facetHeat(at: (x: number, y: number) => HeatLevel, pts: readonly XY[], edge: readonly XY[]): HeatLevel {
+  const cx = (pts[0]![0] + pts[1]![0] + pts[2]![0]) / 3, cy = (pts[0]![1] + pts[1]![1] + pts[2]![1]) / 3;
+  let lv: number = at(cx, cy);
+  const probe = (x: number, y: number): void => {
+    const d = Math.hypot(cx - x, cy - y) || 1, k = Math.min(0.5, EDGE_IN / d);
+    lv = Math.max(lv, at(x + (cx - x) * k, y + (cy - y) * k));
+  };
+  for (const [x, y] of edge) probe(x, y);
+  if (edge.length === 2) {
+    const [a, b] = edge as [XY, XY];
+    for (const t of [0.25, 0.5, 0.75]) probe(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t);
+  }
+  return lv as HeatLevel;
 }
 
 export interface SketchInput {
@@ -84,6 +126,8 @@ export function drawSketch(ctx: CanvasRenderingContext2D, px: number, s: SketchI
   const hits: SketchOutput['hits'] = [];
   const area: Record<HeatLevel, number> = { 0: 0, 1: 0, 2: 0, 3: 0 };
   const touch = s.report.touches ?? [];
+  /** facets on the body's lower skin and how low that skin is there (mm): their red shows through the legs */
+  const ghost: { pts: [XY, XY, XY]; y: number }[] = [];
   const fillPoly = (poly: readonly XY[]): void => {
     ctx.beginPath();
     poly.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
@@ -91,13 +135,8 @@ export function drawSketch(ctx: CanvasRenderingContext2D, px: number, s: SketchI
   };
 
   const heatOf = (slot: SlotId, pts: readonly XY[], edge: readonly XY[]): HeatLevel => {
+    let lv: number = facetHeat((x, y) => heatAt(s.report.heat, x, y), pts, edge);
     const cx = (pts[0]![0] + pts[1]![0] + pts[2]![0]) / 3, cy = (pts[0]![1] + pts[1]![1] + pts[2]![1]) / 3;
-    let lv = heatAt(s.report.heat, cx, cy) as number;
-    for (const [x, y] of edge) {
-      // just inside the outline, where the audit's raster has the cell
-      const nx = x + (cx - x) * 0.25, ny = y + (cy - y) * 0.25;
-      lv = Math.max(lv, heatAt(s.report.heat, nx, ny));
-    }
     for (const t of touch) if ((t.a === slot || t.b === slot) && Math.hypot(cx - t.at[0], cy - t.at[1]) < 5) lv = HEAT.attention;
     return lv as HeatLevel;
   };
@@ -183,8 +222,9 @@ export function drawSketch(ctx: CanvasRenderingContext2D, px: number, s: SketchI
         if (lit) lum += 0.08;
         let col: string;
         if (s.mode === 'print') {
-          const lv = heatOf(id, f.pts, f.edge);
+          const lv = toneOf(heatOf(id, f.pts, f.edge));
           const pal = PRINT_PAL[lv];
+          if (GHOSTED.has(id) && (lv === HEAT.support || overhangs(f.pts, f.edge))) ghost.push({ pts: f.pts, y: Math.min(...(f.edge.length ? f.edge : f.pts).map((q) => q[1])) });
           col = pal[Math.max(0, Math.min(pal.length - 1, Math.floor(lum * pal.length)))]!;
           const [p, q, r] = f.pts;
           area[lv] += (Math.abs((q[0] - p[0]) * (r[1] - p[1]) - (r[0] - p[0]) * (q[1] - p[1])) / 2) * (far ? 0.4 : 1);
@@ -200,6 +240,23 @@ export function drawSketch(ctx: CanvasRenderingContext2D, px: number, s: SketchI
     });
   }
 
+  // the red under the body, faintly through the legs in front of it: a paler red, clipped to the legs
+  if (ghost.length) {
+    ctx.save();
+    ctx.beginPath();
+    for (const h of hits) if (isLimb(h.slot)) for (const poly of h.polys) poly.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.clip('nonzero');
+    // strongest along the belly line, fading out upwards over GHOST_FADE mm
+    for (const { pts: [a, b, c], y } of ghost) {
+      const grad = ctx.createLinearGradient(0, y, 0, y + GHOST_FADE);
+      grad.addColorStop(0, 'rgba(255,77,99,.72)');
+      grad.addColorStop(1, 'rgba(255,77,99,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.moveTo(...a); ctx.lineTo(...b); ctx.lineTo(...c); ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
   return { hits, area };
 }
 
@@ -307,10 +364,10 @@ export function drawParts(ctx: CanvasRenderingContext2D, px: number, s: PartsInp
       let col: string;
       const [a, b, c] = f.pts;
       if (s.mode === 'print') {
-        const lv = p.levels[fi] ?? HEAT.none;
-        const pal = PRINT_PAL[lv as HeatLevel];
+        const lv = toneOf(p.levels[fi] ?? HEAT.none);
+        const pal = PRINT_PAL[lv];
         col = pal[Math.max(0, Math.min(pal.length - 1, Math.floor(lum * pal.length)))]!;
-        area[lv as HeatLevel] += Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1])) / 2;
+        area[lv] += Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1])) / 2;
       } else {
         col = lum >= 0.5 ? mix(base, '#ffffff', (lum - 0.5) * 0.75) : mix(base, '#000000', (0.5 - lum) * 0.9);
       }

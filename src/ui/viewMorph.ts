@@ -7,7 +7,7 @@ import { facetsOf, resample } from '../core/art/facets';
 import type { XY } from '../core/art/path';
 import { spanAt, type ViewId, type ViewPart, type ViewSet } from '../core/art/views';
 import { HEAT, heatAt, type HeatGrid, type HeatLevel } from '../core/print';
-import type { ViewPartDraw } from './sketch';
+import { facetHeat, type ViewPartDraw } from './sketch';
 
 const N = 40;
 
@@ -72,13 +72,7 @@ function levelsOf(e: End, pr: Prep, heat: readonly HeatGrid[]): HeatLevel[] {
   const hit = levelCache.get(pr.part);
   if (hit && hit.heat === heat) return hit.levels;
   const fn = heatFn(e.view, pr.part, heat);
-  const levels = facetsOf(pr.ring, pr.salt).map((f) => {
-    const [a, b, c] = f.pts;
-    const cx = (a[0] + b[0] + c[0]) / 3, cy = (a[1] + b[1] + c[1]) / 3;
-    let lv: number = fn(cx, cy);
-    for (const [x, y] of f.edge) lv = Math.max(lv, fn(x + (cx - x) * 0.25, y + (cy - y) * 0.25));
-    return lv as HeatLevel;
-  });
+  const levels = facetsOf(pr.ring, pr.salt).map((f) => facetHeat(fn, f.pts, f.edge));
   levelCache.set(pr.part, { heat, levels });
   return levels;
 }
