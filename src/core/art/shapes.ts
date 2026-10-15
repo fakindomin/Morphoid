@@ -624,7 +624,7 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
   const botB: XY = [head[0] + hs.rx * 0.45, head[1] - hs.ry * 0.78];
   // an ape's face is flat: the muzzle (the mouth's bulge) stands just in front of the skull, low on the face
   const ape = snoutType === SNOUT.ape;
-  const tipX = ape ? head[0] + hs.rx * (1.02 + g.snout!.reach! * 0.04) : Math.max(muzzle[0], head[0] + hs.rx * 0.95);
+  const tipX = ape ? head[0] + hs.rx * (1.0 + g.snout!.reach! * 0.12) : Math.max(muzzle[0], head[0] + hs.rx * 0.95);
   const tip: XY = [tipX, ape ? head[1] - hs.ry * 0.32 : muzzle[1] - 0.5];
   if (snoutType === 0) {
     put('snout', new Path().M(topB[0], topB[1]).Q(tipX + 1, tip[1] + 3, tipX, tip[1] - 1.5).Q(tipX - 0.5, tip[1] - 4, botB[0], botB[1]).Z());

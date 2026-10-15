@@ -59,7 +59,7 @@ export interface LegSpec {
   /** hip or shoulder (side view, mm) and the foot node on the bed */
   top: XY; foot: XY;
   legW: number;
-  /** foot gene: 0 paw, 1 claws, 2 hoof, 3 cat's paw, 4 bear's paw, 5 webbed, 6 cloven hoof */
+  /** foot gene: 0 paw, 1 claws, 2 hoof, 3 cat's paw, 4 bear's paw, 5 webbed, 6 cloven hoof, 7 a monkey's hand */
   footType: number;
   soleL: number;
   /** muscular build: a fuller thigh */
@@ -125,6 +125,23 @@ function pawOf(s: LegSpec, z: number): { ankleY: number; cones: Cone[]; domes: D
     const domes: Dome[] = [{ c: [cx + len * 0.45, 0, z], r: [len * 0.55, 0.9, rz * 0.9] }, { c: [cx - 0.5, 0, z], r: [Math.max(2.6, tr * 2.4), Math.max(2.4, w * 0.36), Math.min(rz, w * 0.45)] }];
     return { ankleY: Math.max(2.4, w * 0.36) * 0.8, cones, domes, tips };
   }
+  if (s.footType === FOOT.hand) { // a monkey's hand (or hand-like foot): a long flat palm on the bed, four fingers lying forward, a thumb inside
+    const side = Math.sign(z) || 1;
+    const rz = Math.max(LIMB_MIN_R + 0.4, Math.min(w * 0.55, Math.abs(z) - 1.5)), ry = Math.max(1.8, w * 0.28);
+    const palmL = Math.max(4, s.soleL * 0.45), fingL = Math.max(3.5, s.soleL * 0.42), fr = Math.max(0.8, Math.min(1.5, rz * 0.3));
+    const cx = fx + palmL * 0.3;
+    const heel = Math.max(2.4, w * 0.4);
+    const domes: Dome[] = [{ c: [cx, 0, z], r: [palmL * 0.6, ry, rz] }, { c: [fx - 0.4, 0, z], r: [heel, Math.max(2.2, w * 0.36), rz * 0.85] }];
+    const cones: Cone[] = [];
+    for (const k of [-1.5, -0.5, 0.5, 1.5]) { // fingers: two segments each, the middle ones longest, spreading a little
+      const dz = k * rz * 0.5, l = fingL * (1 - Math.abs(k) * 0.12);
+      const a: V3 = [cx + palmL * 0.45, fr, z + dz], m: V3 = [a[0] + l * 0.55, fr, z + dz * 1.12], e: V3 = [a[0] + l, fr * 0.9, z + dz * 1.2];
+      cones.push({ a, b: m, ra: fr, rb: fr * 0.92 }, { a: m, b: e, ra: fr * 0.92, rb: fr * 0.8 });
+    }
+    const t0: V3 = [cx, fr, z - side * rz * 0.75], t1: V3 = [cx + fingL * 0.45, fr, z - side * rz * 0.9];
+    cones.push({ a: t0, b: t1, ra: fr * 1.05, rb: fr * 0.85 });
+    return { ankleY: heel * 0.75, cones, domes, tips: [] };
+  }
   // the paw is a little wider than the ankle, but keeps a 3 mm gap to its pair (a narrower gap fuses on the bed)
   // a cat's paw is short and round, a bear's broad and flat with five toes
   const cat = s.footType === FOOT.cat, bear = s.footType === FOOT.bear;
@@ -146,7 +163,7 @@ function pawOf(s: LegSpec, z: number): { ankleY: number; cones: Cone[]; domes: D
 }
 
 /** Foot types (gene L). */
-export const FOOT = { paw: 0, claws: 1, hoof: 2, cat: 3, bear: 4, webbed: 5, cloven: 6 } as const;
+export const FOOT = { paw: 0, claws: 1, hoof: 2, cat: 3, bear: 4, webbed: 5, cloven: 6, hand: 7 } as const;
 export const isHoof = (t: number): boolean => t === FOOT.hoof || t === FOOT.cloven;
 
 const dist = (a: V3, b: V3): number => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);

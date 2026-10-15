@@ -141,7 +141,7 @@ function build(g: MorphotypeGenome, code: string): Rig {
   const up = (mm: number): number => Math.ceil(mm / D.NOZZLE_MM - 1e-9) * D.NOZZLE_MM;
   const soleL = D.FOOT_SOLE[g.legs!.foot!]!.length * B.sole * (human ? H.sole : biped ? D.BIPED.sole : 1);
   // an animal's paw is round, not a long slipper (about as long as the slim leg is wide); no sole is below the minimum area
-  const sole = { length: Math.max(up(D.MIN_SOLE_AREA_MM2 / legW), anatQ ? Math.min(D.snap(soleL), up(legW * 1.7)) : D.snap(soleL)), width: legW };
+  const sole = { length: Math.max(up(D.MIN_SOLE_AREA_MM2 / legW), anatQ && g.legs!.foot! !== D.FOOT_HAND ? Math.min(D.snap(soleL), up(legW * 1.7)) : D.snap(soleL)), width: legW };
   // caterpillar prolegs peek out of the flanks
   const legZ = W * (plan === D.PLAN.caterpillar ? 0.45 : 0.32);
   const legX = Math.max(5, L * (insect ? 0.27 : 0.3));
@@ -164,7 +164,7 @@ function build(g: MorphotypeGenome, code: string): Rig {
     muzzle: [headR + D.SNOUT_REACH[g.snout!.reach!]!, -2, 0],
     // ears and horns sit on the skull's crown, wherever its size puts it
     hornRoot: [1 * headK, 4 * headK, 0],
-    earRoot: human ? [-1.5 * headK, 1.6 * headK, 0] : [-2 * headK, 4 * headK, 0], // an ape's ears sit on the sides of the head
+    earRoot: human || g.snout!.type === D.SNOUT_APE ? [-3.2 * headK, 1.6 * headK, 0] : [-2 * headK, 4 * headK, 0], // a primate's ears (an ape's face) sit on the sides of the head
     crestRoot: [0, 2, 0],
     wingRoot: [L * 0.18, G * 0.45, W * 0.3],
     tailBase: human ? [L * H.tail[0], G * H.tail[1], 0] : [-L * 0.5 + 4, fish ? 0 : anatQ ? G * A.tailY : G * 0.1, 0], // root buried in the rump (an animal's sits high on the croup)

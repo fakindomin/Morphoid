@@ -71,7 +71,7 @@ export const BLOCKS: readonly BlockDef[] = [
     s('length', 'Długość'), s('girth', 'Pękatość'),
   ] },
   { id: 'legs', letter: 'L', label: 'Nogi', fields: [
-    e('foot', [['paw', 'Łapa'], ['claws', 'Pazury'], ['hoof', 'Kopyto'], ['catpaw', 'Kocia łapka'], ['bearpaw', 'Niedźwiedzia łapa'], ['webbed', 'Płetwiasta'], ['cloven', 'Racica']]),
+    e('foot', [['paw', 'Łapa'], ['claws', 'Pazury'], ['hoof', 'Kopyto'], ['catpaw', 'Kocia łapka'], ['bearpaw', 'Niedźwiedzia łapa'], ['webbed', 'Płetwiasta'], ['cloven', 'Racica'], ['hand', 'Dłoń małpy']]),
     s('length', 'Wysokość'),
   ] },
   { id: 'head', letter: 'H', label: 'Głowa i szyja', fields: [

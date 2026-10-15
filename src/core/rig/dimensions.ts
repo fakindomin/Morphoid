@@ -132,5 +132,8 @@ export const FOOT_SOLE: readonly FootSole[] = [
   { length: 14, width: 9 }, // bear's paw: long, flat
   { length: 14, width: 9 }, // webbed: long toes
   { length: 10, width: 9 }, // cloven hoof
+  { length: 12, width: 9 }, // a monkey's hand: a long palm and fingers
 ];
 export const MIN_SOLE_AREA_MM2 = 60;
+/** Gene option indices the rig needs: the monkey's hand (foot) and the ape's face (snout). */
+export const FOOT_HAND = 7, SNOUT_APE = 8;
