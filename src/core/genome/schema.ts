@@ -14,7 +14,7 @@ export const SIZE_CLASSES = 3; // N
 
 export type BlockId =
   | 'body' | 'legs' | 'head' | 'snout' | 'ears' | 'horns' | 'wings'
-  | 'tail' | 'crest' | 'face' | 'coat' | 'accessory' | 'palette' | 'build' | 'plan' | 'stand' | 'antennae';
+  | 'tail' | 'crest' | 'face' | 'coat' | 'accessory' | 'palette' | 'build' | 'plan' | 'stand' | 'antennae' | 'hands';
 
 export interface EnumOption { id: string; label: string; retired?: boolean }
 export interface EnumField {
@@ -125,6 +125,11 @@ export const BLOCKS: readonly BlockDef[] = [
     s('length', 'Długość'),
     e('dir', [['forward', 'Do przodu'], ['up', 'Prosto w górę'], ['back', 'Do tyłu']]),
   ] },
+  { id: 'hands', letter: 'G', label: 'Ręce', noneMeansEmpty: true, fields: [
+    e('type', [['none', 'Brak'], ['grip', 'Chwytne dłonie'], ['talons', 'Szpony'], ['mitts', 'Łapki']]),
+    s('length', 'Długość'),
+    e('dir', [['hold', 'Przed sobą'], ['raise', 'Uniesione'], ['down', 'Opuszczone']], 0, 'Ułożenie'),
+  ] },
 ] as const;
 
 /**
@@ -174,6 +179,7 @@ export const GENES: readonly GeneDef[] = [
   gene('Y', 'Plan ciała', 'plan', 'type'),
   gene('Q', 'Podstawka', 'stand', 'type'),
   gene('K', 'Czułki', 'antennae', 'type', 'length', 'dir'),
+  gene('X', 'Ręce', 'hands', 'type', 'length', 'dir'),
 ];
 
 export const PREFIX = 'MPH2';

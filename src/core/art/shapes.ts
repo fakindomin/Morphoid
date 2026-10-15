@@ -13,7 +13,7 @@ import type { Pose } from './pose';
 import { coatPath } from './coat';
 import { reliefPath, reliefSpec, rootOf } from './relief';
 import { edgesOf, sdPolys } from '../bake/field';
-import { insectLimb, legLimb, legSpecOf, limbOutline, octopusLimb, prolegLimb, tailLimb, type Limb } from './limb';
+import { armLimb, armShoulder, insectLimb, legLimb, legSpecOf, limbOutline, octopusLimb, prolegLimb, tailLimb, type ArmSpec, type Limb } from './limb';
 
 /** skin/skinFar = body colour (c1); accent = c2; white/ink/glint = details; clip = not drawn. */
 export type SlotKind =
@@ -33,7 +33,7 @@ export type SlotKind =
   | 'relief';
 
 export const SLOTS = [
-  ['shadow', 'shadow'], ['stand', 'accent'], ['arms', 'skin'], ['wingFar', 'accentFar'], ['tail', 'skin'], ['legBFar', 'skinFar'], ['legFFar', 'skinFar'],
+  ['shadow', 'shadow'], ['stand', 'accent'], ['arms', 'skin'], ['wingFar', 'accentFar'], ['tail', 'skin'], ['legBFar', 'skinFar'], ['legFFar', 'skinFar'], ['handsFar', 'skinFar'],
   ['legB', 'skin'], ['torso', 'skin'], ['torsoClip', 'clip'], ['belly', 'belly'], ['pattern', 'pattern'], ['coat', 'coat'], ['coatLegs', 'coat'], ['coatOn', 'clip'], ['coatLegB', 'clip'], ['coatLegF', 'clip'],
   ['saddle', 'accent'], ['spines', 'accent'], ['finD', 'accent'], ['legF', 'skin'], ['finP', 'accent'], ['neck', 'skin'], ['neckDecor', 'skinFar'],
   ['mane', 'accent'], ['collar', 'accent'], ['ear', 'skin'], ['earIn', 'accentSoft'], ['horns', 'accent'], ['antennae', 'accent'], ['tuft', 'accent'],
@@ -43,12 +43,21 @@ export const SLOTS = [
   // an insect's near legs once more, one slot per leg (hind, middle, front), each drawn over the body with its own
   // outline so the six legs read apart (drawing only: the legs themselves are legB / legF)
   ['legOver0', 'skin'], ['legOver1', 'skin'], ['legOver2', 'skin'],
+  // the near arm with its hand, drawn over the body with its own outline (the far one peeks out behind it)
+  ['hands', 'skin'],
 ] as const satisfies readonly (readonly [string, SlotKind])[];
 
 export type SlotId = (typeof SLOTS)[number][0];
 export type Shapes = Record<SlotId, string>;
 
 const p = (pose: Pose, id: NodeId): XY => pose.pos[id];
+
+/** The creature's arms (gene X), or null when it has none or its body plan carries none. */
+export function armSpecOf(g: MorphotypeGenome, torso: XY, bodyL: number, bodyG: number, tilt: number, legW: number, plan: number): ArmSpec | null {
+  const h = g.hands;
+  if (!h || !h.type || !D.hasArms(plan)) return null;
+  return { shoulder: armShoulder(torso, bodyL, bodyG, tilt), len: D.ARM_LEN[h.length!]!, legW, hand: h.type, pose: h.dir! };
+}
 
 /** Insect legs per slot: the hind pair in legB, the front and middle pairs in legF (see insectLimb). */
 export function insectHips(hipB: XY, shF: XY): { legB: { hip: XY; dir: number }[]; legF: { hip: XY; dir: number }[] } {
@@ -408,6 +417,14 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
     put('legF', nf); put('legFFar', ff);
   }
   // fish: no legs
+  // arms with hands out of the upper chest (the near one in front of the body, the far one behind it)
+  const arm = armSpecOf(g, torso, n.bodyL, n.bodyG, n.tilt, legW, n.plan);
+  if (arm) {
+    const near = armLimb(arm, 0);
+    put('hands', limbOutline(near));
+    put('handsFar', limbOutline(armLimb({ ...arm, shoulder: [arm.shoulder[0] + 3.2, arm.shoulder[1]] }, 0)));
+    if (near.tips?.length) out.claws.append(limbOutline({ cones: near.tips, domes: [] }));
+  }
   if (n.plan === D.PLAN.octopus) {
     // side view of the eight tentacles lying on the bed (the same chains the solid is made of)
     put('arms', limbOutline(octopusLimb(torso[0], n.armLen, n.hub, D.OCTOPUS.arms)));

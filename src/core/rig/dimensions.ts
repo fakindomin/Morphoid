@@ -74,6 +74,13 @@ export const GESTURE = { chestUp: 0.07 } as const;
  */
 export const BIPED = { tilt: 0.32, hipX: 0.06, leg: 1.35, sole: 1.5 } as const;
 
+/**
+ * Arms with hands (gene X): a pair growing out of the upper chest, in front of the front legs. Length per size step
+ * (shoulder to wrist, mm); the plans that have no chest to carry them (fish, octopus) show none.
+ */
+export const ARM_LEN: readonly number[] = [14, 17, 20, 23, 27, 31];
+export const hasArms = (plan: number): boolean => plan !== PLAN.fish && plan !== PLAN.octopus;
+
 /** Body plans by index (gene Y). Belly plans lie on the bed: the torso's flat underside is their sole. */
 export const PLAN = { quadruped: 0, biped: 1, caterpillar: 2, insect: 3, fish: 4, octopus: 5 } as const;
 export const onBelly = (plan: number): boolean => plan === PLAN.caterpillar || plan === PLAN.fish;

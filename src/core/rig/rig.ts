@@ -119,6 +119,7 @@ function build(g: MorphotypeGenome, code: string): Rig {
     : Math.max(D.snap(D.LEG_LENGTH[g.legs!.length!]! * B.leg * (biped ? D.BIPED.leg : insect ? 1.15 : 1)), insect ? 0 : D.snap(D.minLegForGap(G)));
   const legW = D.snap(B.legW(G));
   const headR = D.headRadius(G, plan);
+  const headK = headR / D.HEAD_RADIUS;
   const neckLen = D.NECK_LENGTH[g.head!.neckLength!]! * (fish || octopus ? 0.25 : plan === D.PLAN.caterpillar ? 0.5 : 1);
   const tailLen = g.tail!.type === 0 ? 0 : D.TAIL_LENGTH[g.tail!.length!]!;
   const sole = { length: D.snap(D.FOOT_SOLE[g.legs!.foot!]!.length * B.sole * (biped ? D.BIPED.sole : 1)), width: legW };
@@ -141,8 +142,9 @@ function build(g: MorphotypeGenome, code: string): Rig {
     neckBase: octopus ? [L * 0.3, -G * 0.2, 0] : fish ? [L * 0.42, 0, 0] : belly ? [L * 0.4, G * 0.15, 0] : [L * 0.36, G * 0.25, 0],
     head: [neckLen, 0, 0], // along the neck's rotated frame
     muzzle: [headR + D.SNOUT_REACH[g.snout!.reach!]!, -2, 0],
-    hornRoot: [1, 4, 0],
-    earRoot: [-2, 4, 0],
+    // ears and horns sit on the skull's crown, wherever its size puts it
+    hornRoot: [1 * headK, 4 * headK, 0],
+    earRoot: [-2 * headK, 4 * headK, 0],
     crestRoot: [0, 2, 0],
     wingRoot: [L * 0.18, G * 0.45, W * 0.3],
     tailBase: [-L * 0.5 + 4, fish ? 0 : G * 0.1, 0], // root buried in the rump

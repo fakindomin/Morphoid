@@ -5,7 +5,7 @@
  */
 import type { SlotId } from '../art/shapes';
 
-export type PartGroup = 'head' | 'ears' | 'horns' | 'crest' | 'wings' | 'tail' | 'legs' | 'whiskers' | 'stand';
+export type PartGroup = 'head' | 'ears' | 'horns' | 'crest' | 'wings' | 'tail' | 'legs' | 'hands' | 'whiskers' | 'stand';
 
 export interface GroupDef {
   id: PartGroup;
@@ -30,6 +30,7 @@ export const GROUPS: readonly GroupDef[] = [
   { id: 'wings', label: 'Skrzydła', slots: ['wingNear', 'wingFar'], orientation: 'flat' },
   { id: 'tail', label: 'Ogon', slots: ['tail'], orientation: 'flat' },
   { id: 'legs', label: 'Nogi', slots: ['legB', 'legF', 'legBFar', 'legFFar', 'claws'], orientation: 'upright' },
+  { id: 'hands', label: 'Ręce', slots: ['hands', 'handsFar'], orientation: 'upright' },
   // whiskers lie in the horizontal plane (they stick out sideways), so they print flat as they are: 'upright'
   { id: 'whiskers', label: 'Wąsy', slots: ['whiskers'], orientation: 'upright', forced: true },
   // the stand is always printed on its own; pegs on it go up into the feet

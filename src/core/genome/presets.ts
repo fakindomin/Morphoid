@@ -80,6 +80,21 @@ export const PRESETS: readonly Preset[] = [
     crest: { type: 3, scale: 3 }, tail: { type: 1, length: 5, dir: 1 }, face: { teeth: 1, expression: 2 },
     coat: { texture: 2 }, palette: { index: 11 },
   } },
+  { id: 'monkey', name: 'Małpa', genes: {
+    plan: { type: 1 }, body: { shape: 1, length: 2, girth: 2 }, legs: { foot: 0, length: 2 }, head: { skull: 0, neckLength: 0 },
+    snout: { type: 0, reach: 1 }, ears: { type: 2, scale: 3, dir: 0 }, tail: { type: 1, length: 5, dir: 0 },
+    hands: { type: 1, length: 5, dir: 0 }, face: { eyes: 2, expression: 1 }, coat: { texture: 1 }, palette: { index: 6 },
+  } },
+  { id: 'kangaroo', name: 'Kangur', genes: {
+    plan: { type: 1 }, body: { shape: 0, length: 3, girth: 3 }, legs: { foot: 0, length: 4 }, head: { skull: 1, neckLength: 1 },
+    snout: { type: 1, reach: 2 }, ears: { type: 1, scale: 4, dir: 0 }, tail: { type: 1, length: 5, dir: 1 },
+    hands: { type: 3, length: 1, dir: 0 }, palette: { index: 2 },
+  } },
+  { id: 'mantis', name: 'Modliszka', genes: {
+    plan: { type: 3 }, build: { type: 1 }, body: { shape: 1, length: 4, girth: 1 }, legs: { foot: 1, length: 3 }, ears: { type: 0 },
+    tail: { type: 0 }, snout: { type: 0, reach: 0 }, face: { eyes: 2 }, antennae: { type: 1, length: 4, dir: 0 },
+    hands: { type: 2, length: 4, dir: 1 }, palette: { index: 5 },
+  } },
   { id: 'fish', name: 'Ryba', genes: {
     plan: { type: 4 }, body: { shape: 0, length: 3, girth: 4 }, snout: { type: 0, reach: 1 }, ears: { type: 0 },
     tail: { type: 3, length: 3, dir: 1 }, face: { eyes: 2 }, coat: { texture: 2, pattern: 1 }, stand: { type: 1 }, palette: { index: 12 },

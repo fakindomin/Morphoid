@@ -67,6 +67,9 @@ const pair = (n: V3, o: V3, r: number): Cut[] => [
   { n: norm([n[0], n[1], -n[2]]), o: [o[0], o[1], -o[2]], r },
 ];
 
+/** Appendages that grow out of the head. */
+const ROOTED = new Set<string>(['ear', 'horns', 'antennae', 'tuft', 'stalks']);
+
 /** A point a cut must leave inside the skin by `m` mm: an eye, a painted brow or mouth line. */
 interface Keep { p: V3; m: number }
 
@@ -80,6 +83,12 @@ function keepsOf(out: Part3D[]): Keep[] {
     if (p.slot === 'eye') {
       const b = box(p);
       keep.push({ p: [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, p.z], m: Math.max(b.x1 - b.x0, b.y1 - b.y0) / 2 + 0.8 });
+    } else if (ROOTED.has(p.slot) && !p.plane && !p.limb) {
+      // an ear or a horn keeps the skin it grows out of: its root (the outline inside the head) stays under the cut
+      const h = out.find((q) => q.slot === 'head' && !q.limb);
+      if (!h) continue;
+      const hb = box(h);
+      for (const poly of p.polys) for (const [x, y] of poly) if (x > hb.x0 && x < hb.x1 && y > hb.y0 && y < hb.y1) keep.push({ p: [x, y, p.z], m: 0.6 });
     } else if (p.thickness < 0.8 && !p.plane && (p.slot === 'brow' || p.slot === 'mouth' || p.slot === 'iris' || p.slot === 'pupil')) {
       for (const poly of p.polys) for (let i = 0; i < poly.length; i += 2) keep.push({ p: [poly[i]![0], poly[i]![1], p.z], m: 0.3 });
     }

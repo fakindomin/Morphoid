@@ -244,6 +244,104 @@ export function legSpecOf(slot: 'legB' | 'legF', biped: boolean, top: XY, foot: 
   return { kind: slot === 'legF' ? 'fore' : biped ? 'bird' : 'hind', top, foot, legW, footType, soleL, muscular };
 }
 
+/** Hand kinds (gene X): 1 grasping hands, 2 talons, 3 mitts. Arm poses: 0 held in front, 1 raised, 2 hanging. */
+export const HAND = { grip: 1, talons: 2, mitts: 3 } as const;
+/** World angles (rad, from forward, counter-clockwise) of the upper arm and the forearm, per pose. */
+const ARM_POSE: readonly [number, number][] = [[-1.05, 0.2], [-0.3, 0.7], [-1.6, -0.75]];
+
+export interface ArmSpec {
+  /** shoulder (side view, mm), buried in the upper chest */
+  shoulder: XY;
+  len: number; legW: number; hand: number; pose: number;
+}
+
+/** Where the shoulder sits: in the torso's own frame (forward, up), turned with its tilt. */
+export function armShoulder(torso: XY, bodyL: number, bodyG: number, tilt: number): XY {
+  const a = bodyL * 0.3, b = bodyG * 0.12, c = Math.cos(tilt), s = Math.sin(tilt);
+  return [torso[0] + a * c - b * s, torso[1] + a * s + b * c];
+}
+
+/** How far out (z, mm) the elbow and the hand stand, clear of the flank and of the front leg beneath. */
+export function armZ(bodyW: number, legW: number): { shoulder: number; out: number } {
+  const rF = Math.max(LIMB_MIN_R, legW * 0.3);
+  return { shoulder: bodyW * 0.3, out: Math.max(bodyW * 0.43, bodyW * 0.32 + legW * 0.62) + rF + 1 };
+}
+
+const turn = (a: number): [number, number] => [Math.cos(a), Math.sin(a)];
+
+/**
+ * One arm: an upper arm and a forearm (round cones, narrowing to the wrist) and a hand. A grasping hand is a palm with
+ * three fingers curling into a hook and a thumb closing against them, so it can hold a stick; talons are three long
+ * curved points; mitts are a round fist with knuckles. `z` is the hand's depth (its sign picks the side).
+ */
+export function armLimb(s: ArmSpec, z: number): Limb {
+  // a low creature (a caterpillar, short legs) would put its hand on the bed: the arm gets shorter, and if even a short
+  // one cannot clear the bed, the arm is raised
+  for (const pose of s.pose === 1 ? [1] : [s.pose, 1]) {
+    for (let k = 1; k >= 0.5; k -= 0.1) {
+      const l = armAt({ ...s, pose, len: s.len * k }, z);
+      if (Math.min(...[...l.cones, ...(l.tips ?? [])].flatMap((c) => [c.a[1] - c.ra, c.b[1] - c.rb])) >= ARM_BED_CLEAR) return l;
+    }
+  }
+  return armAt({ ...s, pose: 1, len: s.len * 0.5 }, z);
+}
+
+/** How high (mm) a hand stays above the bed. */
+const ARM_BED_CLEAR = 1.5;
+
+function armAt(s: ArmSpec, z: number): Limb {
+  const side = Math.sign(z) || 1, zo = Math.abs(z), zs = z === 0 ? 0 : side * Math.min(zo, zo * 0.7);
+  const rU = Math.max(LIMB_MIN_R, s.legW * 0.36), rE = Math.max(LIMB_MIN_R, s.legW * 0.3), rW = Math.max(LIMB_MIN_R, s.legW * 0.26);
+  const [ua, fa] = ARM_POSE[s.pose] ?? ARM_POSE[0]!;
+  const u = turn(ua), f = turn(fa);
+  const sh: V3 = [s.shoulder[0], s.shoulder[1], zs];
+  const el: V3 = [sh[0] + u[0] * s.len * 0.5, sh[1] + u[1] * s.len * 0.5, z];
+  const wr: V3 = [el[0] + f[0] * s.len * 0.5, el[1] + f[1] * s.len * 0.5, z];
+  // a full upper arm, pinched at the elbow, a forearm swelling a little below it
+  const fore: V3 = [el[0] + f[0] * s.len * 0.18, el[1] + f[1] * s.len * 0.18, z];
+  const cones: Cone[] = [
+    { a: sh, b: el, ra: rU, rb: rE * PINCH },
+    { a: el, b: fore, ra: rE * PINCH, rb: rE * 1.05 },
+    { a: fore, b: wr, ra: rE * 1.05, rb: rW },
+  ];
+  const tips: Cone[] = [];
+  const palmR = Math.max(2.4, rW * 1.5);
+  const at = (o: V3, d: [number, number], l: number, dz = 0): V3 => [o[0] + d[0] * l, o[1] + d[1] * l, o[2] + dz];
+  const palm = at(wr, f, palmR * 0.8);
+  if (s.hand === HAND.mitts) { // a round fist with three knuckles along its front
+    const r = palmR * 1.2;
+    cones.push({ a: palm, b: palm, ra: r, rb: r });
+    const kr = Math.max(0.8, r * 0.36);
+    for (const k of [-1, 0, 1]) {
+      const kn = at(palm, f, r * 0.85, k * r * 0.55);
+      cones.push({ a: kn, b: kn, ra: kr, rb: kr });
+    }
+  } else {
+    cones.push({ a: wr, b: palm, ra: rW, rb: palmR });
+    const fr = Math.max(0.8, palmR * 0.3);
+    // fingers curl down (towards the inside of the hook), the thumb comes up from below to close it
+    const curl = s.hand === HAND.talons ? [0, -0.6, -1.25] : [0, -1.25, -2.4];
+    const seg = s.hand === HAND.talons ? [palmR * 1.1, palmR * 1.0, palmR * 0.9] : [palmR * 1.0, palmR * 0.8, palmR * 0.6];
+    for (const k of [-1, 0, 1]) {
+      let p = at(palm, f, palmR * 0.7, k * palmR * 0.6);
+      const last = seg.length - 1;
+      seg.forEach((l, i) => {
+        const q = at(p, turn(fa + curl[i]!), l, k * 0.15 * l);
+        const pointed = s.hand === HAND.talons && i === last;
+        (pointed ? tips : cones).push({ a: p, b: q, ra: pointed ? fr * 0.9 : fr, rb: pointed ? 0.2 : fr * (i === last ? 0.85 : 0.95) });
+        p = q;
+      });
+    }
+    if (s.hand === HAND.grip) { // the thumb: from the palm's underside forward and up, against the curled fingers
+      const t0 = at(palm, turn(fa - Math.PI / 2), palmR * 0.6, side * palmR * 0.3);
+      const t1 = at(t0, turn(fa - 0.5), palmR * 0.8);
+      const t2 = at(t1, turn(fa + 0.35), palmR * 0.6);
+      cones.push({ a: t0, b: t1, ra: fr * 1.1, rb: fr }, { a: t1, b: t2, ra: fr, rb: fr * 0.85 });
+    }
+  }
+  return { cones, domes: [], tips };
+}
+
 const merge = (limbs: Limb[]): Limb => ({ cones: limbs.flatMap((l) => l.cones), domes: limbs.flatMap((l) => l.domes) });
 
 /**

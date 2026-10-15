@@ -25,7 +25,7 @@ type Layer = 'far' | 'behind' | 'skin' | 'over' | 'detail';
 const BEHIND = new Set<string>(['stand', 'horns', 'antennae', 'tuft', 'spines', 'finD', 'mane']);
 const OVER_LEGS = ['legOver0', 'legOver1', 'legOver2'] as const;
 const layerOf = (id: string, kind: SlotKind): Layer | null =>
-  kind === 'clip' || id === 'shadow' || id.startsWith('legOver') ? null
+  kind === 'clip' || id === 'shadow' || id.startsWith('legOver') || id === 'hands' ? null
     : DETAIL.includes(kind) || kind === 'bone' ? 'detail'
     : id === 'neckDecor' ? 'over'
     : kind === 'skinFar' || kind === 'accentFar' ? 'far'
@@ -258,6 +258,11 @@ export function Canvas2D({ showBones, onSocket, markers = [] }: Props) {
                 <path ref={reg(id, 0)} className="shape skin" style={{ stroke: 'none' }} d="" />
               </g>
             ))}
+          </g>
+          {/* the near arm lies over the body: drawn on top with its own outline, so the hand reads against the chest */}
+          <g className="arm-near" filter="url(#form)">
+            <path ref={reg('hands', 6)} className="leg-ink" d="" />
+            <path ref={reg('hands', 0)} className="shape skin s-hands" style={{ stroke: 'none' }} d="" />
           </g>
         </g>
         <rect ref={lightRef} className="light" clipPath="url(#silClip)" fill="url(#lightGrad)" />
