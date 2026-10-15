@@ -109,8 +109,10 @@ export function makeGrid(parts: Part3D[], h: number, margin = 3): Grid3 {
  * or a horn next to a crest, meets it with a plain (sharp) union, so neighbours stay two separate shapes.
  */
 const GROUP: Partial<Record<string, number>> = {
-  ear: 1, earIn: 1, wingNear: 2, wingFar: 2, wingRibs: 2, horns: 3, antennae: 4, tuft: 5, mane: 6, finD: 7, finP: 8,
+  ear: 1, earIn: 1, wingNear: 2, wingFar: 2, wingRibs: 2, horns: 3, antennae: 4, tuft: 5, mane: 6, finD: 7, finP: 8, stand: 9,
 };
+/** The stand is a separate print: the feet rest on it with a crisp edge, never melted into it. */
+const STAND_GROUP = 9;
 export const blendGroup = (slot: string): number => GROUP[slot] ?? 0;
 
 /** Body masses: they melt into each other with the full blend radius (bake BLEND_MM). */
@@ -160,7 +162,7 @@ function unite(g: Grid3, idx: number, d3: number, k: number, grp: number): void 
   const cur = g.data[idx]!;
   if (d3 > cur + k) return;
   const o = g.owner ? g.owner[idx]! : 0;
-  const sharp = grp !== 0 && o !== 0 && o !== grp;
+  const sharp = (grp !== 0 && o !== 0 && o !== grp) || ((grp === STAND_GROUP) !== (o === STAND_GROUP) && cur < BIG);
   g.data[idx] = sharp ? Math.min(cur, d3) : smin(cur, d3, k);
   if (g.owner && d3 < cur) g.owner[idx] = grp;
 }

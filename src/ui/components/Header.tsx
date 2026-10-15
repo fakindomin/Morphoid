@@ -1,4 +1,3 @@
-import { studio, useStudioState } from '../studio';
 import { Logo } from './Logo';
 import type { ViewMode } from './RightColumn';
 
@@ -7,8 +6,6 @@ export type Theme = 'dark' | 'light';
 export function Header({ view, setView, theme, setTheme }: {
   view: ViewMode; setView: (v: ViewMode) => void; theme: Theme; setTheme: (t: Theme) => void;
 }) {
-  useStudioState(); // re-render on every genome change
-  const { name } = studio.creature();
   return (
     <header className="topbar">
       <div className="topbar-left">
@@ -16,10 +13,6 @@ export function Header({ view, setView, theme, setTheme }: {
           <Logo />
           <span className="brand-title">MORPHOID<small>Studio</small></span>
         </a>
-        <div className="dna-pill" title={`Morphoid ${name}`}>
-          <span aria-hidden>🧬</span>
-          <span className="dna-code">Morphoid {name}</span>
-        </div>
       </div>
       <div className="topbar-right">
         <div className="segment view-switch" role="group" aria-label="Widok">

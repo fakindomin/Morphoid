@@ -24,17 +24,20 @@ interface Props {
 const MAX_DPR = 1.5;
 /** The turntable stops after this long (ms); "Wyśrodkuj widok" sets it going again. */
 const AUTO_ROTATE_MS = 8000;
+/** the main view turns while the switch is on (it pauses while the model is dragged); the mini view stops after a while */
 
 export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
   const host = useRef<HTMLDivElement>(null);
-  const api = useRef<{ explode: (f: number) => void; resetView: () => void; rebuild: () => void } | null>(null);
+  const api = useRef<{ explode: (f: number) => void; resetView: () => void; rebuild: () => void; setSpin: (on: boolean) => void } | null>(null);
   const bakedRef = useRef(baked);
   bakedRef.current = baked;
   const explodeRef = useRef(explode);
   explodeRef.current = explode;
   const [failed, setFailed] = useState(false);
   const preview = usePreview();
-  const { grey, recenter } = useViewOptions();
+  const { grey, recenter, spin: spinOn } = useViewOptions();
+  const spinRef = useRef(spinOn);
+  spinRef.current = spinOn;
   const greyRef = useRef(grey);
   greyRef.current = grey;
 
@@ -90,6 +93,7 @@ export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
     controls.enabled = variant === 'main';
     controls.maxPolarAngle = Math.PI * 0.499;
     renderer.domElement.addEventListener('pointerdown', () => { controls.autoRotate = false; });
+    renderer.domElement.addEventListener('pointerup', () => { if (variant === 'main' && spinRef.current) { controls.autoRotate = true; invalidate(); } });
 
     // render on demand: a frame only while something moves (orbit, damping, the turntable), never when it stands still
     let raf = 0;
@@ -105,9 +109,12 @@ export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
     // the turntable stops by itself after a while
     let spinTimer = 0;
     const spin = (): void => {
-      controls.autoRotate = true;
       window.clearTimeout(spinTimer);
-      spinTimer = window.setTimeout(() => { controls.autoRotate = false; }, AUTO_ROTATE_MS);
+      if (variant === 'main') controls.autoRotate = spinRef.current;
+      else {
+        controls.autoRotate = true;
+        spinTimer = window.setTimeout(() => { controls.autoRotate = false; }, AUTO_ROTATE_MS);
+      }
       invalidate();
     };
     const onVisible = (): void => { if (document.hidden) { cancelAnimationFrame(raf); raf = 0; } else invalidate(); };
@@ -173,6 +180,7 @@ export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
     api.current = {
       explode: (f) => { model?.explode(f); renderer.shadowMap.needsUpdate = true; invalidate(); },
       resetView: () => { frame(); spin(); },
+      setSpin: () => spin(),
       rebuild,
     };
 
@@ -185,6 +193,7 @@ export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
   useEffect(() => { api.current?.rebuild(); api.current?.explode(explode); }, [explode]);
   useEffect(() => { api.current?.rebuild(); }, [grey]);
   useEffect(() => { if (recenter) api.current?.resetView(); }, [recenter]);
+  useEffect(() => { api.current?.setSpin(spinOn); }, [spinOn]);
   useEffect(() => { api.current?.rebuild(); }, [baked]);
 
   if (failed) return <div className="viewport3d-fail">Przeglądarka nie udostępnia WebGL, więc podgląd 3D jest niedostępny.</div>;

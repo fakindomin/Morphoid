@@ -10,9 +10,7 @@ import { RightColumn, type ViewMode } from './components/RightColumn';
 import { rigSize } from '../core/art/shapes';
 import { StatusBake } from './components/BakeStatus';
 import { signatureOf, useBake } from './bakeStore';
-import { SupportNotice } from './components/SupportNotice';
 import { usePrintReport } from './printReport';
-import { useSupportNotice } from './useSupportNotice';
 import { storage, studio, useStudioState } from './studio';
 import { useViewOptions } from './viewOptions';
 
@@ -38,10 +36,6 @@ export function App() {
   const { genome, plan } = useStudioState();
   const rig = solveRig(genome);
   const report = usePrintReport(genome, plan);
-  const { notice, dismiss } = useSupportNotice(genome, plan);
-  const prevPlan = useRef(plan);
-  const lastPlan = useRef(plan);
-  if (lastPlan.current !== plan) { prevPlan.current = lastPlan.current; lastPlan.current = plan; }
   const size = rigSize(rig);
 
 
@@ -71,9 +65,8 @@ export function App() {
         <section className="blueprint">
           <DnaStrip />
           <div className="stage">
-          {notice && <SupportNotice key={notice.key} notice={notice} previousPlan={prevPlan.current} dismiss={dismiss} />}
-          {rolling && <div className="roll-overlay" role="status"><div className="roll-card"><span className="roll-dice">🎲</span>Losuję nowego stwora…</div></div>}
-          <div className="hud-tag">{view === '2d' ? `WIDOK ${axis === 'front' ? 'Z PRZODU' : axis === 'top' ? 'Z GÓRY' : 'Z BOKU'} · kliknij część ciała, aby ją zmienić` : '3D STUDIO · obracaj myszą, kółko = zbliżenie'}</div>
+          {rolling && <div className="roll-overlay" role="status"><div className="roll-card"><span className="roll-dice">🎲</span>Losuję nowego Morphoida…</div></div>}
+          {view === '3d' && <div className="hud-tag">3D STUDIO · obracaj myszą, kółko = zbliżenie</div>}
           {view === '2d' ? (
             <Canvas2D showBones={showBones} mode={sketchMode} report={report} hotTile={hotTile} onHoverTile={setHotTile}
               onPickTile={(tile) => setPick({ tile, n: Date.now() })} />
@@ -89,11 +82,7 @@ export function App() {
           <i className="dot" />
           {rig.issues.length ? `Naruszenia: ${rig.issues.join(', ')}` : 'Podstawa Y=0: zablokowana'}
         </span>
-        <span className={`print-status ${report.level}`}>
-          <i className="dot" />
-          Druk: {report.level === 'green' ? 'bez podpór' : report.level === 'blue' ? 'z podporami' : report.level === 'yellow' ? 'z uwagami' : 'wymaga zmian'}
-        </span>
-        <span className="muted">Model {size.length.toFixed(0)} × {size.width.toFixed(0)} × {size.height.toFixed(0)} mm</span>
+        <span className="muted">Wymiary wydruku: {size.length.toFixed(0)} × {size.width.toFixed(0)} × {size.height.toFixed(0)} mm</span>
         <StatusBake onOpen={() => setView('3d')} />
         <span className="spacer" />
         <span className="muted"><kbd>Ctrl+Z</kbd> cofnij <kbd>Klik</kbd> część ciała, aby ją zmienić</span>

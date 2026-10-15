@@ -811,7 +811,7 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
     : face.eyes === EYES.stalks ? [[eyeOnStalk(head, hs), er2]] : [[eye, er2]];
   if (face.eyes === EYES.stalks) put('stalks', tube(eyeStalkRoot(head, hs), eyes[0]![0], STALK_W, STALK_W));
   const ew = new Path(), ei = new Path(), ep = new Path(), eg = new Path();
-  const eyeShape = face.eyes === EYES.stalks ? EYE_SHAPE.round : face.eyeShape ?? EYE_SHAPE.round;
+  const eyeShape = face.eyeShape ?? EYE_SHAPE.round; // eyes on stalks take the chosen shape too
   for (const [[x, y], r] of eyes) {
     ew.append(ellipse(x, y, r, r * 1.08));
     if (eyeShape === EYE_SHAPE.almond) { // a cat's eye: the iris fills the opening, the pupil is an upright slit

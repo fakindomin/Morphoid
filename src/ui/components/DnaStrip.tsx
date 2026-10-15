@@ -32,11 +32,11 @@ export function balancedLines(code: string, n: number): string[] {
   return fill(lo);
 }
 
-/** The creature's DNA code above the sketch: live with every change; one click copies it (a small note says so).
+/** The Morphoid's name, centred, and its DNA code under it, above the sketch: live with every change; one click copies it (a small note says so).
  *  Beside it, the badges of the creature's body plan and build. */
 export function DnaStrip() {
   const { genome } = useStudioState(); // re-render on every genome change
-  const { code } = studio.creature();
+  const { code, name } = studio.creature();
   const plan = typeOf('plan', genome.plan?.type ?? 0, 'quadruped'), build = typeOf('build', genome.build?.type ?? 0, 'normal');
   const [copied, setCopied] = useState(false);
   // how many characters fit on a line next to the badges: the block is as wide as its longest line
@@ -51,7 +51,7 @@ export function DnaStrip() {
       ctx.font = getComputedStyle(el).font;
       const ch = ctx.measureText('0'.repeat(20)).width / 20 || 7.2;
       const types = (row.querySelector('.dna-types') as HTMLElement | null)?.offsetWidth ?? 0;
-      setPerLine(Math.max(12, Math.floor((row.parentElement!.clientWidth - 32 - types - 8 - 30) / ch)));
+      setPerLine(Math.max(12, Math.floor((row.parentElement!.clientWidth - types - 8 - 30) / ch)));
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -68,16 +68,19 @@ export function DnaStrip() {
     timer.current = window.setTimeout(() => setCopied(false), 1600);
   };
   return (
+    <div className="dna-head">
+    <h1 className="dna-name">Morphoid {name}</h1>
     <div className="dna-row" ref={rowRef}>
       <div className="dna-types">
         <TypeBadge kind={plan.kind} label={`Plan ciała: ${plan.label}`} />
         <TypeBadge kind={build.kind} label={`Budowa: ${build.label}`} />
       </div>
-      <button type="button" className={`dna-strip${copied ? ' copied' : ''}`} onClick={copy} title="Kliknij, aby skopiować kod DNA" aria-label="Kod DNA stwora. Kliknij, aby skopiować">
+      <button type="button" className={`dna-strip${copied ? ' copied' : ''}`} onClick={copy} title="Kliknij, aby skopiować kod DNA" aria-label="Kod DNA Morphoida. Kliknij, aby skopiować">
         {/* a narrow window cuts the code at its colons (between genes) into even lines */}
         <code ref={codeRef}>{lines.map((l, i) => <span key={i} className="dna-line">{l}</span>)}</code>
       </button>
       {copied && <span className="dna-toast" role="status">Skopiowano kod DNA</span>}
+    </div>
     </div>
   );
 }

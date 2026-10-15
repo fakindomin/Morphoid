@@ -62,6 +62,7 @@ export interface BlockDef {
 
 const e = (name: string, opts: [string, string][], def = 0, label?: string): EnumField =>
   ({ kind: 'enum', name, def, options: opts.map(([id, label]) => ({ id, label })), ...(label ? { label } : {}) });
+const retire = (f: EnumField, ...ids: string[]): EnumField => ({ ...f, options: f.options.map((o) => (ids.includes(o.id) ? { ...o, retired: true } : o)) });
 const s = (name: string, label: string): StepField => ({ kind: 'step', name, label });
 const fine = (name: string, label: string, coarse?: FineField['coarse']): FineField => ({ kind: 'fine', name, label, ...(coarse ? { coarse } : {}) });
 
@@ -84,9 +85,9 @@ export const BLOCKS: readonly BlockDef[] = [
     s('reach', 'Wysunięcie'),
   ] },
   { id: 'ears', letter: 'E', label: 'Uszy', noneMeansEmpty: true, fields: [
-    e('type', [['none', 'Brak'], ['wolf', 'Wilcze'], ['bear', 'Misiowe'], ['rabbit', 'Zajęcze'], ['floppy', 'Opadające (psie)'], ['cat', 'Kocie'], ['mouse', 'Mysie (duże okrągłe)'], ['horse', 'Końskie']], 1),
+    e('type', [['none', 'Brak'], ['wolf', 'Wilcze'], ['bear', 'Misiowe'], ['rabbit', 'Zajęcze'], ['floppy', 'Opadające'], ['cat', 'Kocie'], ['mouse', 'Mysie'], ['horse', 'Końskie']], 1),
     s('scale', 'Skala'),
-    e('dir', [['up', 'Do góry'], ['back', 'Położone do tyłu'], ['forward', 'Do przodu']]),
+    e('dir', [['up', 'Do góry'], ['back', 'Do tyłu'], ['forward', 'Do przodu']]),
   ] },
   { id: 'horns', letter: 'O', label: 'Rogi / Poroże', noneMeansEmpty: true, fields: [
     e('type', [['none', 'Brak'], ['devil', 'Diabelskie'], ['ram', 'Baranie'], ['spikes', 'Kolce'], ['antlers', 'Poroże']]),
@@ -100,7 +101,7 @@ export const BLOCKS: readonly BlockDef[] = [
   { id: 'tail', letter: 'T', label: 'Ogon', noneMeansEmpty: true, fields: [
     e('type', [['none', 'Brak'], ['wolf', 'Wilczy'], ['fluffy', 'Puszysty'], ['fan', 'Wachlarz'], ['feathers', 'Pióra ptaka']], 1),
     s('length', 'Długość'),
-    e('dir', [['up', 'W górę'], ['back', 'Prosto do tyłu'], ['high', 'Stromo w górę']]),
+    e('dir', [['up', 'Naturalnie'], ['back', 'Do tyłu'], ['high', 'W górę']]),
   ] },
   { id: 'crest', letter: 'C', label: 'Czub / Grzywa / Kolce', noneMeansEmpty: true, fields: [
     e('type', [['none', 'Brak'], ['tuft', 'Czub'], ['mane', 'Grzywa'], ['spines', 'Kolce'], ['crystals', 'Kryształy'], ['plume', 'Pióropusz']]),
@@ -120,7 +121,8 @@ export const BLOCKS: readonly BlockDef[] = [
     e('pattern', [['none', 'Brak'], ['stripes', 'Pręgi'], ['spots', 'Cętki'], ['glow', 'Świecące plamy']]),
   ] },
   { id: 'accessory', letter: 'X', label: 'Dodatki', noneMeansEmpty: true, fields: [
-    e('type', [['none', 'Brak'], ['collar', 'Obroża'], ['saddle', 'Siodło']]),
+    // accessories are off the menu for now (user, 2026-10-15): old codes still draw them, the dice never pick them
+    retire(e('type', [['none', 'Brak'], ['collar', 'Obroża'], ['saddle', 'Siodło']]), 'collar', 'saddle'),
   ] },
   { id: 'palette', letter: 'P', label: 'Paleta barw', fields: [
     { kind: 'enum', name: 'index', def: 0,

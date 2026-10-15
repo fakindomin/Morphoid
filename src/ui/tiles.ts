@@ -1,6 +1,14 @@
 import type { BlockId } from '../core';
 
-export interface TileField { block: BlockId; field: string; label: string; /** not drawn in 2D/3D yet: shown disabled */ planned?: boolean }
+export interface TileField {
+  block: BlockId; field: string; label: string;
+  /** not drawn in 2D/3D yet: shown disabled */
+  planned?: boolean;
+  /** the options in this order (by index) instead of the gene's */
+  order?: number[];
+  /** 'mouth': a closed / open switch over the teeth gene (an open Pysk always shows teeth) */
+  control?: 'mouth';
+}
 export interface TileDef { id: string; title: string; fields: TileField[]; palette?: boolean }
 export interface TileGroup { title: string; tiles: TileDef[] }
 
@@ -20,6 +28,7 @@ export const TILE_GROUPS: TileGroup[] = [
       { block: 'snout', field: 'type', label: 'Kształt pyska' },
       { block: 'snout', field: 'reach', label: 'Wysunięcie pyska' },
       { block: 'face', field: 'expression', label: 'Mina' },
+      { block: 'face', field: 'teeth', label: 'Pysk', control: 'mouth' },
       { block: 'face', field: 'teeth', label: 'Zęby' },
       { block: 'face', field: 'whiskers', label: 'Wąsy' },
       { block: 'face', field: 'whiskerDir', label: 'Kierunek wąsów' },
@@ -42,7 +51,6 @@ export const TILE_GROUPS: TileGroup[] = [
       { block: 'crest', field: 'scale', label: 'Skala wyrostków' },
     ] },
     { id: 'neck', title: 'Szyja', fields: [
-      { block: 'head', field: 'neck', label: 'Fasada szyi' },
       { block: 'head', field: 'neckLength', label: 'Długość szyi' },
     ] },
     { id: 'body', title: 'Tułów', fields: [
@@ -68,7 +76,7 @@ export const TILE_GROUPS: TileGroup[] = [
     { id: 'tail', title: 'Ogon', fields: [
       { block: 'tail', field: 'type', label: 'Kształt ogona' },
       { block: 'tail', field: 'length', label: 'Wielkość ogona' },
-      { block: 'tail', field: 'dir', label: 'Kierunek ogona' },
+      { block: 'tail', field: 'dir', label: 'Kierunek ogona', order: [0, 2, 1] },
     ] },
   ] },
   { title: 'Wygląd i dodatki', tiles: [
@@ -77,7 +85,6 @@ export const TILE_GROUPS: TileGroup[] = [
       { block: 'coat', field: 'pattern', label: 'Wzór' },
       { block: 'coat', field: 'texture', label: 'Faktura' },
     ] },
-    { id: 'accessory', title: 'Dodatki', fields: [{ block: 'accessory', field: 'type', label: 'Akcesorium' }] },
     { id: 'stand', title: 'Podstawka', fields: [{ block: 'stand', field: 'type', label: 'Podstawka (osobny wydruk)' }] },
   ] },
 ];
@@ -103,6 +110,6 @@ export const SLOT_TILE: Partial<Record<string, string>> = {
   legB: 'legs', legF: 'legs', legBFar: 'legs', legFFar: 'legs', claws: 'legs', toes: 'legs', legOver0: 'legs', legOver1: 'legs', legOver2: 'legs',
   hands: 'hands', handsFar: 'hands',
   tail: 'tail',
-  collar: 'accessory', saddle: 'accessory',
+  collar: 'body', saddle: 'body',
   stand: 'stand',
 };

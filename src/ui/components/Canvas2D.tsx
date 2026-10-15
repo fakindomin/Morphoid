@@ -4,7 +4,7 @@ import { PALETTES } from '../../core/palette';
 import { studio } from '../studio';
 import { clonePose, easePose, targetPose, type Pose } from '../../core/art/pose';
 import { buildPaths, rigSize } from '../../core/art/shapes';
-import { HEAT, type HeatLevel, type PrintReport, type Severity } from '../../core/print';
+import { HEAT, type HeatLevel, type PrintReport } from '../../core/print';
 import { drawParts, drawSketch, HEAT_NAME, HEAT_SWATCH, insidePoly, type SketchMode, type SketchOutput } from '../sketch';
 import { viewOptions, useViewOptions, type ViewId } from '../viewOptions';
 import { viewsFor } from '../viewsClient';
@@ -30,26 +30,19 @@ function extentOf(paths: Record<string, { empty: boolean; flatten: (n?: number) 
 }
 
 const TITLE: Record<string, string> = Object.fromEntries(TILES.map((t) => [t.id, t.title]));
-const RANK: Record<Severity, number> = { info: 0, support: 1, warn: 2, error: 3 };
 /** the legend's three colours: blue safe, red supports, steel on the bed */
 const LEVELS: HeatLevel[] = [HEAT.none, HEAT.support, HEAT.bed];
 /** how long the sketch takes to turn from one view to another (ms), and to morph a new shape in a turned view */
 const TURN_MS = 750, RESHAPE_MS = 380;
 /** the full side drawing (eyes, mouth, pattern) fades out as a turn starts and back in as it ends (ms) */
-const FADE_MS = 220;
+const FADE_MS = 220, FADE_IN_MS = 380;
 const AXES: [ViewId, string][] = [['side', 'Bok'], ['front', 'Przód'], ['top', 'Góra']];
 const easeInOut = (t: number): number => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 
-/** The worst thing the print audit says about a body element, as one sentence and its colour. */
-function verdict(tile: string, report: PrintReport, hits: SketchOutput['hits']): { text: string; level: HeatLevel } {
+/** The print colour of a body element: red when the audit found anything that needs supports or care on it. */
+function verdict(tile: string, report: PrintReport, hits: SketchOutput['hits']): HeatLevel {
   const slots = new Set(hits.filter((h) => h.tile === tile).map((h) => h.slot));
-  const name = TITLE[tile] ?? tile;
-  const worst = report.issues
-    .filter((i) => i.severity !== 'info' && i.slot && slots.has(i.slot))
-    .sort((a, b) => RANK[b.severity] - RANK[a.severity])[0];
-  if (!worst) return { text: `${name}: drukuje się bez pomocy.`, level: HEAT.none };
-  const msg = worst.message.replace(/^[^:]+:\s*/, '');
-  return { text: `${name}: ${msg}${/[.!?]$/.test(msg) ? '' : '.'}`, level: HEAT.support };
+  return report.issues.some((i) => i.severity !== 'info' && i.slot && slots.has(i.slot)) ? HEAT.support : HEAT.none;
 }
 
 interface Props {
@@ -65,7 +58,7 @@ interface Props {
 export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPickTile }: Props) {
   const boxRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const sizeRef = useRef<SVGTextElement>(null);
+  const sizeRef = useRef<HTMLSpanElement>(null);
   const infoRef = useRef<HTMLSpanElement>(null);
   const swRef = useRef<HTMLElement>(null);
   const legendRefs = useRef<(HTMLElement | null)[]>([]);
@@ -91,7 +84,7 @@ export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPick
     let cur: Pose | null = null;
     let lastKey = '';
     // the scale and centre the view eases to, refitted whenever the shape or the stage size changes
-    let fitKey = '', fit = { scale: 4.6, cx: 410, lift: 0 };
+    let fitKey = '', fit = { scale: 4.6, cx: 410, lift: 0 }, snap = true;
     // the turned views: what is on screen (`shown`) and the turn under way (`turn`); null `shown` = the classic side view
     let shown: End | null = null;
     let fadeIn: { end: End; t0: number } | null = null;
@@ -148,7 +141,8 @@ export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPick
         const e = extentOf(buildPaths(tgt, g, rig, false) as never);
         const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, (v.w - 2 * MARGIN_X) / Math.max(1, e.x1 - e.x0), (v.ground - TOP) / Math.max(1, e.y1)));
         fit = { scale, cx: v.w / 2 + ((e.x0 + e.x1) / 2) * scale, lift: 0 };
-        if (!fitKey) { v.scale = fit.scale; v.cx = fit.cx; v.lift = 0; }
+        // only the first fit jumps; later ones (a new shape, the end of a turn) glide
+        if (snap) { v.scale = fit.scale; v.cx = fit.cx; v.lift = 0; snap = false; }
         fitKey = rig.code;
       }
       let turnT = 1;
@@ -201,9 +195,9 @@ export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPick
             turn = null;
             dirtyRef.current = true;
           }
-        } else if (fadeIn && now - fadeIn.t0 < FADE_MS) {
+        } else if (fadeIn && now - fadeIn.t0 < FADE_IN_MS) {
           const under = drawParts(ctx, 1 / (v.scale * k), { parts: morphParts(fadeIn.end, fadeIn.end, 1, rep.heat, md === 'print'), mode: md, palette, hot });
-          out = over((now - fadeIn.t0) / FADE_MS, under);
+          out = over(easeInOut((now - fadeIn.t0) / FADE_IN_MS), under);
         } else {
           if (fadeIn) { fadeIn = null; dirtyRef.current = true; }
           out = classic();
@@ -221,21 +215,10 @@ export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPick
         // the top view shows the shape only: no support colours there, so no legend either
         const fromAbove = md === 'print' && (turn ? turn.to.view : shown?.view) === 'top';
         if (legendBoxRef.current) legendBoxRef.current.style.display = fromAbove ? 'none' : '';
-        if (infoRef.current && swRef.current && fromAbove) {
-          infoRef.current.textContent = hot ? `${TITLE[hot] ?? hot}. Kliknij, żeby zmienić.`
-            : 'Z góry widać kształt stwora. Podpory pokazują widoki z boku i z przodu.';
-          swRef.current.style.background = HEAT_SWATCH[HEAT.none];
-        } else if (infoRef.current && swRef.current) {
-          if (hot) {
-            const v = verdict(hot, rep, out.hits);
-            infoRef.current.textContent = md === 'print' ? `${v.text} Kliknij, żeby zmienić.` : `${TITLE[hot] ?? hot}. Kliknij, żeby zmienić.`;
-            swRef.current.style.background = md === 'print' ? HEAT_SWATCH[v.level] : 'var(--c1)';
-          } else {
-            infoRef.current.textContent = md === 'print'
-              ? 'Niebieskie drukuje się bezpiecznie, czerwone potrzebuje podpór. Kliknij część ciała, żeby ją zmienić.'
-              : 'Najedź na część ciała, kliknij, żeby ją zmienić.';
-            swRef.current.style.background = md === 'print' ? HEAT_SWATCH[HEAT.none] : 'var(--c1)';
-          }
+        // the line under the sketch: which part is under the pointer (no advice on supports: that is the slicer's job)
+        if (infoRef.current && swRef.current) {
+          infoRef.current.textContent = hot ? `${TITLE[hot] ?? hot}. Kliknij, żeby zmienić.` : 'Kliknij część ciała, żeby ją zmienić.';
+          swRef.current.style.background = md !== 'print' ? 'var(--c1)' : hot && !fromAbove ? HEAT_SWATCH[verdict(hot, rep, out.hits)] : HEAT_SWATCH[HEAT.none];
         }
         boxRef.current?.style.setProperty('--c1', (PALETTES[g.palette!.index!] ?? PALETTES[0]!)[0]);
 
@@ -284,12 +267,10 @@ export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPick
           <button key={id} type="button" className={axis === id ? 'on' : ''} aria-pressed={axis === id} onClick={() => viewOptions.setView(id)}>{label}</button>
         ))}
       </div>
-      <svg className="sketch-front" viewBox={`0 0 ${size.w} ${size.h}`}>
-        <text ref={sizeRef} className="size-label" x={size.w - 18} y={72} textAnchor="end" />
-      </svg>
       <div className="sketch-info">
         <i ref={swRef} className="sk-sw" />
         <span ref={infoRef} className="sketch-info-t" />
+        <span ref={sizeRef} className="sketch-size" title="Wymiary wydruku: długość × szerokość × wysokość" />
         {mode === 'print' && (
           <span className="sketch-legend" ref={legendBoxRef}>
             {LEVELS.map((l, i) => (

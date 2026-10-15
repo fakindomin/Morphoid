@@ -23,24 +23,57 @@ function Segmented({ items, value, onChange, disabled }: {
   );
 }
 
+/** Eyes on stalks stand out of the head: they cannot be set deeper. */
+const EYES_STALKS = 4;
+
+type Genome = ReturnType<typeof studio.getState>['genome'];
+
+/**
+ * Is this control greyed out? Everything about a part that is not there ("Brak"), how deep eyes on stalks sit, which
+ * way absent whiskers point, and the teeth of a closed Pysk.
+ */
+function isOff(tf: TileField, g: Genome): boolean {
+  const def = blockDef(tf.block);
+  const first = def.fields[0]!;
+  if (tf.planned) return true;
+  if (def.noneMeansEmpty && tf.field !== first.name && g[tf.block]![first.name] === 0) return true;
+  const face = g.face!;
+  if (tf.block === 'face' && !tf.control) {
+    if (tf.field === 'eyeSet') return face.eyes === EYES_STALKS;
+    if (tf.field === 'whiskerDir') return face.whiskers === 0;
+    if (tf.field === 'teeth') return face.teeth === 0;
+  }
+  return false;
+}
+
 function FieldControl({ tf }: { tf: TileField }) {
   const { genome } = useStudioState();
   const def = blockDef(tf.block);
   const field = def.fields.find((f) => f.name === tf.field)!;
   const value = genome[tf.block]![tf.field]!;
-  const typeIsNone = def.noneMeansEmpty && genome[tf.block]![def.fields[0]!.name] === 0 && field !== def.fields[0];
+  const off = isOff(tf, genome);
 
   let control: JSX.Element;
-  if (field.kind === 'step') {
+  if (tf.control === 'mouth') {
+    // closed or open: an open Pysk shows its teeth (fangs at first), a closed one has none
     control = (
-      <Segmented disabled={!!typeIsNone} value={stepToClass(value)}
+      <Segmented value={value > 0 ? 1 : 0} items={[{ label: 'Zamknięty', value: 0 }, { label: 'Otwarty', value: 1 }]}
+        onChange={(open) => studio.applyOps([{ kind: 'set', block: 'face', field: 'teeth', value: open ? Math.max(1, value) : 0 }])} />
+    );
+  } else if (field.kind === 'step') {
+    control = (
+      <Segmented disabled={off} value={stepToClass(value)}
         items={Array.from({ length: SIZE_CLASSES }, (_, c) => ({ label: CLASS_LABELS[c]!, value: c }))}
         onChange={(cls) => studio.applyOps([{ kind: 'size', block: tf.block, field: tf.field, cls }])} />
     );
   } else {
     const f = field as EnumField;
+    // the teeth control offers only the kinds of teeth: "none" is the closed Pysk above it
+    const skip = (i: number): boolean => tf.block === 'face' && tf.field === 'teeth' && i === 0;
+    const order = tf.order ?? f.options.map((_, i) => i);
     control = (
-      <Segmented disabled={tf.planned} value={value} items={f.options.flatMap((o, i) => (o.retired && i !== value ? [] : [{ label: o.label, value: i }]))}
+      <Segmented disabled={off} value={value}
+        items={order.flatMap((i) => (skip(i) || (f.options[i]!.retired && i !== value) ? [] : [{ label: f.options[i]!.label, value: i }]))}
         onChange={(v) => {
           const ops: Op[] = [{ kind: 'set', block: tf.block, field: tf.field, value: v }];
           // leaving "Brak" must also give a sensible size (class 2), not the zeroed one
@@ -53,18 +86,40 @@ function FieldControl({ tf }: { tf: TileField }) {
     );
   }
   return (
-    <>
+    <div className={off ? 'field off' : 'field'}>
       <div className="control-label">{tf.label}</div>
       {control}
-    </>
+    </div>
   );
 }
 
-function statusOf(tile: TileDef, g: ReturnType<typeof studio.getState>['genome']): string {
+/** How big a part is, in words that agree with its name (a closed category shows it next to the chosen shape). */
+const SIZE_WORDS: Record<string, readonly [string, string, string]> = {
+  'snout.reach': ['krótki', 'średni', 'długi'],
+  'ears.scale': ['małe', 'średnie', 'duże'],
+  'horns.span': ['małe', 'średnie', 'duże'],
+  'crest.scale': ['mały', 'średni', 'duży'],
+  'head.neckLength': ['krótka', 'średnia', 'długa'],
+  'body.length': ['krótki', 'średni', 'długi'],
+  'wings.scale': ['małe', 'średnie', 'duże'],
+  'legs.length': ['krótkie', 'średnie', 'długie'],
+  'hands.length': ['krótkie', 'średnie', 'długie'],
+  'tail.length': ['mały', 'średni', 'duży'],
+};
+
+const cap = (w: string): string => w.charAt(0).toUpperCase() + w.slice(1);
+
+/** A closed category's summary: the chosen shape and, when the part is there, how big it is. */
+function statusOf(tile: TileDef, g: Genome): string {
   const first = tile.fields[0];
   if (!first) return `Triada ${g.palette!.index! + 1}`;
   const f = blockDef(first.block).fields.find((x) => x.name === first.field)!;
-  return f.kind === 'enum' ? f.options[g[first.block]![first.field]!]!.label : CLASS_LABELS[stepToClass(g[first.block]![first.field]!)]!;
+  const wordOf = (tf: TileField): string => SIZE_WORDS[`${tf.block}.${tf.field}`]![stepToClass(g[tf.block]![tf.field]!)]!;
+  if (f.kind !== 'enum') return SIZE_WORDS[`${first.block}.${first.field}`] ? cap(wordOf(first)) : CLASS_LABELS[stepToClass(g[first.block]![first.field]!)]!;
+  const shape = f.options[g[first.block]![first.field]!]!.label;
+  const sized = tile.fields.find((tf) => SIZE_WORDS[`${tf.block}.${tf.field}`] && !isOff(tf, g));
+  // the size, unless the shape already says it ("Krótki, krótki")
+  return sized && sized !== first && wordOf(sized) !== shape.toLowerCase() ? `${shape}, ${wordOf(sized)}` : shape;
 }
 
 function PaletteGrid() {
@@ -156,7 +211,7 @@ export function LeftColumn({ activeSocket, pick, hotTile, onHoverTile }: {
                 </button>
                 {on && (
                   <div className="cat-b">
-                    {tile.palette ? <PaletteGrid /> : tile.fields.map((tf) => <FieldControl key={`${tf.block}.${tf.field}`} tf={tf} />)}
+                    {tile.palette ? <PaletteGrid /> : tile.fields.map((tf) => <FieldControl key={`${tf.block}.${tf.field}.${tf.control ?? ''}`} tf={tf} />)}
                   </div>
                 )}
               </section>

@@ -64,34 +64,30 @@ function MorphoidBody() {
     studio.loadCode(code, genome);
     setPaste('');
     setMsg(r.badGenes.length ? { text: `Wczytano. Nieznane geny: ${r.badGenes.join(', ')}. Te części zostają bez zmian.`, warn: true }
-      : { text: r.checksumOk ? 'Wczytano stwora z kodu DNA.' : 'Wczytano, ale suma kontrolna się nie zgadza: sprawdź, czy kod jest cały.', warn: !r.checksumOk });
-  };
-  const pasteClipboard = async (): Promise<void> => {
-    try { load(await navigator.clipboard.readText()); } catch { setMsg({ text: 'Przeglądarka nie dała dostępu do schowka: wklej kod w pole (Ctrl+V).', warn: true }); }
+      : { text: r.checksumOk ? 'Wczytano Morphoida z kodu DNA.' : 'Wczytano, ale suma kontrolna się nie zgadza: sprawdź, czy kod jest cały.', warn: !r.checksumOk });
   };
   return (
     <>
       <div>
         <div className="control-label">Nazwa</div>
-        <input className="name-field" value={nameDraft ?? who.name} maxLength={40} spellCheck={false} aria-label="Nazwa stwora"
+        <input className="name-field" value={nameDraft ?? who.name} maxLength={40} spellCheck={false} aria-label="Nazwa Morphoida"
           onChange={(e) => setNameDraft(e.target.value)} onBlur={saveName}
           onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setNameDraft(null); }} />
       </div>
       <div className="btn-row">
         <button type="button" className={`btn-soft${rolling ? ' rolling' : ''}`} disabled={rolling} onClick={() => viewOptions.roll(() => studio.randomize(newSeed()))}><i className="dice">🎲</i> {rolling ? 'Losuję…' : 'Losowo'}</button>
-        <button type="button" className="btn-soft" disabled={rolling} onClick={() => viewOptions.roll(() => studio.mutateLight(newSeed()))}>🧬 Mutuj</button>
+        <button type="button" className="btn-soft" disabled={rolling} onClick={() => viewOptions.roll(() => studio.mutateLight(newSeed()))}>🧬 Mutuj lekko</button>
       </div>
       <div>
-        <div className="control-label">Wklej nowe DNA</div>
-        <div className="dna-box">
-          <textarea className="dna-code-field" rows={2} value={paste} spellCheck={false} aria-label="Wklej kod DNA" placeholder="MPH2:B01.33:L01.3:…"
-            onChange={(e) => setPaste(e.target.value)}
-            onPaste={(e) => { const t = e.clipboardData.getData('text'); if (t) { e.preventDefault(); load(t); } }}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); load(paste); } }} />
-          <div className="dna-actions">
-            <button type="button" className="link-btn" onClick={pasteClipboard}>Wklej</button>
-            <button type="button" className="link-btn" onClick={() => load(paste)}>Wczytaj</button>
+        <div className="control-label">Wklej DNA</div>
+        <div className="dna-input-pair">
+          <div className="dna-box">
+            <textarea className="dna-code-field" rows={2} value={paste} spellCheck={false} aria-label="Wklej kod DNA" placeholder="MPH2:B01.33:L01.3:…"
+              onChange={(e) => setPaste(e.target.value)}
+              onPaste={(e) => { const t = e.clipboardData.getData('text'); if (t) { e.preventDefault(); load(t); } }}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); load(paste); } }} />
           </div>
+          <button type="button" className="btn-soft dna-load" onClick={() => load(paste)}>Wczytaj</button>
         </div>
       </div>
       {msg && <div className={`msg${msg.warn ? ' warn' : ''}`} role="status">{msg.text}</div>}
@@ -101,6 +97,7 @@ function MorphoidBody() {
 
 function ProjectBody() {
   const [msg, setMsg] = useState<{ text: string; warn: boolean } | null>(null);
+  const [asking, setAsking] = useState(false);
   const save = (): void => { storage.set(SAVE_KEY, studio.code()); setMsg({ text: 'Zapisano w pamięci tej przeglądarki.', warn: false }); };
   const load = (): void => {
     const saved = storage.get(SAVE_KEY);
@@ -114,7 +111,15 @@ function ProjectBody() {
         <button type="button" className="btn-soft" onClick={save}>Zapisz</button>
         <button type="button" className="btn-soft" onClick={load}>Wczytaj</button>
       </div>
-      <button type="button" className="btn-soft danger" onClick={() => { studio.reset(); setMsg({ text: 'Przywrócono stwora bazowego.', warn: false }); }}>Resetuj</button>
+      {!asking ? <button type="button" className="btn-soft danger" onClick={() => { setAsking(true); setMsg(null); }}>Resetuj</button> : (
+        <div className="confirm-box" role="alertdialog" aria-label="Potwierdź reset">
+          <p>Na pewno zresetować? Obecny Morphoid zniknie, jeśli nie jest zapisany.</p>
+          <div className="btn-row">
+            <button type="button" className="btn-soft danger" onClick={() => { studio.reset(); setAsking(false); setMsg({ text: 'Przywrócono bazowego Morphoida.', warn: false }); }}>Tak, resetuj</button>
+            <button type="button" className="btn-soft" onClick={() => setAsking(false)}>Anuluj</button>
+          </div>
+        </div>
+      )}
       {msg && <div className={`msg${msg.warn ? ' warn' : ''}`} role="status">{msg.text}</div>}
     </>
   );
@@ -128,7 +133,7 @@ function PrintBody({ view, explode, setExplode }: Props) {
   const paths = useMemo(() => restGeometry(genome).paths, [genome]);
   const present = GROUPS.filter((g) => g.slots.some((s) => paths[s] && !paths[s].empty));
   const anySeparate = present.some((g) => !g.forced && isSeparate(plan, g.id as PartGroup));
-  const issues = report.issues.filter((i) => i.severity !== 'info');
+  const issues = report.issues.filter((i) => i.severity !== 'info' && i.severity !== 'support');
   const fix = issues.find((i) => i.fix);
   return (
     <>
@@ -136,20 +141,21 @@ function PrintBody({ view, explode, setExplode }: Props) {
         <button type="button" className={`seg-pill${kind === 'whole' ? ' active' : ''}`}
           onClick={() => studio.setPlan({ ...planWhole(plan.printer), maxBridge: plan.maxBridge })}>Całość</button>
         <button type="button" className={`seg-pill${kind !== 'whole' ? ' active' : ''}`}
-          onClick={() => { if (kind === 'whole') studio.setPlan(fittedPlan(genome, { ...planModular(plan.printer), maxBridge: plan.maxBridge })); }}>Moduły</button>
+          onClick={() => { if (kind === 'whole') studio.setPlan(fittedPlan(genome, { ...planModular(plan.printer), maxBridge: plan.maxBridge })); }}>Części</button>
       </div>
-      {kind === 'whole' ? <p className="hint">Stwór drukuje się jako jedna bryła{present.some((g) => g.forced) ? ` (${present.filter((g) => g.forced).map((g) => g.label.toLowerCase()).join(' i ')} zawsze osobno)` : ''}.</p> : (
+      {kind === 'whole' ? <p className="hint">Cały Morphoid drukuje się w jednym kawałku{present.some((g) => g.forced) ? ` (oprócz: ${present.filter((g) => g.forced).map((g) => g.label.toLowerCase()).join(', ')}, zawsze osobno)` : ''}.</p> : (
         <div>
-          <div className="control-label">Rozpiska modułów</div>
+          <div className="control-label">Części do druku</div>
           <ol className="mods">
-            <li><span className="mn">Korpus</span><span className="mx">baza</span></li>
+            {/* a part switched off prints together with the torso: the torso's line says which */}
+            <li><span className="mn">{['Tułów', ...present.filter((g) => !g.forced && !isSeparate(plan, g.id as PartGroup)).map((g) => g.label)].join(' + ')}</span><span className="mx">baza</span></li>
             {present.map((g) => {
               const on = isSeparate(plan, g.id as PartGroup);
               return (
                 <li key={g.id} className={on ? '' : 'merged'}>
                   <span className="mn">{g.label}</span>
-                  <span className="mx">{g.forced ? 'zawsze osobno' : on ? 'osobny moduł' : 'z korpusem'}</span>
-                  {!g.forced && <button type="button" className="sw" role="switch" aria-checked={on} aria-label={`${g.label} jako osobny moduł`}
+                  <span className="mx">{g.forced ? 'zawsze osobno' : on ? 'osobna część' : 'z tułowiem'}</span>
+                  {!g.forced && <button type="button" className="sw" role="switch" aria-checked={on} aria-label={`${g.label} jako osobna część`}
                     onClick={() => studio.setSeparate(g.id, !on)} />}
                 </li>
               );
@@ -159,8 +165,8 @@ function PrintBody({ view, explode, setExplode }: Props) {
       )}
       {view === '3d' && kind !== 'whole' && anySeparate && (
         <label className="slider-row">
-          <span className="control-label">Rozsuń moduły <b>{Math.round(explode * 100)}%</b></span>
-          <input type="range" min={0} max={100} value={Math.round(explode * 100)} onChange={(e) => setExplode(Number(e.target.value) / 100)} aria-label="Rozsuń moduły" />
+          <span className="control-label">Rozsuń części <b>{Math.round(explode * 100)}%</b></span>
+          <input type="range" min={0} max={100} value={Math.round(explode * 100)} onChange={(e) => setExplode(Number(e.target.value) / 100)} aria-label="Rozsuń części" />
         </label>
       )}
       <div className={`check-line ${issues.length ? 'warn' : 'ok'}`}>
@@ -250,18 +256,18 @@ function ViewBody({ view }: { view: ViewMode }) {
       <div>
         <div className="control-label">Kolory szkicu</div>
         <div className="segment">
-          <button type="button" className={`seg-pill${o.sketchMode === 'color' ? ' active' : ''}`} onClick={() => viewOptions.setSketchMode('color')}>Kolory stwora</button>
+          <button type="button" className={`seg-pill${o.sketchMode === 'color' ? ' active' : ''}`} onClick={() => viewOptions.setSketchMode('color')}>Kolor Morphoida</button>
           <button type="button" className={`seg-pill${o.sketchMode === 'print' ? ' active' : ''}`} onClick={() => viewOptions.setSketchMode('print')}>Druk</button>
         </div>
       </div>
-      <label className="switch-row">
-        <span>Pokaż kości</span>
-        <button type="button" className="sw" role="switch" aria-checked={o.showBones} aria-label="Pokaż kości" onClick={() => viewOptions.setShowBones(!o.showBones)} />
-      </label>
     </>
   );
   return (
     <>
+      <label className="switch-row">
+        <span>Obracaj model</span>
+        <button type="button" className="sw" role="switch" aria-checked={o.spin} aria-label="Obracaj model" onClick={() => viewOptions.setSpin(!o.spin)} />
+      </label>
       <label className="switch-row">
         <span>Szary filament</span>
         <button type="button" className="sw" role="switch" aria-checked={o.grey} aria-label="Szary filament" title="Jak wydruk z jednego, szarego filamentu" onClick={() => viewOptions.setGrey(!o.grey)} />
@@ -269,9 +275,9 @@ function ViewBody({ view }: { view: ViewMode }) {
       <div className="btn-row">
         <button type="button" className="btn-soft" onClick={() => viewOptions.recenter()}>Wyśrodkuj widok</button>
         <button type="button" className="btn-soft" disabled={preview.quality !== 'draft' || preview.busy}
-          title="Podgląd podczas zmian jest uproszczony, żeby działał płynnie. Wygładzenie pokazuje model tak, jak wyjdzie w pliku do druku."
+          title="Podgląd podczas zmian jest uproszczony, żeby działał płynnie. Szczegóły pokazują model tak, jak wyjdzie w pliku do druku."
           onClick={() => previewStore.smooth()}>
-          {preview.quality === 'smoothing' ? 'Wygładzam…' : preview.quality === 'smooth' ? 'Wygładzony' : 'Wygładź model'}
+          {preview.quality === 'smoothing' ? 'Liczę szczegóły…' : preview.quality === 'smooth' ? 'Szczegóły widoczne' : 'Pokaż szczegóły na modelu'}
         </button>
       </div>
     </>
@@ -351,17 +357,17 @@ export function RightColumn(props: Props) {
   const saved = storage.get(SAVE_KEY) === studio.code();
   const kind = planKind(plan);
   const parts = report.pieces.length;
-  const issues = report.issues.filter((i) => i.severity !== 'info').length;
+  const issues = report.issues.filter((i) => i.severity !== 'info' && i.severity !== 'support').length;
   const viewSketch = useViewOptions().sketchMode;
   const sculptCount = Object.values(genome.sculpt ?? {}).filter((v) => v !== FINE_ZERO).length;
   return (
     <aside className="column right acc-column right-panel">
       <div className="right-scroll">
-        <Category id="view" title="Widok" value={props.view === '2d' ? (viewSketch === 'color' ? 'Kolory stwora' : 'Druk') : 'Studio 3D'} open={open} setOpen={setOpen}><ViewBody view={props.view} /></Category>
+        <Category id="view" title="Widok" value={props.view === '2d' ? (viewSketch === 'color' ? 'Kolor Morphoida' : 'Druk') : 'Studio 3D'} open={open} setOpen={setOpen}><ViewBody view={props.view} /></Category>
         <Category id="morphoid" title="Morphoid" value={studio.creature().name} open={open} setOpen={setOpen}><MorphoidBody /></Category>
         <Category id="project" title="Projekt" value={saved ? 'zapisany' : 'niezapisany'} open={open} setOpen={setOpen}><ProjectBody /></Category>
         {props.view === '3d' && <Category id="sculpt" title="Deformacja" value={sculptCount ? `zmian: ${sculptCount}` : 'brak'} open={open} setOpen={setOpen}><SculptBody /></Category>}
-        <Category id="print" title="Opcje druku" value={kind === 'whole' ? 'Całość' : `Moduły · ${parts}`} badge={issues} open={open} setOpen={setOpen}><PrintBody {...props} /></Category>
+        <Category id="print" title="Opcje druku" value={kind === 'whole' ? 'Całość' : `Części · ${parts}`} badge={issues} open={open} setOpen={setOpen}><PrintBody {...props} /></Category>
       </div>
       <ExportFooter />
     </aside>

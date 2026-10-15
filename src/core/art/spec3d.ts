@@ -190,12 +190,11 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
     if (p.slot === 'eye') p.z = zs;
   }
   eyeballs(out, g.face!.eyes === EYES.stalks, g.face!.eyes === EYES.stalks ? EYE_OUT[0] : EYE_OUT[g.face!.eyeSet ?? 0] ?? EYE_OUT[0],
-    g.face!.eyes === EYES.stalks ? 0 : g.face!.eyeShape ?? 0);
+    g.face!.eyeShape ?? 0);
   seatTeeth(out);
   // the inside of an ear is a real cup: the inner-ear outline is hollowed out of the ear's outer face
   for (const p of [...out]) if (p.slot === 'earIn') out.push({ ...p, id: `earCup${p.side > 0 ? '+' : '-'}`, thickness: EAR_CUP_MM * 2, bevel: EAR_CUP_MM * 0.8, carve: true, z: p.z + p.side * 0.25 });
   lipsAndNostrils(out, paths, ctx);
-  for (const p of out) if (p.slot === 'stand') standTop(p, g, rig);
   // jointed legs of four- and two-legged creatures are real 3D chains (insects and caterpillars keep their slabs)
   const plan = rig.dims.plan, biped = D.isBiped(plan), human = plan === D.PLAN.humanoid;
   if (plan === D.PLAN.quadruped || biped) for (const p of out) {
@@ -226,6 +225,8 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
     if (tl) p.limb = tl;
   }
   if (plan === D.PLAN.caterpillar) for (const p of out) if (p.slot === 'legF') p.limb = prolegLimb(prolegXs(rig.nodes.torso.x, rig.dims.bodyLength), p.z);
+  // the stand last of the body: it reaches under every foot, claw and tentacle that rests on the bed
+  for (const p of out) if (p.slot === 'stand') standTop(p, g, rig, out);
   separateAppendages(out); // appendages of different kinds never grow into each other
   // wing ribs stand on the OUTER face (the inner one stays flat: the wing prints lying on it)
   const wingS = typeSize(g, 'wings', D.WING_SPAN, 'scale');
@@ -300,12 +301,34 @@ function torsoWidths(p: Part3D, rig: Rig): Part3D['widths'] {
   return { x0, dx, k };
 }
 
+/** A limb's end this close to the bed (its lowest point, mm) rests on the stand. */
+const BED_TOUCH_MM = 1;
+
 /** The stand seen from above: an oval (or an uneven stone) under every foot, its top on the bed plane y = 0. */
-function standTop(p: Part3D, g: MorphotypeGenome, rig: Rig): void {
+function standTop(p: Part3D, g: MorphotypeGenome, rig: Rig, parts: readonly Part3D[]): void {
   let x0 = Infinity, x1 = -Infinity;
   for (const poly of p.polys) for (const [x] of poly) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); }
+  let rz = rig.dims.bodyWidth * 0.32 + rig.dims.legWidth / 2 + STAND_MARGIN_MM;
+  // everything that touches the bed (an insect's feet far out to the sides, an octopus's tentacles) stands on it
+  for (const q of parts) {
+    if (q === p || !q.limb) continue;
+    for (const c of [...q.limb.cones, ...(q.limb.tips ?? [])]) for (const [e, r] of [[c.a, c.ra], [c.b, c.rb]] as const) {
+      if (e[1] - r > BED_TOUCH_MM) continue;
+      x0 = Math.min(x0, e[0] - r - STAND_MARGIN_MM); x1 = Math.max(x1, e[0] + r + STAND_MARGIN_MM);
+      // an ellipse through the point needs more than its z: the point is not at the ellipse's widest x
+      rz = Math.max(rz, Math.abs(e[2]) + r + STAND_MARGIN_MM);
+    }
+  }
   const cx = (x0 + x1) / 2, rx = (x1 - x0) / 2;
-  const rz = rig.dims.bodyWidth * 0.32 + rig.dims.legWidth / 2 + STAND_MARGIN_MM;
+  // a foot near the front or the back end needs the oval wider there too: grow it until every contact is inside
+  for (const q of parts) {
+    if (q === p || !q.limb) continue;
+    for (const c of [...q.limb.cones, ...(q.limb.tips ?? [])]) for (const [e, r] of [[c.a, c.ra], [c.b, c.rb]] as const) {
+      if (e[1] - r > BED_TOUCH_MM) continue;
+      const u = Math.min(0.95, Math.abs(e[0] - cx) / rx);
+      rz = Math.max(rz, (Math.abs(e[2]) + r + STAND_MARGIN_MM * 0.5) / Math.sqrt(1 - u * u));
+    }
+  }
   const stone = g.stand!.type === 2;
   const ring: XY[] = [];
   for (let i = 0; i < 36; i++) {
