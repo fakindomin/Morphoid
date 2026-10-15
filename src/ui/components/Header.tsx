@@ -12,7 +12,7 @@ export function Header({ view, setView, theme, setTheme }: {
   return (
     <header className="topbar">
       <div className="topbar-left">
-        <a className="brand" href="./" aria-label="Morphoid Studio">
+        <a className="brand" href="/" aria-label="Morphoid Studio, strona główna">
           <Logo />
           <span className="brand-title">MORPHOID<small>Studio</small></span>
         </a>
