@@ -346,7 +346,7 @@ body.menu .drawer { transform: none; visibility: visible; transition: transform 
     <div class="steps">
       <article class="step-card"><div class="art" id="st-1"></div><div class="txt"><p class="n">Krok 1</p><h3>Wylosuj albo zacznij od zera.</h3><p>Jedno kliknięcie daje gotowego stwora. Losuj, aż trafisz na tego, który Ci się spodoba.</p></div></article>
       <article class="step-card"><div class="art" id="st-2"></div><div class="txt"><p class="n">Krok 2</p><h3>Dopasuj każdy szczegół.</h3><p>Kliknij uszy, rogi, ogon albo łapy i wybierz wariant z koła wokół kursora. Na koniec dobierz kolory.</p></div></article>
-      <article class="step-card"><div class="art" id="st-3"></div><div class="txt"><p class="n">Krok 3</p><h3>Sprawdź w 3D.</h3><p>Obróć stwora jak prawdziwą figurkę. Część, która nie wydrukuje się dobrze, już na szkicu świeci na czerwono.</p></div></article>
+      <article class="step-card"><div class="art" id="st-3"></div><div class="txt"><p class="n">Krok 3</p><h3>Sprawdź w 3D.</h3><p>Obróć stwora jak prawdziwą figurkę. Jeśli jakaś część nie wydrukuje się dobrze, od razu to zobaczysz.</p></div></article>
       <article class="step-card dark"><div class="art" id="st-4"></div><div class="txt"><p class="n">Krok 4</p><h3>Pobierz i drukuj.</h3><p>Dostajesz gotowy plik dla drukarki. W całości albo w częściach, które łączą się na wcisk.</p></div></article>
     </div>
     <div class="faq">
@@ -705,29 +705,73 @@ body.menu .drawer { transform: none; visibility: visible; transition: transform 
     return { creature, sketchSvg, morphTile, PRESETS };
   })();
 
-  function printed(id, P) {
-    const c = F.creature(P, 'filament');
-    const defs = `<defs><clipPath id="${id}sil">${c.sil}</clipPath>
+  const S = {
+    legsBack: '<rect x="208" y="190" width="26" height="60" rx="13"/><rect x="298" y="190" width="26" height="60" rx="13"/>',
+    tail: '<path d="M316 162 q34 -4 44 -46 q22 6 26 32 q-22 -4 -28 22 q-16 -2 -42 -8 z"/>',
+    body: '<ellipse cx="244" cy="172" rx="84" ry="52"/>',
+    legsFront: '<rect x="190" y="190" width="28" height="60" rx="14"/><rect x="282" y="190" width="28" height="60" rx="14"/>',
+    neck: '<ellipse cx="186" cy="146" rx="32" ry="28"/>',
+    earBack: '<path d="M136 86 L134 48 L160 76 Z"/>',
+    head: '<circle cx="154" cy="116" r="43"/>',
+    earFront: '<path d="M152 80 L164 40 L188 76 Z"/>',
+    horn: '<path d="M170 80 q4 -22 20 -28 q-6 16 -3 32 z"/>',
+    snout: '<ellipse cx="112" cy="134" rx="26" ry="18"/>',
+  };
+  const order = ['legsBack', 'tail', 'body', 'legsFront', 'neck', 'earBack', 'head', 'earFront', 'horn', 'snout'];
+  const g = (shape, attrs) => `<g ${attrs}>${S[shape]}</g>`;
+  const silhouette = order.map(k => S[k]).join('');
+
+  function line() {
+    const st = 'fill="var(--tile)" stroke="var(--blue)" stroke-width="1.6" stroke-linejoin="round"';
+    const parts = order.map(k => g(k, st)).join('');
+    const joints = [[154,116],[186,146],[244,172],[336,150],[204,196],[296,196],[204,246],[296,246]];
+    const rig = `<g stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 4" fill="none"><path d="M154 116 L186 146 L244 172 L336 150 M204 196 V246 M296 196 V246"/></g>
+      <g fill="var(--tile)" stroke="var(--muted)" stroke-width="1.2">${joints.map(([x,y]) => `<circle cx="${x}" cy="${y}" r="3.4"/>`).join('')}</g>`;
+    const face = `<circle cx="140" cy="110" r="9.5" fill="var(--tile)" stroke="var(--blue)" stroke-width="1.6"/><circle cx="138" cy="111" r="4.6" fill="var(--blue)"/>
+      <ellipse cx="90" cy="128" rx="5.5" ry="4" fill="var(--blue)"/><path d="M104 148 q10 7 20 0" fill="none" stroke="var(--blue)" stroke-width="1.6" stroke-linecap="round"/>`;
+    const dim = `<g stroke="var(--muted)" stroke-width="1" fill="none"><path d="M404 ${G} V40 M398 ${G} h12 M398 40 h12"/></g>
+      <text x="418" y="145" font-size="11" fill="var(--muted)" font-family="-apple-system, 'Inter Tight', sans-serif" transform="rotate(90 418 145)" text-anchor="middle">68 mm</text>
+      <path d="M40 ${G} H420" stroke="var(--red)" stroke-width="1.2"/>
+      ${Array.from({length: 20}, (_, i) => `<path d="M${48 + i * 19} ${G} l-8 9" stroke="var(--muted)" stroke-width=".8"/>`).join('')}`;
+    return `<svg viewBox="0 0 440 300" role="img" aria-label="Szkic stwora w 2D z zaznaczonym szkieletem">${parts}${face}${rig}${dim}</svg>`;
+  }
+
+  function shaded(id, print) {
+    const body = print ? ['#ff7a80', '#e01f30', '#5a0910'] : ['#a9c0ff', '#3b63e0', '#0f1a45'];
+    const back = print ? ['#d9505a', '#a3141f', '#3d060b'] : ['#7f98e6', '#2846a8', '#0a1233'];
+    const acc = print ? ['#4a4a50', '#1c1c20', '#050506'] : ['#ff6a74', '#e01f30', '#5a0910'];
+    const rg = (n, c) => `<radialGradient id="${id}${n}" cx="38%" cy="30%" r="78%"><stop offset="0" stop-color="${c[0]}"/><stop offset=".55" stop-color="${c[1]}"/><stop offset="1" stop-color="${c[2]}"/></radialGradient>`;
+    const defs = `<defs>${rg('b', body)}${rg('k', back)}${rg('a', acc)}
       <filter id="${id}blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="7"/></filter>
-      <pattern id="${id}layers" width="8" height="2.3" patternUnits="userSpaceOnUse"><rect width="8" height=".7" fill="#000" opacity=".16"/><rect y="1.15" width="8" height=".35" fill="#fff" opacity=".16"/></pattern>
+      <clipPath id="${id}clip">${silhouette}</clipPath>
+      <pattern id="${id}layers" width="8" height="2.3" patternUnits="userSpaceOnUse"><rect width="8" height=".7" fill="#000" opacity=".11"/><rect y="1.15" width="8" height=".35" fill="#fff" opacity=".18"/></pattern>
       <pattern id="${id}pei" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r=".6" fill="#fff" opacity=".07"/><circle cx="4.5" cy="4" r=".5" fill="#fff" opacity=".05"/></pattern>
       <linearGradient id="${id}plate" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a2a2c"/><stop offset="1" stop-color="#121213"/></linearGradient>
       <radialGradient id="${id}glow" cx="50%" cy="40%" r="60%"><stop offset="0" stop-color="#fff" stop-opacity=".10"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
-      <clipPath id="${id}grow"><rect class="grow" x="0" y="0" width="440" height="${G}"/></clipPath></defs>`;
-    const floor = `<rect x="0" y="0" width="440" height="300" fill="url(#${id}glow)"/><path d="M0 ${G - 2} H440 V300 H0 Z" fill="url(#${id}plate)"/><path d="M0 ${G - 2} H440 V300 H0 Z" fill="url(#${id}pei)"/><path d="M0 ${G - 1.5} H440" stroke="#fff" stroke-opacity=".12"/>`;
-    const shadow = `<ellipse cx="236" cy="${G + 2}" rx="132" ry="10" fill="#000" style="opacity:.7" filter="url(#${id}blur)"/>`;
-    const fig = `${c.svg}<rect x="0" y="0" width="440" height="${G}" fill="url(#${id}layers)" clip-path="url(#${id}sil)"/>`;
-    return { defs, floor, shadow, fig };
+    </defs>`;
+    const floor = print
+      ? `<rect x="0" y="0" width="440" height="300" fill="url(#${id}glow)"/><path d="M0 ${G - 2} H440 V300 H0 Z" fill="url(#${id}plate)"/><path d="M0 ${G - 2} H440 V300 H0 Z" fill="url(#${id}pei)"/><path d="M0 ${G - 1.5} H440" stroke="#fff" stroke-opacity=".12"/>`
+      : '';
+    const shadow = `<ellipse cx="236" cy="${G + 2}" rx="132" ry="10" fill="#000" style="opacity:${print ? .7 : 'var(--shadow)'}" filter="url(#${id}blur)"/>`;
+    const fillFor = k => (k === 'horn' || (print && k === 'earFront')) ? 'a' : (k === 'legsBack' || k === 'earBack') ? 'k' : 'b';
+    const parts = order.map(k => g(k, `fill="url(#${id}${fillFor(k)})"`)).join('');
+    const layers = print ? `<rect x="0" y="0" width="440" height="${G}" fill="url(#${id}layers)" clip-path="url(#${id}clip)"/>` : '';
+    const face = `<circle cx="140" cy="110" r="9.5" fill="url(#${id}a)"/><circle cx="137" cy="107" r="2.6" fill="#fff" opacity=".85"/>
+      <ellipse cx="90" cy="128" rx="5.5" ry="4" fill="url(#${id}a)"/><path d="M104 148 q10 7 20 0" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" opacity=".55"/>`;
+    const rim = `<ellipse cx="244" cy="172" rx="84" ry="52" fill="none" stroke="#fff" stroke-opacity="${print ? .10 : .35}" stroke-width="1"/>`;
+    const label = print ? 'Wydrukowana figurka na stole drukarki' : 'Ten sam stwór jako bryła 3D';
+    return `<svg viewBox="0 0 440 300" role="img" aria-label="${label}">${defs}${floor}${shadow}${parts}${layers}${face}</svg>`;
   }
 
   // Spotlight across the three steps: the sketch morphs, the solid comes into focus, the print grows under a moving nozzle
   F.morphTile(document.getElementById('art-2d'));
-  document.getElementById('art-3d').innerHTML = F.sketchSvg(F.PRESETS.Pies, 'color', 'Ten sam stwór jako bryła 3D');
-  {
-    const p = printed('p', F.PRESETS.Pies);
-    document.getElementById('art-print').innerHTML = `<svg viewBox="0 0 440 300" role="img" aria-label="Wydrukowana figurka na stole drukarki">${p.defs}${p.floor}${p.shadow}<g class="ghost">${p.fig}</g><g clip-path="url(#pgrow)">${p.fig}</g>` +
-      '<g class="nozzle"><path d="M196 236 h20 l-4 10 h-12 z" fill="#c9c9cf"/><rect x="186" y="222" width="40" height="14" rx="3" fill="#8a8a92"/><path d="M60 229 H380" stroke="#8a8a92" stroke-opacity=".35" stroke-width="2"/></g></svg>';
-  }
+  let pr = shaded('p', true);
+  pr = pr.replace('</defs>', '<clipPath id="pgrow"><rect class="grow" x="0" y="0" width="440" height="250"/></clipPath></defs>');
+  const pi = pr.indexOf('<g fill="url(#p'), pj = pr.lastIndexOf('</svg>'), pbody = pr.slice(pi, pj);
+  pr = pr.slice(0, pi) + `<g class="ghost">${pbody}</g><g clip-path="url(#pgrow)">${pbody}</g>` +
+    '<g class="nozzle"><path d="M196 236 h20 l-4 10 h-12 z" fill="#c9c9cf"/><rect x="186" y="222" width="40" height="14" rx="3" fill="#8a8a92"/><path d="M60 229 H380" stroke="#8a8a92" stroke-opacity=".35" stroke-width="2"/></g>' + pr.slice(pj);
+  document.getElementById('art-3d').innerHTML = shaded('s', false);
+  document.getElementById('art-print').innerHTML = pr;
   const tilesEl = document.querySelector('.tiles'), spotTiles = [...tilesEl.querySelectorAll('.tile')];
   if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
     let si = 0, timer = 0;
@@ -745,12 +789,12 @@ body.menu .drawer { transform: none; visibility: visible; transition: transform 
   const R = Math.max(54, head.hr * 2.4), C = 2 * Math.PI * R, seg = C / 6;
   const ring = `<g transform="rotate(-120 ${head.hx.toFixed(1)} ${head.hy.toFixed(1)})"><circle cx="${head.hx.toFixed(1)}" cy="${head.hy.toFixed(1)}" r="${R.toFixed(1)}" fill="none" stroke="var(--blue)" stroke-opacity=".18" stroke-width="22" stroke-dasharray="${seg - 5} 5"/>
     <circle cx="${head.hx.toFixed(1)}" cy="${head.hy.toFixed(1)}" r="${R.toFixed(1)}" fill="none" stroke="var(--red)" stroke-opacity=".85" stroke-width="22" stroke-dasharray="${seg - 5} ${C - seg + 5}"/></g>`;
-  const p4 = printed('u', F.PRESETS.Pies);
+  const warn = '<path d="M182 228 q62 26 124 0" fill="none" stroke="#ff2a3c" stroke-width="2.2" stroke-dasharray="5 5"/><g transform="translate(352 206)"><circle r="13" fill="#ff2a3c"/><path d="M0 -6 V2" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><circle cy="7" r="1.6" fill="#fff"/></g>';
   const step = {
     'st-1': addTo(F.sketchSvg(F.PRESETS.Kot, 'color', 'Wylosowany stwór'), dice),
     'st-2': addTo(F.sketchSvg(F.PRESETS.Pies, 'color', 'Koło wyboru wokół głowy stwora'), ring),
-    'st-3': F.sketchSvg(F.PRESETS.Smok, 'print', 'Smok w kolorach druku: czerwone końcówki rogów i ogona wymagają uwagi'),
-    'st-4': `<svg viewBox="0 0 440 300" role="img" aria-label="Wydrukowana figurka na stole drukarki">${p4.defs}${p4.floor}${p4.shadow}${p4.fig}</svg>`,
+    'st-3': addTo(shaded('t', false), warn),
+    'st-4': shaded('u', true),
   };
   Object.entries(step).forEach(([id, svg]) => { document.getElementById(id).innerHTML = svg; });
 
