@@ -12,7 +12,7 @@ const typeOf = (id: 'plan' | 'build', index: number, fallback: BadgeKey): { kind
   return { kind: opt && opt.id in BADGE_SVG ? (opt.id as BadgeKey) : fallback, label: opt?.label ?? '' };
 };
 
-/** The creature's DNA code above the sketch: one line, live with every change; one click copies it (the frame flashes).
+/** The creature's DNA code above the sketch: live with every change; one click copies it (a small note says so).
  *  Beside it, the badges of the creature's body plan and build. */
 export function DnaStrip() {
   const { genome } = useStudioState(); // re-render on every genome change
@@ -33,8 +33,10 @@ export function DnaStrip() {
         <TypeBadge kind={build.kind} label={`Budowa: ${build.label}`} />
       </div>
       <button type="button" className={`dna-strip${copied ? ' copied' : ''}`} onClick={copy} title="Kliknij, aby skopiować kod DNA" aria-label="Kod DNA stwora. Kliknij, aby skopiować">
-        <code>{code}</code>
+        {/* a narrow window wraps the code at its colons (between genes), never inside a gene */}
+        <code>{code.split(':').map((gene, i) => <span key={i}>{i ? ':' : ''}{i ? <wbr /> : null}{gene}</span>)}</code>
       </button>
+      {copied && <span className="dna-toast" role="status">Skopiowano kod DNA</span>}
     </div>
   );
 }
