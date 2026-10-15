@@ -37,7 +37,7 @@ export const PARTS: readonly PartSpec[] = [
   { id: 'neck', blocks: ['head'], slots: ['neck', 'neckDecor'], repr3D: 'sweep', modular: false, note: 'stożek ścięty; grzebień/pancerz jako grzbiety o wysokości 0,8 mm' },
   { id: 'head', blocks: ['head'], slots: ['head'], repr3D: 'ellipsoid', modular: false, note: 'elipsoida czaszki; żadnych sztucznych podpór pod pyskiem' },
   { id: 'snout', blocks: ['snout'], slots: ['snout', 'nose', 'nostrils'], repr3D: 'sweep', modular: false, note: 'zwężająca się kufa; nos jako kopułka z dwoma nozdrzami' },
-  { id: 'ears', blocks: ['ears'], slots: ['ear', 'earIn'], repr3D: 'plate', modular: false, note: 'płytka 1,6 mm; wnętrze jako zagłębienie koloru' },
+  { id: 'ears', blocks: ['ears'], slots: ['ear', 'earIn', 'earFlop'], repr3D: 'plate', modular: false, note: 'płytka 1,6 mm; wnętrze jako zagłębienie koloru' },
   { id: 'horns', blocks: ['horns'], slots: ['horns'], repr3D: 'sweep', modular: false, note: 'rogi jako sweep, kąt nawisu <= 45°, czubek >= 1,2 mm' },
   { id: 'antennae', blocks: ['antennae'], slots: ['antennae'], repr3D: 'plate', modular: false, note: 'para czułków 2 mm pochylonych do przodu <= 25°, z kulką albo pierzastym listkiem' },
   { id: 'stalks', blocks: ['face'], slots: ['stalks'], repr3D: 'sweep', modular: false, note: 'szypułki oczu 2,4 mm, oko jako kula na czubku' },
@@ -63,11 +63,11 @@ export const RENDER_ONLY_SLOTS: readonly SlotId[] = ['shadow', 'torsoClip', 'bel
 /** Additive parts that form the support-free print silhouette (whiskers are printed separately). */
 export const PRINT_SOLID_SLOTS: readonly SlotId[] = [
   'tail', 'legBFar', 'legFFar', 'legB', 'torso', 'saddle', 'spines', 'legF', 'neck', 'mane', 'collar',
-  'ear', 'horns', 'antennae', 'stalks', 'tuft', 'head', 'snout', 'maw', 'wingNear', 'wingFar', 'finD', 'finP', 'arms', 'hands', 'handsFar',
+  'ear', 'horns', 'antennae', 'stalks', 'tuft', 'head', 'snout', 'maw', 'wingNear', 'wingFar', 'finD', 'finP', 'arms', 'hands', 'handsFar', 'earFlop',
 ];
 
 export const SLOT_NAME_PL: Record<SlotId, string> = {
-  shadow: 'cień', stand: 'podstawka', arms: 'macki', hands: 'ręka', handsFar: 'ręka', finD: 'płetwa grzbietowa', finP: 'płetwa piersiowa', wingFar: 'skrzydło', tail: 'ogon', legBFar: 'noga tylna', legFFar: 'noga przednia', legB: 'noga tylna',
+  shadow: 'cień', stand: 'podstawka', arms: 'macki', hands: 'ręka', handsFar: 'ręka', earFlop: 'ucho', finD: 'płetwa grzbietowa', finP: 'płetwa piersiowa', wingFar: 'skrzydło', tail: 'ogon', legBFar: 'noga tylna', legFFar: 'noga przednia', legB: 'noga tylna',
   torso: 'brzuch/tułów', torsoClip: 'tułów', belly: 'brzuch', pattern: 'wzór', coat: 'faktura', coatLegs: 'faktura nóg', coatOn: 'faktura', coatLegB: 'faktura', coatLegF: 'faktura', saddle: 'siodło', spines: 'kolce', legF: 'noga przednia',
   neck: 'szyja', neckDecor: 'ozdoba szyi', mane: 'grzywa', collar: 'obroża', ear: 'ucho', earIn: 'ucho', horns: 'rogi', antennae: 'czułki', stalks: 'szypułki oczu', tuft: 'czub',
   head: 'głowa', snout: 'pysk', wingNear: 'skrzydło', nose: 'nos', mouth: 'usta', maw: 'wnętrze pyska', tongue: 'język', teeth: 'zęby', whiskers: 'wąsy', eye: 'oko',

@@ -2,7 +2,8 @@
   "B": {
     "01": "barrel",
     "02": "lean",
-    "03": "bulky"
+    "03": "bulky",
+    "04": "athletic"
   },
   "L": {
     "01": "paw",
@@ -22,13 +23,16 @@
   "S": {
     "01": "pug",
     "02": "wolf",
-    "03": "beak"
+    "03": "beak",
+    "04": "cat",
+    "05": "dog"
   },
   "E": {
     "00": "none",
     "01": "wolf",
     "02": "bear",
-    "03": "rabbit"
+    "03": "rabbit",
+    "04": "floppy"
   },
   "R": {
     "00": "none",

@@ -53,7 +53,7 @@ const s = (name: string, label: string): StepField => ({ kind: 'step', name, lab
 
 export const BLOCKS: readonly BlockDef[] = [
   { id: 'body', letter: 'B', label: 'Tułów', fields: [
-    e('shape', [['barrel', 'Beczka'], ['lean', 'Smukły'], ['bulky', 'Masywny']]),
+    e('shape', [['barrel', 'Beczka'], ['lean', 'Smukły'], ['bulky', 'Masywny'], ['athletic', 'Zwierzęcy (głęboka klatka)']]),
     s('length', 'Długość'), s('girth', 'Pękatość'),
   ] },
   { id: 'legs', letter: 'L', label: 'Nogi', fields: [
@@ -66,11 +66,11 @@ export const BLOCKS: readonly BlockDef[] = [
     s('neckLength', 'Długość szyi'),
   ] },
   { id: 'snout', letter: 'S', label: 'Pysk', fields: [
-    e('type', [['pug', 'Krótki'], ['wolf', 'Wilczy'], ['beak', 'Dziób']], 1),
+    e('type', [['pug', 'Krótki'], ['wolf', 'Wilczy'], ['beak', 'Dziób'], ['cat', 'Koci'], ['dog', 'Psi']], 1),
     s('reach', 'Wysunięcie'),
   ] },
   { id: 'ears', letter: 'E', label: 'Uszy', noneMeansEmpty: true, fields: [
-    e('type', [['none', 'Brak'], ['wolf', 'Wilcze'], ['bear', 'Misiowe'], ['rabbit', 'Zajęcze']], 1),
+    e('type', [['none', 'Brak'], ['wolf', 'Wilcze'], ['bear', 'Misiowe'], ['rabbit', 'Zajęcze'], ['floppy', 'Opadające (psie)']], 1),
     s('scale', 'Skala'),
     e('dir', [['up', 'Do góry'], ['back', 'Położone do tyłu'], ['forward', 'Do przodu']]),
   ] },
@@ -99,6 +99,7 @@ export const BLOCKS: readonly BlockDef[] = [
     e('whiskerDir', [['side', 'Na boki'], ['forward', 'Skośnie do przodu'], ['back', 'Skośnie do tyłu']]),
     e('expression', [['calm', 'Spokojna'], ['grin', 'Uśmiech'], ['angry', 'Zła']]),
     e('eyeSet', [['bulging', 'Wyłupiaste'], ['deep', 'Osadzone głębiej']], 0, 'Osadzenie'),
+    e('eyeShape', [['round', 'Okrągłe'], ['almond', 'Kocie (migdałowe)'], ['animal', 'Zwierzęce (ciemne)']], 0, 'Kształt'),
   ] },
   { id: 'coat', letter: 'K', label: 'Pokrycie i wzór', fields: [
     e('texture', [['smooth', 'Gładkie'], ['fur', 'Futro'], ['scales', 'Łuski'], ['armor', 'Pancerz']]),
@@ -166,7 +167,7 @@ export const GENES: readonly GeneDef[] = [
   gene('T', 'Ogon', 'tail', 'type', 'length', 'dir'),
   gene('U', 'Końcówka ogona', null),
   gene('C', 'Grzywa / czub / kolce', 'crest', 'type', 'scale'),
-  gene('O', 'Oczy', 'face', 'eyes', 'eyeSet'),
+  gene('O', 'Oczy', 'face', 'eyes', 'eyeSet', 'eyeShape'),
   gene('M', 'Mina', 'face', 'expression'),
   gene('Z', 'Zęby', 'face', 'teeth'),
   gene('V', 'Wąsy', 'face', 'whiskers', 'whiskerDir'),

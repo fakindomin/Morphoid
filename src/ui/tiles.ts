@@ -14,6 +14,7 @@ export const TILE_GROUPS: TileGroup[] = [
       { block: 'head', field: 'skull', label: 'Kształt czaszki' },
       { block: 'face', field: 'eyes', label: 'Oczy' },
       { block: 'face', field: 'eyeSet', label: 'Osadzenie oczu' },
+      { block: 'face', field: 'eyeShape', label: 'Kształt oczu' },
     ] },
     { id: 'snout', title: 'Pysk', fields: [
       { block: 'snout', field: 'type', label: 'Kształt pyska' },

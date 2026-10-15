@@ -95,6 +95,7 @@ export const SPEC_3D: Record<SlotId, Spec | null> = {
   snout: { color: 'c1', mirror: false, z: centre, t: (c) => c.snoutW, bevel: (t) => round(0.42)(t) },
   nose: { color: 'ink', mirror: false, z: centre, t: (c) => c.snoutW * 0.8, bevel: (t) => round(0.45)(t) },
   ear: { color: 'c1', mirror: true, z: (c) => c.headW * 0.28, t: () => 2.8, bevel: (t) => round(0.45)(t), dome: (t) => t * 0.75 },
+  earFlop: { color: 'c1', mirror: true, z: (c) => c.headW / 2, t: () => 2.2, bevel: (t) => round(0.45)(t), dome: (t) => t * 0.75 }, // laid on the head's side, see buildParts3D
   earIn: { color: 'c2soft', mirror: true, z: (c) => c.headW * 0.28 + 1.35, t: () => 0.3, bevel: () => 0.05 },
   horns: { color: 'c2', mirror: true, z: (c) => c.headW * 0.3, t: () => 3.4, bevel: (t) => round(0.45)(t), dome: (t) => t * 0.75 },
   antennae: { color: 'c2', mirror: true, z: (c) => c.headW * 0.22, t: () => 2, bevel: (t) => round(0.45)(t), dome: (t) => t * 0.75 },
@@ -158,6 +159,11 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
   }
   const head = out.find((p) => p.slot === 'head');
   if (head) for (const p of out) if (p.slot === 'ear') p.polys = seatOn(p, head);
+  // a hanging ear lies against the side of the head: its root sinks into the skin, the leaf hangs just off the cheek
+  if (head) for (const p of out) if (p.slot === 'earFlop') {
+    const host = hostsOf(out, ['head'])[0]!, top = p.polys.flat().reduce((a, b) => (b[1] > a[1] ? b : a));
+    p.z = p.side * (skinZ(host, top[0] - 1.5, top[1] - 1.5) + p.thickness / 2 - 1.2);
+  }
   const lang = langOf(g, rig);
   speakLanguage(out, lang); // round, square or sharp edges
   cutPlanes(out, lang, rig.dims.plan); // planes on the head, the Pysk and the back, before anything is mounted on them
@@ -168,7 +174,8 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
     const zs = ctx.headW * 0.25 * p.side;
     if (p.slot === 'eye') p.z = zs;
   }
-  eyeballs(out, g.face!.eyes === EYES.stalks, g.face!.eyes === EYES.stalks ? EYE_OUT[0] : EYE_OUT[g.face!.eyeSet ?? 0] ?? EYE_OUT[0]);
+  eyeballs(out, g.face!.eyes === EYES.stalks, g.face!.eyes === EYES.stalks ? EYE_OUT[0] : EYE_OUT[g.face!.eyeSet ?? 0] ?? EYE_OUT[0],
+    g.face!.eyes === EYES.stalks ? 0 : g.face!.eyeShape ?? 0);
   seatTeeth(out);
   // the inside of an ear is a real cup: the inner-ear outline is hollowed out of the ear's outer face
   for (const p of [...out]) if (p.slot === 'earIn') out.push({ ...p, id: `earCup${p.side > 0 ? '+' : '-'}`, thickness: EAR_CUP_MM * 2, bevel: EAR_CUP_MM * 0.8, carve: true, z: p.z + p.side * 0.25 });
@@ -585,7 +592,7 @@ function seatTeeth(out: Part3D[]): void {
  * and pupil are painted on its front, and the eyelids are round folds rolled over the top and under the bottom of the
  * ball, following the arcs the 2D sketch draws (eyelids in shapes.ts).
  */
-function eyeballs(out: Part3D[], stalks: boolean, eyeOut: number): void {
+function eyeballs(out: Part3D[], stalks: boolean, eyeOut: number, shape: number): void {
   const head = hostsOf(out, ['head'])[0];
   for (const eye of out.filter((p) => p.slot === 'eye')) {
     const side = eye.side || 1, cones: Cone[] = [], lidCones: Cone[] = [];
@@ -600,7 +607,7 @@ function eyeballs(out: Part3D[], stalks: boolean, eyeOut: number): void {
       const zc = stalks ? eye.z : side * (surf + (eyeOut - 1) * r);
       cones.push({ a: [cx, cy, zc], b: [cx, cy, zc], ra: r, rb: r });
       front = Math.max(front, Math.abs(zc) + r);
-      for (const lid of eyelids(r, eyeOut < EYE_OUT[0])) {
+      for (const lid of eyelids(r, eyeOut < EYE_OUT[0], shape)) {
         // the fold's centre line lies just above the ball, so the tube hugs it and reaches past its rim into the head
         const pts = lid.arc.map(([a, m, w]): [number, number, number, number] => {
           const R = r + 0.3 * w, proj = Math.min(0.98 * R, m), cosP = Math.sqrt(1 - (proj / R) ** 2);

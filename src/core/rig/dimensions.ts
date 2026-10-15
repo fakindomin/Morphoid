@@ -43,7 +43,7 @@ export function headRadius(girth: number, plan: number): number {
 }
 
 /** Body width (Z) as a fraction of its girth, per body shape. */
-export const BODY_WIDTH_RATIO = [0.9, 0.7, 1.15] as const;
+export const BODY_WIDTH_RATIO = [0.9, 0.7, 1.15, 0.72] as const;
 
 /**
  * Build (gene J): one setting that rescales the trunk and limbs of the whole creature. `legW` is the leg's width in

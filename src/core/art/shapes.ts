@@ -45,6 +45,8 @@ export const SLOTS = [
   ['legOver0', 'skin'], ['legOver1', 'skin'], ['legOver2', 'skin'],
   // the near arm with its hand, drawn over the body with its own outline (the far one peeks out behind it)
   ['hands', 'skin'],
+  // a dog's hanging ear lies over the side of the head: drawn on top of it with its own outline
+  ['earFlop', 'skin'],
 ] as const satisfies readonly (readonly [string, SlotKind])[];
 
 export type SlotId = (typeof SLOTS)[number][0];
@@ -156,16 +158,39 @@ export const EYES = { many: 3, stalks: 4 } as const;
 /** Eye setting (gene O digit): bulging balls or deep-set ones. */
 export const EYE_SET = { bulging: 0, deep: 1 } as const;
 
-export function eyelids(r: number, deep = false): { arc: [number, number, number][]; upper: boolean }[] {
+/** Ear type (gene E) that hangs down the side of the head. */
+export const EAR_FLOPPY = 4;
+
+/** Body shape (gene B) with a deep chest and a tucked waist. */
+export const BODY_ATHLETIC = 3;
+
+/** Muzzle types (gene S) with their own outline: a cat's and a dog's. */
+export const SNOUT = { cat: 3, dog: 4 } as const;
+
+/** Eye shape (gene O, last digit): a round human-like eye, a cat's almond, or an animal's dark eye. */
+export const EYE_SHAPE = { round: 0, almond: 1, animal: 2 } as const;
+/**
+ * Per eye shape: how far the upper and lower lid edges close over the ball (share of its radius from the centre; the
+ * round eye's 0.55 and 0.82 leave it wide open) and how much the opening is turned (rad): an animal's eye slants, its
+ * outer corner (towards the ear) higher than the inner one by the nose.
+ */
+const LID_SHAPE: readonly { upper: number; lower: number; turn: number }[] = [
+  { upper: 0.55, lower: 0.82, turn: 0 },
+  { upper: 0.3, lower: 0.52, turn: -0.26 },
+  { upper: 0.42, lower: 0.66, turn: -0.12 },
+];
+
+export function eyelids(r: number, deep = false, shape = 0): { arc: [number, number, number][]; upper: boolean }[] {
+  const L = LID_SHAPE[shape] ?? LID_SHAPE[0]!;
   const arc = (a0: number, a1: number, inner: number, outer: number): [number, number, number][] => Array.from({ length: 13 }, (_, i) => {
-    const t = i / 12, a = a0 + (a1 - a0) * t, k = 0.3 + 0.7 * Math.sin(Math.PI * t);
+    const t = i / 12, a = a0 + (a1 - a0) * t + L.turn, k = 0.3 + 0.7 * Math.sin(Math.PI * t);
     const w = ((outer - inner) / 2) * k; // the outer edge (where the fold meets the head) stays put, the lid edge thins
     return [a, r * (outer - w), r * w];
   });
   return [
     // deep-set eyes: heavier lids that hood the ball from above and close in from below
-    { arc: arc(Math.PI * 1.06, -Math.PI * 0.12, deep ? 0.35 : 0.55, deep ? 1.3 : 1.2), upper: true },
-    { arc: arc(Math.PI * 1.08, Math.PI * 1.94, deep ? 0.68 : 0.82, deep ? 1.2 : 1.14), upper: false },
+    { arc: arc(Math.PI * 1.06, -Math.PI * 0.12, Math.min(L.upper, deep ? 0.35 : 1), deep ? 1.3 : 1.2), upper: true },
+    { arc: arc(Math.PI * 1.08, Math.PI * 1.94, Math.min(L.lower, deep ? 0.68 : 1), deep ? 1.2 : 1.14), upper: false },
   ];
 }
 const EYE_R = [1.7, 2.4, 3.2, 1.6, 2.6];
@@ -438,6 +463,7 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
   const belly = D.onBelly(n.plan);
   // rule "prosta kontra łuk": every legged, non-round trunk gets a straight back and a curved belly
   const shaped = (n.plan === D.PLAN.quadruped || n.plan === D.PLAN.biped) && n.build !== 3;
+  const athletic = g.body!.shape === BODY_ATHLETIC;
   const segs = n.plan === D.PLAN.caterpillar ? Math.max(4, Math.round(n.bodyL / 9)) : n.plan === D.PLAN.insect ? 3 : 1;
   for (let i = 0; i < 72; i++) {
     const a = (i / 72) * Math.PI * 2;
@@ -447,6 +473,10 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
       const sa = Math.sin(a), ca = Math.cos(a);
       if (sa > 0) ly = Math.pow(sa, BACK_FLAT) * tRy * k;
       else ly *= 1 + BELLY_TUCK * ca;
+      if (athletic) { // a cat's or a dog's trunk: a deep keel of a chest, a waist drawn up high, withers and a rounded croup
+        if (sa > 0) ly += tRy * (bump(a, 0.75, 0.1, 0.35) + bump(a, Math.PI - 0.55, 0.07, 0.4) - bump(a, Math.PI / 2, 0.05, 0.35));
+        else ly *= ca > 0 ? 1 + 0.4 * ca : 1 + 0.55 * ca;
+      }
     }
     if (segs > 1 && ly > 0) ly *= 1 - 0.14 * Math.abs(Math.sin((Math.PI * segs * (lx / tRx + 1)) / 2)) ** 6; // notches between segments
     if (n.plan === D.PLAN.fish) lx *= 1 + 0.12 * Math.sin(a) ** 2 * Math.sign(lx); // a fuller front, a slimmer back
@@ -572,16 +602,38 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
     put('snout', new Path().M(topB[0], topB[1]).Q(tipX + 1, tip[1] + 3, tipX, tip[1] - 1.5).Q(tipX - 0.5, tip[1] - 4, botB[0], botB[1]).Z());
   } else if (snoutType === 1) {
     put('snout', new Path().M(topB[0], topB[1]).Q(tipX - 3, tip[1] + 1.5, tipX, tip[1]).Q(tipX - 2, tip[1] - 4, botB[0], botB[1]).Z());
+  } else if (snoutType === SNOUT.cat) {
+    // a cat's muzzle: a short, rounded bridge, full whisker pads bulging forward under the nose, a small chin set back
+    const padY = tip[1] - 2.2;
+    put('snout', new Path().M(topB[0], topB[1] - 0.6).Q(tipX - 2.2, tip[1] + 2.4, tipX - 0.3, tip[1] + 0.4)
+      .Q(tipX + 1.1, padY + 0.2, tipX - 0.4, padY - 1.4).Q(tipX - 2.6, padY - 2.4, tipX - 3.6, padY - 1.6)
+      .Q(tipX - 5, padY - 3.4, botB[0], botB[1]).Z());
+  } else if (snoutType === SNOUT.dog) {
+    // a dog's muzzle: a stop (the step down from the forehead), a straight bridge, a square nose end and the lips (flews)
+    // hanging below the jaw line at the mouth's corner
+    const stop: XY = [topB[0] + 0.8, topB[1] - Math.min(2.4, hs.ry * 0.22)];
+    put('snout', new Path().M(topB[0], topB[1]).Q(topB[0] + 0.2, stop[1] + 0.4, stop[0], stop[1]).L(tipX - 1.4, tip[1] + 1.4)
+      .Q(tipX + 0.4, tip[1] + 1.2, tipX + 0.2, tip[1] - 1.2).L(tipX - 0.4, tip[1] - 3)
+      .Q(tipX - 3, tip[1] - 3.4, tipX - (tipX - botB[0]) * 0.55, tip[1] - 5.2).Q(botB[0] + 1.2, botB[1] - 0.6, botB[0], botB[1]).Z());
   } else {
     put('snout', new Path().M(topB[0], topB[1]).Q(tipX - 4, topB[1] + 2, tipX, tip[1] - 1.5)
       .L(tipX - 3.5, tip[1] - 4).L(botB[0], botB[1]).Z());
   }
-  if (snoutType !== 2) put('nose', ellipse(tipX - 1.1, tip[1] + 0.7, 1.5, 1.2));
+  // the nose: a cat's is a small triangle-ish pad, a dog's a broad leathery end
+  if (snoutType === SNOUT.cat) put('nose', ellipse(tipX - 0.9, tip[1] + 0.5, 1.15, 0.85));
+  else if (snoutType === SNOUT.dog) put('nose', ellipse(tipX - 0.8, tip[1] + 0.4, 1.8, 1.4));
+  else if (snoutType !== 2) put('nose', ellipse(tipX - 1.1, tip[1] + 0.7, 1.5, 1.2));
 
 
   // ---- ears (behind the head so their base is hidden) -----------------------------
   const er = p(pose, 'earRoot');
-  if (n.earS > 0.3) {
+  if (n.earS > 0.3 && g.ears!.type === EAR_FLOPPY) {
+    // a hanging ear: a long leaf from the crown down past the eye, its tip swinging back (the direction digit tilts it)
+    const e = n.earS, turn = [0, 0.25, -0.18][g.ears!.dir ?? 0] ?? 0;
+    const leaf = new Path().M(er[0] + 2.2, er[1] + 1.2).Q(er[0] + e * 0.42, er[1] - e * 0.55, er[0] + e * 0.05, er[1] - e * 1.05)
+      .Q(er[0] - e * 0.3, er[1] - e * 1.12, er[0] - e * 0.28, er[1] - e * 0.6).Q(er[0] - e * 0.22, er[1] + 0.6, er[0] - 1.2, er[1] + 1.6).Z();
+    put('earFlop', leaf.rotated(er[0], er[1], turn));
+  } else if (n.earS > 0.3) {
     const ep = earPaths(g.ears!.type!, n.earS, er[0], er[1]);
     const turn = DIR_TURN.ears[g.ears!.dir ?? 0] ?? 0; // turned about the ear's root
     put('ear', ep.outer.rotated(er[0], er[1], turn));
@@ -697,16 +749,25 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
     : face.eyes === EYES.stalks ? [[eyeOnStalk(head, hs), er2]] : [[eye, er2]];
   if (face.eyes === EYES.stalks) put('stalks', tube(eyeStalkRoot(head, hs), eyes[0]![0], STALK_W, STALK_W));
   const ew = new Path(), ei = new Path(), ep = new Path(), eg = new Path();
+  const eyeShape = face.eyes === EYES.stalks ? EYE_SHAPE.round : face.eyeShape ?? EYE_SHAPE.round;
   for (const [[x, y], r] of eyes) {
     ew.append(ellipse(x, y, r, r * 1.08));
-    ei.append(ellipse(x + r * 0.2, y - r * 0.04, r * 0.8, r * 0.86)); // drawing only: a coloured iris round the pupil
-    ep.append(ellipse(x + r * 0.22, y - r * 0.05, r * 0.62, r * 0.7));
+    if (eyeShape === EYE_SHAPE.almond) { // a cat's eye: the iris fills the opening, the pupil is an upright slit
+      ei.append(ellipse(x + r * 0.12, y, r * 0.98, r * 1.04));
+      ep.append(ellipse(x + r * 0.16, y, r * 0.17, r * 0.8));
+    } else if (eyeShape === EYE_SHAPE.animal) { // an animal's eye: almost all dark, a thin ring of iris
+      ei.append(ellipse(x + r * 0.1, y, r * 0.98, r * 1.04));
+      ep.append(ellipse(x + r * 0.14, y, r * 0.8, r * 0.86));
+    } else {
+      ei.append(ellipse(x + r * 0.2, y - r * 0.04, r * 0.8, r * 0.86)); // drawing only: a coloured iris round the pupil
+      ep.append(ellipse(x + r * 0.22, y - r * 0.05, r * 0.62, r * 0.7));
+    }
     eg.append(ellipse(x + r * 0.42, y + r * 0.32, r * 0.26, r * 0.26)).append(ellipse(x - r * 0.02, y - r * 0.38, r * 0.12, r * 0.12));
   }
   put('eye', ew); put('iris', ei); put('pupil', ep); put('glint', eg);
   // eyelids: a heavy fold over the top of the eyeball and a thin one under it (the same arcs spec3d rolls round the ball)
   const lids = new Path(), deepEyes = face.eyes !== EYES.stalks && face.eyeSet === EYE_SET.deep;
-  for (const [c, r] of eyes) for (const lid of eyelids(r, deepEyes)) {
+  for (const [c, r] of eyes) for (const lid of eyelids(r, deepEyes, eyeShape)) {
     const at = (a: number, d: number): XY => [c[0] + Math.cos(a) * d, c[1] + Math.sin(a) * d * 1.08];
     const outer = lid.arc.map(([a, m, w]) => at(a, m + w)), inner = lid.arc.map(([a, m, w]) => at(a, m - w)).reverse();
     lids.append(polygon([...outer, ...inner]));

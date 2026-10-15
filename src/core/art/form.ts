@@ -83,6 +83,9 @@ function keepsOf(out: Part3D[]): Keep[] {
     if (p.slot === 'eye') {
       const b = box(p);
       keep.push({ p: [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, p.z], m: Math.max(b.x1 - b.x0, b.y1 - b.y0) / 2 + 0.8 });
+    } else if (p.slot === 'earFlop') { // a hanging ear keeps the crown it hangs from
+      const top = p.polys.flat().reduce((a, b) => (b[1] > a[1] ? b : a));
+      keep.push({ p: [top[0] - 1.5, top[1] - 1.5, p.z], m: 1.2 });
     } else if (ROOTED.has(p.slot) && !p.plane && !p.limb) {
       // an ear or a horn keeps the skin it grows out of: its root (the outline inside the head) stays under the cut
       const h = out.find((q) => q.slot === 'head' && !q.limb);
