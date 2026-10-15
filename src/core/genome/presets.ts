@@ -96,7 +96,7 @@ export const PRESETS: readonly Preset[] = [
   } },
   { id: 'monkey', name: 'Małpa', genes: {
     body: { shape: 3, length: 1, girth: 2 }, legs: { foot: 7, length: 5 }, head: { skull: 0, neckLength: 1 },
-    snout: { type: 8, reach: 2 }, ears: { type: 2, scale: 2, dir: 0 }, tail: { type: 1, length: 3, dir: 1 },
+    snout: { type: 9, reach: 2 }, ears: { type: 2, scale: 2, dir: 0 }, tail: { type: 1, length: 3, dir: 1 },
     face: { eyes: 1, eyeShape: 2 }, coat: { texture: 1 }, palette: { index: 6 },
   } },
   { id: 'kangaroo', name: 'Kangur', genes: {

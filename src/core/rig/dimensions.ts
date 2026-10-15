@@ -136,4 +136,6 @@ export const FOOT_SOLE: readonly FootSole[] = [
 ];
 export const MIN_SOLE_AREA_MM2 = 60;
 /** Gene option indices the rig needs: the monkey's hand (foot) and the ape's face (snout). */
-export const FOOT_HAND = 7, SNOUT_APE = 8;
+export const FOOT_HAND = 7, SNOUT_APE = 8, SNOUT_MACAQUE = 9;
+/** A primate's muzzle: its ears sit on the sides of the head. */
+export const primateSnout = (t: number): boolean => t === SNOUT_APE || t === SNOUT_MACAQUE;

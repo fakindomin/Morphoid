@@ -185,7 +185,7 @@ export const EAR = { cat: 5, mouse: 6, horse: 7 } as const;
 export const BODY_ATHLETIC = 3;
 
 /** Muzzle types (gene S) with their own outline: a cat's and a dog's. */
-export const SNOUT = { beak: 2, cat: 3, dog: 4, horse: 5, bear: 6, rodent: 7, ape: 8 } as const;
+export const SNOUT = { beak: 2, cat: 3, dog: 4, horse: 5, bear: 6, rodent: 7, ape: 8, macaque: 9 } as const;
 
 /** Eye shape (gene O, last digit): a round human-like eye, a cat's almond, or an animal's dark eye. */
 export const EYE_SHAPE = { round: 0, almond: 1, animal: 2, sleepy: 3, reptile: 4, goat: 5 } as const;
@@ -624,8 +624,10 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
   const botB: XY = [head[0] + hs.rx * 0.45, head[1] - hs.ry * 0.78];
   // an ape's face is flat: the muzzle (the mouth's bulge) stands just in front of the skull, low on the face
   const ape = snoutType === SNOUT.ape;
-  const tipX = ape ? head[0] + hs.rx * (1.0 + g.snout!.reach! * 0.12) : Math.max(muzzle[0], head[0] + hs.rx * 0.95);
-  const tip: XY = [tipX, ape ? head[1] - hs.ry * 0.32 : muzzle[1] - 0.5];
+  // a macaque's muzzle stands further forward, still short next to a dog's
+  const macaque = snoutType === SNOUT.macaque, reach = g.snout!.reach!;
+  const tipX = ape ? head[0] + hs.rx * (1.0 + reach * 0.12) : macaque ? head[0] + hs.rx * (1.2 + reach * 0.14) : Math.max(muzzle[0], head[0] + hs.rx * 0.95);
+  const tip: XY = [tipX, ape ? head[1] - hs.ry * 0.32 : macaque ? head[1] - hs.ry * 0.25 : muzzle[1] - 0.5];
   if (snoutType === 0) {
     put('snout', new Path().M(topB[0], topB[1]).Q(tipX + 1, tip[1] + 3, tipX, tip[1] - 1.5).Q(tipX - 0.5, tip[1] - 4, botB[0], botB[1]).Z());
   } else if (snoutType === 1) {
@@ -660,6 +662,14 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
     put('snout', new Path().M(head[0] + hs.rx * 0.45, head[1] + hs.ry * 0.62).Q(fx + 0.6, browY + 1.2, fx + 0.4, browY - 0.6)
       .Q(fx - 0.3, tip[1] + 2.6, tipX - 0.6, tip[1] + 1.4).Q(tipX + 0.7, tip[1] - 0.6, tipX - 0.3, tip[1] - 2.6)
       .Q(tipX - 1.6, tip[1] - 3.8, botB[0] + 1.4, botB[1] - 0.2).L(botB[0], botB[1]).Z());
+  } else if (snoutType === SNOUT.macaque) {
+    // a macaque's muzzle: a brow ridge over the eyes, a short bridge sloping down to a rounded muzzle that stands well
+    // forward, the nostrils at its top front, a full upper lip and a round chin set back under it
+    const fx = head[0] + hs.rx * 0.86, browY = head[1] + hs.ry * 0.3;
+    put('snout', new Path().M(head[0] + hs.rx * 0.45, head[1] + hs.ry * 0.62).Q(fx + 0.8, browY + 1.4, fx + 0.6, browY - 0.4)
+      .Q(fx + 0.4, tip[1] + 2.8, tipX - 1.6, tip[1] + 2).Q(tipX + 0.6, tip[1] + 1.6, tipX + 0.4, tip[1] - 0.4)
+      .Q(tipX + 0.2, tip[1] - 2.4, tipX - 1.2, tip[1] - 3).Q(tipX - 2.8, tip[1] - 4.6, botB[0] + 1.2, botB[1] - 0.6)
+      .L(botB[0], botB[1]).Z());
   } else if (snoutType === SNOUT.rodent) {
     // a rodent's muzzle: tapering to a round nose that overhangs a small, receding chin
     put('snout', new Path().M(topB[0], topB[1]).Q(tipX - 3.2, tip[1] + 2.2, tipX - 0.4, tip[1] + 0.9)
@@ -674,7 +684,7 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
   else if (snoutType === SNOUT.dog) put('nose', ellipse(tipX - 0.8, tip[1] + 0.4, 1.8, 1.4));
   else if (snoutType === SNOUT.bear) put('nose', ellipse(tipX - 0.7, tip[1] + 0.7, 2, 1.5));
   else if (snoutType === SNOUT.rodent) put('nose', ellipse(tipX - 0.5, tip[1] + 0.1, 1.05, 0.95));
-  else if (snoutType !== SNOUT.beak && snoutType !== SNOUT.horse && !ape) put('nose', ellipse(tipX - 1.1, tip[1] + 0.7, 1.5, 1.2)); // a horse has no leathery nose, only nostrils
+  else if (snoutType !== SNOUT.beak && snoutType !== SNOUT.horse && !ape && snoutType !== SNOUT.macaque) put('nose', ellipse(tipX - 1.1, tip[1] + 0.7, 1.5, 1.2)); // a horse has no leathery nose, only nostrils
 
 
   // ---- ears (behind the head so their base is hidden) -----------------------------

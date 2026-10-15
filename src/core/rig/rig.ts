@@ -164,7 +164,7 @@ function build(g: MorphotypeGenome, code: string): Rig {
     muzzle: [headR + D.SNOUT_REACH[g.snout!.reach!]!, -2, 0],
     // ears and horns sit on the skull's crown, wherever its size puts it
     hornRoot: [1 * headK, 4 * headK, 0],
-    earRoot: human || g.snout!.type === D.SNOUT_APE ? [-3.2 * headK, 1.6 * headK, 0] : [-2 * headK, 4 * headK, 0], // a primate's ears (an ape's face) sit on the sides of the head
+    earRoot: human || D.primateSnout(g.snout!.type!) ? [-3.2 * headK, 1.6 * headK, 0] : [-2 * headK, 4 * headK, 0], // a primate's ears (an ape's face) sit on the sides of the head
     crestRoot: [0, 2, 0],
     wingRoot: [L * 0.18, G * 0.45, W * 0.3],
     tailBase: human ? [L * H.tail[0], G * H.tail[1], 0] : [-L * 0.5 + 4, fish ? 0 : anatQ ? G * A.tailY : G * 0.1, 0], // root buried in the rump (an animal's sits high on the croup)

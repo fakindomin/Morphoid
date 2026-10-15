@@ -80,7 +80,7 @@ export const BLOCKS: readonly BlockDef[] = [
     s('neckLength', 'Długość szyi'),
   ] },
   { id: 'snout', letter: 'S', label: 'Pysk', fields: [
-    e('type', [['pug', 'Krótki'], ['wolf', 'Wilczy'], ['beak', 'Dziób'], ['cat', 'Koci'], ['dog', 'Psi'], ['horse', 'Koński'], ['bear', 'Niedźwiedzi'], ['rodent', 'Gryzonia'], ['ape', 'Małpi']], 1),
+    e('type', [['pug', 'Krótki'], ['wolf', 'Wilczy'], ['beak', 'Dziób'], ['cat', 'Koci'], ['dog', 'Psi'], ['horse', 'Koński'], ['bear', 'Niedźwiedzi'], ['rodent', 'Gryzonia'], ['ape', 'Małpi'], ['macaque', 'Makaka']], 1),
     s('reach', 'Wysunięcie'),
   ] },
   { id: 'ears', letter: 'E', label: 'Uszy', noneMeansEmpty: true, fields: [
