@@ -87,7 +87,6 @@ export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPick
     let fitKey = '', fit = { scale: 4.6, cx: 410, lift: 0 }, snap = true;
     // the turned views: what is on screen (`shown`) and the turn under way (`turn`); null `shown` = the classic side view
     let shown: End | null = null;
-    let fadeIn: { end: End; t0: number } | null = null;
     let turn: { from: End; to: End; t0: number; ms: number; fitFrom: { scale: number; cx: number; lift: number } } | null = null;
     const fitOf = (e: { x0: number; x1: number; y1: number; view?: ViewId }): { scale: number; cx: number; lift: number } => {
       const v = viewRef.current;
@@ -136,12 +135,18 @@ export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPick
       if (key !== lastKey) { dirtyRef.current = true; lastKey = key; }
 
       const c = canvasRef.current, v = viewRef.current;
-      if (!turn && !shown && rig.code !== fitKey) {
-        // fit the resting shape (not the easing one) into the stage
+      // the full side drawing's own fit (its outline, not the projected solid's): a turn back to the side ends exactly on it
+      let sideFit: { scale: number; cx: number; lift: number } | null = null;
+      const fitSide = (): { scale: number; cx: number; lift: number } => {
+        if (sideFit) return sideFit;
         const e = extentOf(buildPaths(tgt, g, rig, false) as never);
         const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, (v.w - 2 * MARGIN_X) / Math.max(1, e.x1 - e.x0), (v.ground - TOP) / Math.max(1, e.y1)));
-        fit = { scale, cx: v.w / 2 + ((e.x0 + e.x1) / 2) * scale, lift: 0 };
-        // only the first fit jumps; later ones (a new shape, the end of a turn) glide
+        return (sideFit = { scale, cx: v.w / 2 + ((e.x0 + e.x1) / 2) * scale, lift: 0 });
+      };
+      if (!turn && !shown && rig.code !== fitKey) {
+        // fit the resting shape (not the easing one) into the stage
+        fit = fitSide();
+        // only the first fit jumps; later ones (a new shape) glide
         if (snap) { v.scale = fit.scale; v.cx = fit.cx; v.lift = 0; snap = false; }
         fitKey = rig.code;
       }
@@ -149,7 +154,7 @@ export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPick
       if (turn) {
         // the turn: the view's scale and centre glide from where they were to the new view's own fit
         turnT = Math.min(1, (now - turn.t0) / turn.ms);
-        const e = easeInOut(turnT), f1 = fitOf(extentOfView(turn.to));
+        const e = easeInOut(turnT), f1 = turn.to.view === 'side' ? fitSide() : fitOf(extentOfView(turn.to));
         v.scale = turn.fitFrom.scale + (f1.scale - turn.fitFrom.scale) * e;
         v.cx = turn.fitFrom.cx + (f1.cx - turn.fitFrom.cx) * e;
         v.lift = turn.fitFrom.lift + (f1.lift - turn.fitFrom.lift) * e;
@@ -157,7 +162,7 @@ export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPick
       const ease = 1 - Math.exp(-dt * 10);
       const moving = !turn && (Math.abs(fit.scale - v.scale) > 1e-3 || Math.abs(fit.cx - v.cx) > 0.05 || Math.abs(fit.lift - v.lift) > 0.05);
       if (moving) { v.scale += (fit.scale - v.scale) * ease; v.cx += (fit.cx - v.cx) * ease; v.lift += (fit.lift - v.lift) * ease; }
-      if (c && (dirtyRef.current || remaining > 1e-3 || moving || turn || fadeIn)) {
+      if (c && (dirtyRef.current || remaining > 1e-3 || moving || turn)) {
         dirtyRef.current = false;
         const ctx = c.getContext('2d')!;
         const k = c.width / v.w;
@@ -182,24 +187,25 @@ export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPick
           return alpha > 0.5 ? o : under;
         };
         if (turn || shown) {
-          fadeIn = null;
           const [from, to] = turn ? [turn.from, turn.to] : [shown!, shown!];
           const parts = morphParts(from, to, turn ? easeInOut(turnT) : 1, rep.heat, md === 'print');
+          // coming back to the side: the full drawing (eyes, mouth, pattern) takes over during the end of the turn, in
+          // the same place and size, so the turn ends on it with no swap and no jump
+          const left = turn ? turn.ms * (1 - turnT) : Infinity;
+          const back = turn && turn.to.view === 'side' && left < FADE_IN_MS ? easeInOut(1 - left / FADE_IN_MS) : 0;
+          ctx.globalAlpha = 1 - back;
           out = drawParts(ctx, 1 / (v.scale * k), { parts, mode: md, palette, hot });
+          ctx.globalAlpha = 1;
           const since = turn ? now - turn.t0 : FADE_MS;
           if (turn && turn.from.view === 'side' && since < FADE_MS) out = over(1 - since / FADE_MS, out);
+          if (back > 0) out = over(back, out);
           if (turn && turnT >= 1) {
-            // the turn is over: a side view goes back to the full drawing (eyes, mouth, pattern), refitted from here
             shown = turn.to.view === 'side' ? null : turn.to;
-            if (!shown) { fitKey = ''; fadeIn = { end: turn.to, t0: now }; }
+            if (!shown) { fit = fitSide(); fitKey = rig.code; v.scale = fit.scale; v.cx = fit.cx; v.lift = 0; }
             turn = null;
             dirtyRef.current = true;
           }
-        } else if (fadeIn && now - fadeIn.t0 < FADE_IN_MS) {
-          const under = drawParts(ctx, 1 / (v.scale * k), { parts: morphParts(fadeIn.end, fadeIn.end, 1, rep.heat, md === 'print'), mode: md, palette, hot });
-          out = over(easeInOut((now - fadeIn.t0) / FADE_IN_MS), under);
         } else {
-          if (fadeIn) { fadeIn = null; dirtyRef.current = true; }
           out = classic();
         }
         hitsRef.current = out.hits;
