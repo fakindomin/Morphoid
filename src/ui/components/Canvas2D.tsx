@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { dimensions as D, solveRig, withoutSculpt, SOCKET_NODE, type SocketId } from '../../core';
+import { dimensions as D, solveRig, withoutSculpt } from '../../core';
 import { PALETTES } from '../../core/palette';
 import { studio } from '../studio';
 import { clonePose, easePose, targetPose, type Pose } from '../../core/art/pose';
@@ -25,14 +25,6 @@ function extentOf(paths: Record<string, { empty: boolean; flatten: (n?: number) 
   return Number.isFinite(x0) ? { x0, x1, y1 } : { x0: -40, x1: 40, y1: 60 };
 }
 
-const SOCKETS: { id: SocketId; title: string }[] = [
-  { id: 'head', title: 'Głowa, pysk, uszy i rogi' },
-  { id: 'chest', title: 'Kark, szyja i skrzydła' },
-  { id: 'tail', title: 'Nasada ogona' },
-  { id: 'legF', title: 'Staw barkowy' },
-  { id: 'legB', title: 'Staw biodrowy' },
-];
-
 const TITLE: Record<string, string> = Object.fromEntries(TILES.map((t) => [t.id, t.title]));
 const RANK: Record<Severity, number> = { info: 0, support: 1, warn: 2, error: 3 };
 const LEVELS: HeatLevel[] = [HEAT.none, HEAT.bed, HEAT.support, HEAT.attention];
@@ -57,13 +49,11 @@ interface Props {
   hotTile: string | null;
   onHoverTile: (tile: string | null) => void;
   onPickTile: (tile: string) => void;
-  onSocket: (socket: SocketId, screen: { x: number; y: number }) => void;
 }
 
-export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPickTile, onSocket }: Props) {
+export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPickTile }: Props) {
   const boxRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const socketEls = useRef<Record<string, SVGGElement | null>>({});
   const sizeRef = useRef<SVGTextElement>(null);
   const infoRef = useRef<HTMLSpanElement>(null);
   const swRef = useRef<HTMLElement>(null);
@@ -166,12 +156,6 @@ export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPick
         }
         boxRef.current?.style.setProperty('--c1', (PALETTES[g.palette!.index!] ?? PALETTES[0]!)[0]);
 
-        for (const s of SOCKETS) {
-          const [x, y] = to(...cur.pos[SOCKET_NODE[s.id]]);
-          socketEls.current[s.id]?.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})`);
-          // a biped has no front legs: no shoulder socket
-          socketEls.current[s.id]?.setAttribute('visibility', s.id === 'legF' && D.isBiped(rig.dims.plan) ? 'hidden' : 'visible');
-        }
         if (sizeRef.current) {
           const sz = rigSize(rig);
           sizeRef.current.textContent = `${sz.length.toFixed(0)} × ${sz.width.toFixed(0)} × ${sz.height.toFixed(0)} mm`;
@@ -214,19 +198,6 @@ export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPick
       <canvas ref={canvasRef} className="sketch-canvas" role="img" aria-label="Rzut boczny Morphoida" />
       <svg className="sketch-front" viewBox={`0 0 ${size.w} ${size.h}`}>
         <text ref={sizeRef} className="size-label" x={size.w - 24} y={28} textAnchor="end" />
-        {SOCKETS.map((s) => (
-          <g key={s.id} ref={(el) => { socketEls.current[s.id] = el; }} className="socket"
-            onClick={(e) => {
-              e.stopPropagation();
-              const r = e.currentTarget.getBoundingClientRect();
-              onSocket(s.id, { x: r.left + r.width / 2, y: r.top + r.height / 2 });
-            }}>
-            <title>{s.title}</title>
-            <circle className="socket-hit" r={16} />
-            <circle className="socket-ring" r={11} />
-            <circle className="socket-dot" r={7} />
-          </g>
-        ))}
       </svg>
       <div className="sketch-info">
         <i ref={swRef} className="sk-sw" />

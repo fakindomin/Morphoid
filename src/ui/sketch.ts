@@ -103,18 +103,24 @@ export function drawSketch(ctx: CanvasRenderingContext2D, px: number, s: SketchI
         : kind === 'accentSoft' ? mix(c2, '#ffffff', 0.45) : c3;
 
 
-  // the lit element first: a soft glow behind it, so the whole part reads as one without lines over its facets
+  // the lit element first: a bright outline round the whole part (drawn behind it, so only its rim shows outside the
+  // outline and no line crosses its facets), with a thin dark edge so it reads on a light and a dark background
   if (s.hot) {
     ctx.save();
-    ctx.shadowColor = 'rgba(56,189,248,.95)';
-    ctx.shadowBlur = 18;
-    ctx.fillStyle = 'rgba(125,211,252,.9)';
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    const polysOfHot: XY[][] = [];
     for (const [id, kind] of SLOTS) {
       if (SKIP.has(id) || kind === 'clip' || kind === 'bone' || SLOT_TILE[id] !== s.hot) continue;
       if (id.startsWith('legOver') && !s.insect) continue;
       const path = s.paths[id];
       if (!path || path.empty) continue;
-      for (const poly of path.flatten(8)) { fillPoly(poly); ctx.fill(); ctx.fill(); }
+      polysOfHot.push(...path.flatten(8));
+    }
+    for (const [w, col] of [[9, 'rgba(15,23,42,.45)'], [6, '#ffffff']] as const) {
+      ctx.lineWidth = w * px;
+      ctx.strokeStyle = col;
+      for (const poly of polysOfHot) { fillPoly(poly); ctx.stroke(); }
     }
     ctx.restore();
   }
@@ -169,7 +175,7 @@ export function drawSketch(ctx: CanvasRenderingContext2D, px: number, s: SketchI
       for (const f of facets) {
         let lum = 0.5 + 0.36 * f.light + (f.seed - 0.5) * 0.42;
         if (far) lum *= 0.6;
-        if (lit) lum += 0.16;
+        if (lit) lum += 0.08;
         let col: string;
         if (s.mode === 'print') {
           const lv = heatOf(id, f.pts, f.edge);

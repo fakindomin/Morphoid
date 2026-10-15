@@ -476,3 +476,18 @@ button.status-bake:hover { color: var(--cyan); }
 .seg-mini button { border: 0; background: transparent; color: var(--muted); font-family: inherit; font-size: 12px; font-weight: 600; line-height: 1; padding: 8px 10px; border-radius: 7px; cursor: pointer; }
 .seg-mini button.on { background: var(--text); color: var(--bg-card); }
 .slider-row.off { opacity: 0.45; }
+
+/* right column "Widok": a label with a switch on one line */
+.switch-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; }
+
+/* "Losowo": the dice spin while a new creature is drawn, and the stage shows it is happening */
+.btn-soft .dice { display: inline-block; font-style: normal; }
+.btn-soft.rolling .dice { animation: dice-roll .5s linear infinite; }
+.btn-soft:disabled { opacity: .6; cursor: default; }
+@keyframes dice-roll { 0% { transform: rotate(0) scale(1); } 50% { transform: rotate(180deg) scale(1.25); } 100% { transform: rotate(360deg) scale(1); } }
+.roll-overlay { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; pointer-events: none;
+  background: color-mix(in srgb, var(--bg-card) 30%, transparent); backdrop-filter: blur(3px); animation: roll-in .15s ease-out; }
+.roll-overlay .roll-card { display: flex; align-items: center; gap: 12px; padding: 14px 22px; border-radius: 16px;
+  background: var(--bg-card); border: 1px solid var(--border); box-shadow: 0 8px 30px rgba(0, 0, 0, .18); font-weight: 600; }
+.roll-overlay .roll-dice { font-size: 30px; display: inline-block; animation: dice-roll .5s linear infinite; }
+@keyframes roll-in { from { opacity: 0; } to { opacity: 1; } }

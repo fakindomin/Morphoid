@@ -9,6 +9,8 @@ import { download } from '../download';
 import { fittedPlan, restGeometry, usePrintReport } from '../printReport';
 import { newSeed, storage, studio, useStudioState } from '../studio';
 import { useBakeFresh } from './BakeStatus';
+import { previewStore, usePreview } from '../previewStore';
+import { useViewOptions, viewOptions } from '../viewOptions';
 
 export type ViewMode = '2d' | '3d';
 const SAVE_KEY = 'morphoid.saved';
@@ -47,6 +49,7 @@ function Category({ id, title, value, badge, open, setOpen, children }: {
 /** Name, dice, mutation and a field to paste a new DNA code into (the creature's own code is above the sketch). */
 function MorphoidBody() {
   const { genome } = useStudioState();
+  const { rolling } = useViewOptions();
   const who = studio.creature();
   const [nameDraft, setNameDraft] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ text: string; warn: boolean } | null>(null);
@@ -75,8 +78,8 @@ function MorphoidBody() {
           onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setNameDraft(null); }} />
       </div>
       <div className="btn-row">
-        <button type="button" className="btn-soft" onClick={() => studio.randomize(newSeed())}>🎲 Losowo</button>
-        <button type="button" className="btn-soft" onClick={() => studio.mutateLight(newSeed())}>🧬 Mutuj</button>
+        <button type="button" className={`btn-soft${rolling ? ' rolling' : ''}`} disabled={rolling} onClick={() => viewOptions.roll(() => studio.randomize(newSeed()))}><i className="dice">🎲</i> {rolling ? 'Losuję…' : 'Losowo'}</button>
+        <button type="button" className="btn-soft" disabled={rolling} onClick={() => viewOptions.roll(() => studio.mutateLight(newSeed()))}>🧬 Mutuj</button>
       </div>
       <div>
         <div className="control-label">Wklej nowe DNA</div>
@@ -238,6 +241,43 @@ function SculptBody() {
   );
 }
 
+/** How the creature is shown: in 2D the sketch's colours and bones, in 3D the grey filament, framing and smoothing. */
+function ViewBody({ view }: { view: ViewMode }) {
+  const o = useViewOptions();
+  const preview = usePreview();
+  if (view === '2d') return (
+    <>
+      <div>
+        <div className="control-label">Kolory szkicu</div>
+        <div className="segment">
+          <button type="button" className={`seg-pill${o.sketchMode === 'color' ? ' active' : ''}`} onClick={() => viewOptions.setSketchMode('color')}>Kolory stwora</button>
+          <button type="button" className={`seg-pill${o.sketchMode === 'print' ? ' active' : ''}`} onClick={() => viewOptions.setSketchMode('print')}>Druk</button>
+        </div>
+      </div>
+      <label className="switch-row">
+        <span>Pokaż kości</span>
+        <button type="button" className="sw" role="switch" aria-checked={o.showBones} aria-label="Pokaż kości" onClick={() => viewOptions.setShowBones(!o.showBones)} />
+      </label>
+    </>
+  );
+  return (
+    <>
+      <label className="switch-row">
+        <span>Szary filament</span>
+        <button type="button" className="sw" role="switch" aria-checked={o.grey} aria-label="Szary filament" title="Jak wydruk z jednego, szarego filamentu" onClick={() => viewOptions.setGrey(!o.grey)} />
+      </label>
+      <div className="btn-row">
+        <button type="button" className="btn-soft" onClick={() => viewOptions.recenter()}>Wyśrodkuj widok</button>
+        <button type="button" className="btn-soft" disabled={preview.quality !== 'draft' || preview.busy}
+          title="Podgląd podczas zmian jest uproszczony, żeby działał płynnie. Wygładzenie pokazuje model tak, jak wyjdzie w pliku do druku."
+          onClick={() => previewStore.smooth()}>
+          {preview.quality === 'smoothing' ? 'Wygładzam…' : preview.quality === 'smooth' ? 'Wygładzony' : 'Wygładź model'}
+        </button>
+      </div>
+    </>
+  );
+}
+
 type Format = 'stl' | '3mf';
 
 /**
@@ -312,10 +352,12 @@ export function RightColumn(props: Props) {
   const kind = planKind(plan);
   const parts = report.pieces.length;
   const issues = report.issues.filter((i) => i.severity !== 'info').length;
+  const viewSketch = useViewOptions().sketchMode;
   const sculptCount = Object.values(genome.sculpt ?? {}).filter((v) => v !== FINE_ZERO).length;
   return (
     <aside className="column right acc-column right-panel">
       <div className="right-scroll">
+        <Category id="view" title="Widok" value={props.view === '2d' ? (viewSketch === 'color' ? 'Kolory stwora' : 'Druk') : 'Studio 3D'} open={open} setOpen={setOpen}><ViewBody view={props.view} /></Category>
         <Category id="morphoid" title="Morphoid" value={studio.creature().name} open={open} setOpen={setOpen}><MorphoidBody /></Category>
         <Category id="project" title="Projekt" value={saved ? 'zapisany' : 'niezapisany'} open={open} setOpen={setOpen}><ProjectBody /></Category>
         {props.view === '3d' && <Category id="sculpt" title="Deformacja" value={sculptCount ? `zmian: ${sculptCount}` : 'brak'} open={open} setOpen={setOpen}><SculptBody /></Category>}

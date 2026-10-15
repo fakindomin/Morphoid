@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { storage } from '../studio';
+import { useViewOptions } from '../viewOptions';
 import type { BakeResult } from '../../core/bake/bake';
 import { reportFor } from '../printReport';
 import { buildBakedModel } from '../three/bakedModel';
@@ -20,7 +20,6 @@ interface Props {
   baked?: BakeResult | null;
 }
 
-const GREY_KEY = 'morphoid.grey';
 /** Sharpest canvas the preview draws (device pixels per CSS pixel): 2x on a retina screen costs 4x the pixels for little. */
 const MAX_DPR = 1.5;
 /** The turntable stops after this long (ms); "Wyśrodkuj widok" sets it going again. */
@@ -35,7 +34,7 @@ export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
   explodeRef.current = explode;
   const [failed, setFailed] = useState(false);
   const preview = usePreview();
-  const [grey, setGrey] = useState(() => storage.get(GREY_KEY) === '1');
+  const { grey, recenter } = useViewOptions();
   const greyRef = useRef(grey);
   greyRef.current = grey;
 
@@ -133,10 +132,13 @@ export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
       const b = bakedRef.current, p = previewStore.get();
       const solid = !b && explodeRef.current < 0.02 ? p.solid : null;
       const what = b ?? solid ?? `slabs:${studio.code()}:${plan.separate.join(',')}`;
-      if (what === shown && genome.palette!.index! === shownPalette && greyRef.current === shownGrey && model) return;
-      shown = what; shownPalette = genome.palette!.index!; shownGrey = greyRef.current;
+      // a preview solid wears the colours of the creature it was built from, so a new creature's colours never land on the old shape
+      const shapeOf = (code: string | null): string => (code ?? '').split('#')[0]!.replace(/:P[0-9A-F]+/, '');
+      const pal = solid && !b && shapeOf(p.code) !== shapeOf(studio.code()) ? p.palette : genome.palette!.index!;
+      if (what === shown && pal === shownPalette && greyRef.current === shownGrey && model) return;
+      shown = what; shownPalette = pal; shownGrey = greyRef.current;
       const next = b ? buildBakedModel(b, genome.palette!.index!, greyRef.current)
-        : solid ? buildSolidModel(solid, genome.palette!.index!, greyRef.current)
+        : solid ? buildSolidModel(solid, pal, greyRef.current)
         : buildModel(genome, plan, reportFor(genome, plan));
       if (model) { scene.remove(model.root); model.dispose(); }
       model = next;
@@ -181,27 +183,14 @@ export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
   }, [variant]);
 
   useEffect(() => { api.current?.rebuild(); api.current?.explode(explode); }, [explode]);
-  useEffect(() => { storage.set(GREY_KEY, grey ? '1' : '0'); api.current?.rebuild(); }, [grey]);
+  useEffect(() => { api.current?.rebuild(); }, [grey]);
+  useEffect(() => { if (recenter) api.current?.resetView(); }, [recenter]);
   useEffect(() => { api.current?.rebuild(); }, [baked]);
 
   if (failed) return <div className="viewport3d-fail">Przeglądarka nie udostępnia WebGL, więc podgląd 3D jest niedostępny.</div>;
   return (
     <div className={`viewport3d ${variant}`} ref={host}>
       {variant === 'main' && preview.busy && preview.quality === 'draft' && !baked && explode < 0.02 && <div className="viewport-busy">Przeliczam bryłę…</div>}
-      {variant === 'main' && (
-        <div className="viewport-tools">
-          <button type="button" className={`btn-mini${grey ? ' on' : ''}`} aria-pressed={grey} title="Jak wydruk z jednego, szarego filamentu" onClick={() => setGrey((g) => !g)}>Szary filament</button>
-          <button type="button" className="btn-mini" onClick={() => api.current?.resetView()}>Wyśrodkuj widok</button>
-          {!baked && explode < 0.02 && (
-            <button type="button" className={`btn-mini smooth${preview.quality === 'smooth' ? ' on' : ''}`}
-              disabled={preview.quality !== 'draft' || (preview.busy && preview.code !== studio.code())}
-              title="Podgląd podczas zmian jest uproszczony, żeby działał płynnie. Wygładzenie pokazuje model tak, jak wyjdzie w pliku do druku."
-              onClick={() => previewStore.smooth()}>
-              {preview.quality === 'smoothing' ? 'Wygładzam…' : preview.quality === 'smooth' ? 'Model wygładzony' : 'Wygładź model'}
-            </button>
-          )}
-        </div>
-      )}
     </div>
   );
 }

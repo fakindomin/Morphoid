@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { solveRig, type SocketId } from '../core';
+import { useEffect, useRef, useState } from 'react';
+import { solveRig } from '../core';
 import { Canvas2D } from './components/Canvas2D';
 import { Viewport3D } from './components/Viewport3D';
 import { DnaStrip } from './components/DnaStrip';
@@ -14,10 +14,9 @@ import { SupportNotice } from './components/SupportNotice';
 import { usePrintReport } from './printReport';
 import { useSupportNotice } from './useSupportNotice';
 import { storage, studio, useStudioState } from './studio';
-import type { SketchMode } from './sketch';
+import { useViewOptions } from './viewOptions';
 
 const THEME_KEY = 'morphoid.theme';
-const SKETCH_KEY = 'morphoid.sketchMode';
 
 function initialTheme(): Theme {
   const saved = storage.get(THEME_KEY);
@@ -28,8 +27,7 @@ function initialTheme(): Theme {
 export function App() {
   const [theme, setTheme] = useState<Theme>(initialTheme);
   const [view, setView] = useState<ViewMode>('2d');
-  const [showBones, setShowBones] = useState(false);
-  const [sketchMode, setSketchMode] = useState<SketchMode>(() => (storage.get(SKETCH_KEY) === 'color' ? 'color' : 'print'));
+  const { showBones, sketchMode, rolling } = useViewOptions();
   /** body element lit up on the sketch and in the left column (hovered in either) */
   const [hotTile, setHotTile] = useState<string | null>(null);
   /** a body element clicked on the sketch: the left column opens it */
@@ -46,7 +44,6 @@ export function App() {
   if (lastPlan.current !== plan) { prevPlan.current = lastPlan.current; lastPlan.current = plan; }
   const size = rigSize(rig);
 
-  useEffect(() => { storage.set(SKETCH_KEY, sketchMode); }, [sketchMode]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -65,7 +62,6 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const onSocket = useCallback((s: SocketId, c: { x: number; y: number }) => radial.open(s, c), [radial.open]);
 
   return (
     <div className="app">
@@ -76,21 +72,11 @@ export function App() {
           <DnaStrip />
           <div className="stage">
           {notice && <SupportNotice key={notice.key} notice={notice} previousPlan={prevPlan.current} dismiss={dismiss} />}
-          {view === '2d' && (
-            <div className="canvas-tools">
-              <div className="seg-mini" role="group" aria-label="Kolory szkicu">
-                <button type="button" className={sketchMode === 'color' ? 'on' : ''} aria-pressed={sketchMode === 'color'} onClick={() => setSketchMode('color')}>Kolory stwora</button>
-                <button type="button" className={sketchMode === 'print' ? 'on' : ''} aria-pressed={sketchMode === 'print'} onClick={() => setSketchMode('print')}>Druk</button>
-              </div>
-              <button type="button" className={`tool-btn${showBones ? ' on' : ''}`} aria-pressed={showBones} title="Pokaż kości" aria-label="Pokaż kości" onClick={() => setShowBones((b) => !b)}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><circle cx="5" cy="6" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="8" r="2" /><circle cx="12" cy="20" r="2" /><path d="M6.6 7.2l3.8 3.6M13.8 11.2l3.4-2M12 14v4" /></svg>
-              </button>
-            </div>
-          )}
+          {rolling && <div className="roll-overlay" role="status"><div className="roll-card"><span className="roll-dice">🎲</span>Losuję nowego stwora…</div></div>}
           <div className="hud-tag">{view === '2d' ? 'WIDOK Z BOKU · kliknij część ciała, aby ją zmienić' : '3D STUDIO · obracaj myszą, kółko = zbliżenie'}</div>
           {view === '2d' ? (
             <Canvas2D showBones={showBones} mode={sketchMode} report={report} hotTile={hotTile} onHoverTile={setHotTile}
-              onPickTile={(tile) => setPick({ tile, n: Date.now() })} onSocket={onSocket} />
+              onPickTile={(tile) => setPick({ tile, n: Date.now() })} />
           ) : (
             <Viewport3D variant="main" explode={explode} baked={job.showBaked && job.result && job.signature === signatureOf(studio.code(), plan.separate) ? job.result : null} />
           )}
@@ -110,7 +96,7 @@ export function App() {
         <span className="muted">Model {size.length.toFixed(0)} × {size.width.toFixed(0)} × {size.height.toFixed(0)} mm</span>
         <StatusBake onOpen={() => setView('3d')} />
         <span className="spacer" />
-        <span className="muted"><kbd>Ctrl+Z</kbd> cofnij <kbd>Klik ●</kbd> koło wyboru</span>
+        <span className="muted"><kbd>Ctrl+Z</kbd> cofnij <kbd>Klik</kbd> część ciała, aby ją zmienić</span>
       </footer>
       <RadialMenu ctl={radial} />
     </div>

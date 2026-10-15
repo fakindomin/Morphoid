@@ -13,6 +13,8 @@ export interface PreviewJob {
   solid: PreviewSolid | null;
   /** DNA the solid was made from */
   code: string | null;
+  /** that creature's palette: a stale solid keeps its own colours until the new shape arrives (no new colours on the old shape) */
+  palette: number;
   /** a newer solid is being built */
   busy: boolean;
   /** draft = quick coarse solid; smoothing = the fine one is being built; smooth = the fine one is on screen */
@@ -26,7 +28,7 @@ const DRAFT = [1.0];
 const SMOOTH = [0.28];
 const DEBOUNCE_MS = 200;
 
-let job: PreviewJob = { solid: null, code: null, busy: false, quality: 'draft', error: null };
+let job: PreviewJob = { solid: null, code: null, palette: 0, busy: false, quality: 'draft', error: null };
 const listeners = new Set<() => void>();
 const set = (patch: Partial<PreviewJob>): void => { job = { ...job, ...patch }; listeners.forEach((l) => l()); };
 
@@ -38,7 +40,7 @@ let active = 0;
 function run(smooth = false): void {
   const code = studio.code();
   if (!smooth && code === job.code && !job.busy) return;
-  const voxels = smooth ? SMOOTH : DRAFT;
+  const voxels = smooth ? SMOOTH : DRAFT, palette = studio.getState().genome.palette!.index!;
   worker?.terminate();
   const id = ++seq;
   const w = new Worker(new URL('./preview.worker.ts', import.meta.url), { type: 'module' });
@@ -50,7 +52,7 @@ function run(smooth = false): void {
     if (e.data.error) { w.terminate(); worker = null; set({ busy: false, quality: 'draft', error: e.data.error }); return; }
     left--;
     if (left === 0) { w.terminate(); worker = null; }
-    set({ solid: e.data.solid!, code, busy: left > 0, quality: smooth ? (left > 0 ? 'smoothing' : 'smooth') : 'draft' });
+    set({ solid: e.data.solid!, code, palette, busy: left > 0, quality: smooth ? (left > 0 ? 'smoothing' : 'smooth') : 'draft' });
   };
   w.onerror = (e): void => { if (worker === w) { w.terminate(); worker = null; set({ busy: false, quality: 'draft', error: e.message }); } };
   w.postMessage({ id, genome: studio.getState().genome, voxels });
