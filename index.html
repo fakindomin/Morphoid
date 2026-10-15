@@ -105,6 +105,26 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .tile.dark { background: #0b0b0c; color: #f5f5f7; }
 .tile.dark p { color: #a1a1a6; }
 .tile.dark .step { color: #ff2a3c; }
+/* Spotlight: one step wakes at a time and does its thing (the sketch draws, the solid comes into focus, the print grows layer by layer); the others rest in soft focus. */
+.tiles.spot .tile { transition: opacity 1.1s ease, transform 1.1s cubic-bezier(.2, .7, .2, 1), filter 1.1s ease; opacity: .45; filter: saturate(.5); transform: scale(.985); }
+.tiles.spot .tile.dark { opacity: 1; filter: saturate(.35) brightness(.5); }
+.tiles.spot .tile.on { opacity: 1; filter: none; transform: none; }
+.tiles.spot .draw g[stroke="var(--blue)"] > * { stroke-dasharray: 1; }
+.tiles.spot .on .draw g[stroke="var(--blue)"] > * { animation: d-draw 1.8s cubic-bezier(.4, 0, .2, 1) both; }
+.tiles.spot .on .draw g[stroke="var(--blue)"] { animation: d-fill 1.8s ease both; }
+.tiles.spot .on .solid svg { animation: d-solid 1.6s cubic-bezier(.2, .7, .2, 1) both; transform-origin: 50% 85%; }
+.tiles .grow { transform-box: view-box; transform-origin: 0 250px; }
+.tiles.spot .on .grow { animation: d-grow 2.4s cubic-bezier(.4, 0, .2, 1) both; }
+.tiles .nozzle { transform-box: view-box; opacity: 0; }
+.tiles.spot .on .nozzle { animation: d-nozzle 2.4s cubic-bezier(.4, 0, .2, 1) both; }
+.tiles .ghost { opacity: .14; }
+@keyframes d-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes d-fill { 0%, 55% { fill-opacity: 0; } 100% { fill-opacity: 1; } }
+@keyframes d-solid { from { opacity: .2; transform: scale(.94); filter: blur(5px); } to { opacity: 1; transform: none; filter: none; } }
+@keyframes d-grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes d-nozzle { 0% { transform: translateY(0); opacity: 0; } 8% { opacity: 1; } 88% { transform: translateY(-212px); opacity: 1; } 100% { transform: translateY(-212px); opacity: 0; } }
+@media (max-width: 820px) { .tiles.spot .tile, .tiles.spot .tile.dark { opacity: 1; filter: none; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .tiles.spot .tile { transition: none; } .tiles.spot .tile * { animation: none !important; } }
 @media (max-width: 820px) {
   .tiles { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; margin-inline: -16px; padding-inline: 16px; scrollbar-width: none; }
   .tiles::-webkit-scrollbar { display: none; }
@@ -242,7 +262,7 @@ body.menu .drawer { transform: none; visibility: visible; transition: transform 
     <div class="seq" aria-hidden="true"><span>2D</span><i>—</i><span>3D</span><i>—</i><span>Druk</span></div>
     <div class="tiles">
       <article class="tile">
-        <div class="art" id="art-2d"></div>
+        <div class="art draw" id="art-2d"></div>
         <div class="txt">
           <p class="step">2D</p>
           <h2>Narysuj.</h2>
@@ -250,7 +270,7 @@ body.menu .drawer { transform: none; visibility: visible; transition: transform 
         </div>
       </article>
       <article class="tile">
-        <div class="art" id="art-3d"></div>
+        <div class="art solid" id="art-3d"></div>
         <div class="txt">
           <p class="step">3D</p>
           <h2>Obejrzyj.</h2>
@@ -446,9 +466,24 @@ body.menu .drawer { transform: none; visibility: visible; transition: transform 
     return `<svg viewBox="0 0 440 300" role="img" aria-label="${label}">${defs}${floor}${shadow}${parts}${layers}${face}</svg>`;
   }
 
-  document.getElementById('art-2d').innerHTML = line();
+  // Spotlight across the three steps: the 2D outline draws itself, the print grows under a moving nozzle
+  const draw2d = line().replace(/<(rect|ellipse|circle|path) /g, '<$1 pathLength="1" ');
+  let pr = shaded('p', true);
+  pr = pr.replace('</defs>', '<clipPath id="pgrow"><rect class="grow" x="0" y="0" width="440" height="250"/></clipPath></defs>');
+  const pi = pr.indexOf('<g fill="url(#p'), pj = pr.lastIndexOf('</svg>'), pbody = pr.slice(pi, pj);
+  pr = pr.slice(0, pi) + `<g class="ghost">${pbody}</g><g clip-path="url(#pgrow)">${pbody}</g>` +
+    '<g class="nozzle"><path d="M196 236 h20 l-4 10 h-12 z" fill="#c9c9cf"/><rect x="186" y="222" width="40" height="14" rx="3" fill="#8a8a92"/><path d="M60 229 H380" stroke="#8a8a92" stroke-opacity=".35" stroke-width="2"/></g>' + pr.slice(pj);
+  document.getElementById('art-2d').innerHTML = draw2d;
   document.getElementById('art-3d').innerHTML = shaded('s', false);
-  document.getElementById('art-print').innerHTML = shaded('p', true);
+  document.getElementById('art-print').innerHTML = pr;
+  const tilesEl = document.querySelector('.tiles'), spotTiles = [...tilesEl.querySelectorAll('.tile')];
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    let si = 0, timer = 0;
+    const wake = k => { spotTiles.forEach(t => t.classList.remove('on')); void tilesEl.offsetWidth; spotTiles[k].classList.add('on'); };
+    const run = on => { clearInterval(timer); if (on) timer = setInterval(() => { si = (si + 1) % 3; wake(si); }, 3400); };
+    tilesEl.classList.add('spot'); wake(0);
+    new IntersectionObserver(es => run(es[0].isIntersecting), { threshold: .25 }).observe(tilesEl);
+  }
 
   // Step illustrations for "Jak to działa"
   const addTo = (svg, extra, before) => before ? svg.replace(/(<svg[^>]*>)/, `$1${extra}`) : svg.replace('</svg>', extra + '</svg>');
