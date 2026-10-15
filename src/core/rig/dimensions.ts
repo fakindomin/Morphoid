@@ -27,6 +27,24 @@ export const SNOUT_REACH = table([4, 6, 8, 10, 13, 16]);
 export const CREST_SIZE = table([4, 6, 8, 10, 12, 15]);
 export const ANTENNA_LEN = table([6, 8, 10, 13, 16, 20]);
 
+/**
+ * Size sliders (2026-10-15): a factor on a part's drawn size, step 2 = 1 (how every creature looked before the slider).
+ * A 3-level slider uses steps 0, 2 and 5 (see SIZE_LEVELS3 in the studio), so its three sizes differ clearly.
+ */
+const factors = (raw: readonly number[]): readonly number[] => {
+  if (raw.length !== STEPS) throw new Error('factor table must have 6 entries');
+  return raw;
+};
+export const HEAD_SIZE = factors([0.74, 0.87, 1, 1.13, 1.27, 1.42]);
+export const EYE_SIZE = factors([0.6, 0.8, 1, 1.2, 1.42, 1.66]);
+export const WHISKER_SIZE = factors([0.55, 0.77, 1, 1.25, 1.5, 1.8]);
+export const NECK_THICK = factors([0.7, 0.85, 1, 1.15, 1.3, 1.45]);
+export const LEG_THICK = factors([0.74, 0.87, 1, 1.12, 1.25, 1.4]);
+export const HAND_THICK = factors([0.72, 0.86, 1, 1.15, 1.3, 1.45]);
+export const PATTERN_SIZE = factors([0.6, 0.8, 1, 1.2, 1.4, 1.6]);
+/** A factor from its table, for a step that may be missing (an old genome object). */
+export const factorAt = (t: readonly number[], step: number | undefined): number => t[step ?? 2] ?? 1;
+
 /** Head ellipse radius (mm); the muzzle starts at the head's front edge. */
 export const HEAD_RADIUS = 9.5;
 

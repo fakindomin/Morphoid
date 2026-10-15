@@ -50,6 +50,10 @@ export interface Rig {
     legWidth: number;
     /** head radius (mm), see dimensions headRadius */
     headR: number;
+    /** head size slider factor (1 = as before the slider) */
+    headSize: number;
+    /** neck thickness slider factor */
+    neckK: number;
     soleLength: number; soleWidth: number;
     /** build variant (gene J): 0 normal, 1 stick, 2 muscular, 3 round, 4 skeletal */
     build: number;
@@ -130,8 +134,15 @@ function build(g: MorphotypeGenome, code: string): Rig {
     // silhouette test: a standing creature always shows light under its belly, so its legs read as legs
     : anatQ ? Math.max(D.snap(G0 * A.legK[g.legs!.length!]! * B.leg), D.snap(D.minLegForGap(G)))
     : Math.max(D.snap(D.LEG_LENGTH[g.legs!.length!]! * B.leg * (human ? H.leg : biped ? D.BIPED.leg : insect ? 1.15 : 1)), insect ? 0 : D.snap(D.minLegForGap(G)));
-  const legW = D.snap(anat ? Math.max(A.legWMin, B.legW(G0) * A.legW) : B.legW(G0));
-  const headR = D.snap(D.headRadius(G0, plan) * (human ? H.head : 1), 0.1);
+  // leg thickness slider: never thinner than a leg that still stands and prints
+  const legK = D.factorAt(D.LEG_THICK, g.legs!.thick);
+  const legW0 = anat ? Math.max(A.legWMin, B.legW(G0) * A.legW) : B.legW(G0);
+  // ... and never so thick that the pair of legs outgrows the body
+  const legW = D.snap(Math.max(3.6, legK > 1 ? Math.min(legW0 * legK, Math.max(legW0, W * 0.7)) : legW0 * legK));
+  const headSize = D.factorAt(D.HEAD_SIZE, g.head!.size);
+  const headR0 = D.headRadius(G0, plan) * (human ? H.head : 1);
+  // a bigger head (size slider) still never becomes a second ball as big as the body (form rule "big, medium, small")
+  const headR = D.snap(headSize > 1 ? Math.min(headR0 * headSize, Math.max(headR0, (G + 2.8) / 2)) : headR0 * headSize, 0.1);
   const headK = headR / D.HEAD_RADIUS;
   const neckT = size(D.NECK_LENGTH, g.head!.neckLength!, 'neckLength');
   const neckLen = human ? neckT * H.neckK + headR * 0.5 : anatQ ? neckT * A.neckK + headR * A.neckHead
@@ -207,7 +218,7 @@ function build(g: MorphotypeGenome, code: string): Rig {
     code, nodes, order,
     dims: {
       bodyLength: L, bodyGirth: G, bodyWidth: W, legLength: legLen, neckLength: neckLen,
-      tailLength: tailLen, legWidth: legW, headR, soleLength: sole.length, soleWidth: sole.width, build, plan, tilt, anatomical: anat,
+      tailLength: tailLen, legWidth: legW, headR, headSize, neckK: D.factorAt(D.NECK_THICK, g.head!.neckThick), soleLength: sole.length, soleWidth: sole.width, build, plan, tilt, anatomical: anat,
     },
     bounds, issues: [],
   };

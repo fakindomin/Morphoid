@@ -302,6 +302,8 @@ export interface ArmSpec {
   len: number; legW: number; hand: number; pose: number;
   /** an upright humanoid's arm (its own poses) */
   human?: boolean;
+  /** how far out (mm) the shoulder may sit at most: it stays in the chest when thick legs push the hand out */
+  shoulderZ?: number;
 }
 
 /** Where the shoulder sits: in the torso's own frame (forward, up), turned with its tilt. */
@@ -339,7 +341,7 @@ export function armLimb(s: ArmSpec, z: number): Limb {
 const ARM_BED_CLEAR = 1.5;
 
 function armAt(s: ArmSpec, z: number): Limb {
-  const side = Math.sign(z) || 1, zo = Math.abs(z), zs = z === 0 ? 0 : side * Math.min(zo, zo * 0.7);
+  const side = Math.sign(z) || 1, zo = Math.abs(z), zs = z === 0 ? 0 : side * Math.min(zo * 0.7, s.shoulderZ ?? Infinity);
   const rU = Math.max(LIMB_MIN_R, s.legW * 0.36), rE = Math.max(LIMB_MIN_R, s.legW * 0.3), rW = Math.max(LIMB_MIN_R, s.legW * 0.26);
   const poses = s.human ? HUMAN_POSE : ARM_POSE, [ua, fa] = poses[s.pose] ?? poses[0]!;
   const u = turn(ua), f = turn(fa);

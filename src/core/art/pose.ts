@@ -14,6 +14,8 @@ export interface Nums {
   armLen: number; hub: number;
   earS: number; hornS: number; wingS: number;
   crestS: number; antS: number; tailLen: number; soleL: number;
+  /** neck thickness slider factor */
+  neckK: number;
 }
 export interface Pose { pos: PosMap; n: Nums }
 
@@ -44,7 +46,7 @@ export function targetPose(
       // ears and horns keep their size relative to the skull (a bigger head carries bigger ears)
       earS: typeSize(g, 'ears', D.EAR_SIZE, 'scale') * headK, hornS: typeSize(g, 'horns', D.HORN_SPAN, 'span') * headK,
       wingS: typeSize(g, 'wings', D.WING_SPAN, 'scale'), crestS: typeSize(g, 'crest', D.CREST_SIZE, 'scale'), antS: typeSize(g, 'antennae', D.ANTENNA_LEN, 'length'),
-      tailLen: rig.dims.tailLength, soleL: rig.dims.soleLength,
+      tailLen: rig.dims.tailLength, soleL: rig.dims.soleLength, neckK: rig.dims.neckK,
     },
   };
 }

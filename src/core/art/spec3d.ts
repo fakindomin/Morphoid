@@ -130,8 +130,9 @@ export const SPEC_3D: Record<SlotId, Spec | null> = {
 
 export function ctxFor(rig: Rig): Ctx {
   const W = rig.dims.bodyWidth, G = rig.dims.bodyGirth;
-  const headW = Math.max(8, Math.min(W * 0.9, rig.dims.headR * 1.7)); // never wider than the head is tall (rule 1)
-  return { W, G, legW: rig.dims.legWidth, legZ: W * 0.32, headW, snoutW: headW * 0.62, neckT: Math.max(6, W * 0.7) };
+  // never wider than the head is tall (rule 1); a bigger head (size slider) may outgrow the body's width
+  const headW = Math.max(8, Math.min(W * 0.9 * Math.max(1, rig.dims.headSize), rig.dims.headR * 1.7));
+  return { W, G, legW: rig.dims.legWidth, legZ: W * 0.32, headW, snoutW: headW * 0.62, neckT: Math.max(6, W * 0.7) * rig.dims.neckK };
 }
 
 const LEG_SLOTS = new Set<SlotId>(['legB', 'legF', 'legBFar', 'legFFar']);
@@ -163,7 +164,7 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
     const n = rig.nodes, d = rig.dims;
     for (const p of out) {
       if (p.slot === 'torso') { p.limb = trunkLimb({ torso: [n.torso.x, n.torso.y], L: d.bodyLength, G: d.bodyGirth, W: d.bodyWidth, tilt: d.tilt, biped: D.isBiped(d.plan), humanoid: d.plan === D.PLAN.humanoid, sculpt: sculptOf(g) }); p.thickness = d.bodyWidth * 1.1; }
-      else if (p.slot === 'neck') { p.limb = neckLimb([n.neckBase.x, n.neckBase.y], [n.head.x, n.head.y], d.bodyGirth, d.headR, sculptOf(g).neck); p.thickness = d.bodyGirth * 0.7; }
+      else if (p.slot === 'neck') { p.limb = neckLimb([n.neckBase.x, n.neckBase.y], [n.head.x, n.head.y], d.bodyGirth, d.headR, sculptOf(g).neck * d.neckK); p.thickness = d.bodyGirth * 0.7 * d.neckK; }
     }
   }
   const head = out.find((p) => p.slot === 'head');
@@ -203,7 +204,9 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
     p.limb = legLimb(legSpecOf(p.slot, biped, [top.x, top.y], [foot.x, foot.y], rig.dims.legWidth, g.legs!.foot!, rig.dims.soleLength, rig.dims.build === 2, human), p.z);
   }
   // arms with hands: real 3D chains out of the upper chest, one per side
-  { const n = rig.nodes, arm = armSpecOf(g, [n.torso.x, n.torso.y], rig.dims.bodyLength, rig.dims.bodyGirth, rig.dims.tilt, rig.dims.legWidth, plan);
+  { const n = rig.nodes, a0 = armSpecOf(g, [n.torso.x, n.torso.y], rig.dims.bodyLength, rig.dims.bodyGirth, rig.dims.tilt, rig.dims.legWidth, plan);
+    // the shoulder stays where it sits on legs of the middle thickness (thicker legs only push the hand out)
+    const arm = a0 && { ...a0, shoulderZ: armZ(rig.dims.bodyWidth, rig.dims.legWidth / D.factorAt(D.LEG_THICK, g.legs!.thick)).out * 0.7 };
     for (const p of out) if (p.slot === 'hands' && arm) p.limb = armLimb(arm, p.z); }
   // claws, hooves and talons: one darker part per side holding the tips of that side's legs and hand
   for (const c of out) if (c.slot === 'claws') {
@@ -529,7 +532,7 @@ function whiskerTop(p: Part3D, g: MorphotypeGenome, ctx: Ctx, muzzle: Host[], pr
   const pad = p.polys[0]!; // the root dot of the drawing: the side-view position of the pad
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   for (const [x, y] of pad) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
-  const side = p.side || 1, len = whiskerLength(g.face!.whiskers!), half = p.thickness / 2;
+  const side = p.side || 1, len = whiskerLength(g.face!.whiskers!, g.face!.whiskerSize), half = p.thickness / 2;
   const off = WHISKER_TURN[g.face!.whiskerDir ?? 0] ?? 0;
   // the whisker mount: on the Pysk's skin at the pad, the whole strand's height (y +- half) inside it
   const m = mountAt(muzzle, (x0 + x1) / 2, (y0 + y1) / 2, WHISKER_INSET_MM);

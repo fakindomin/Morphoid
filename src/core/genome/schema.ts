@@ -74,11 +74,14 @@ export const BLOCKS: readonly BlockDef[] = [
   { id: 'legs', letter: 'L', label: 'Nogi', fields: [
     e('foot', [['paw', 'Łapa'], ['claws', 'Pazury'], ['hoof', 'Kopyto'], ['catpaw', 'Kocia łapka'], ['bearpaw', 'Niedźwiedzia łapa'], ['webbed', 'Płetwiasta'], ['cloven', 'Racica'], ['hand', 'Dłoń małpy']]),
     s('length', 'Wysokość'),
+    s('thick', 'Grubość'),
   ] },
   { id: 'head', letter: 'H', label: 'Głowa i szyja', fields: [
     e('skull', [['round', 'Okrągła'], ['wedge', 'Klin'], ['flat', 'Płaska']]),
     e('neck', [['smooth', 'Gładka'], ['crested', 'Grzebień'], ['armored', 'Pancerz']]),
     s('neckLength', 'Długość szyi'),
+    s('size', 'Wielkość głowy'),
+    s('neckThick', 'Grubość szyi'),
   ] },
   { id: 'snout', letter: 'S', label: 'Pysk', fields: [
     e('type', [['pug', 'Krótki'], ['wolf', 'Wilczy'], ['beak', 'Dziób'], ['cat', 'Koci'], ['dog', 'Psi'], ['horse', 'Koński'], ['bear', 'Niedźwiedzi'], ['rodent', 'Gryzonia'], ['ape', 'Małpi'], ['macaque', 'Makaka']], 1),
@@ -115,10 +118,13 @@ export const BLOCKS: readonly BlockDef[] = [
     e('expression', [['calm', 'Spokojna'], ['grin', 'Uśmiech'], ['angry', 'Zła']]),
     e('eyeSet', [['bulging', 'Wyłupiaste'], ['deep', 'Osadzone głębiej']], 0, 'Osadzenie'),
     e('eyeShape', [['round', 'Okrągłe'], ['almond', 'Kocie (migdałowe)'], ['animal', 'Zwierzęce (ciemne)'], ['sleepy', 'Senne (przymknięte)'], ['reptile', 'Gadzie (wąska źrenica)'], ['goat', 'Kozie (pozioma źrenica)']], 0, 'Kształt'),
+    s('eyeSize', 'Wielkość oczu'),
+    s('whiskerSize', 'Długość wąsów'),
   ] },
   { id: 'coat', letter: 'K', label: 'Pokrycie i wzór', fields: [
     e('texture', [['smooth', 'Gładkie'], ['fur', 'Futro'], ['scales', 'Łuski'], ['armor', 'Pancerz']]),
     e('pattern', [['none', 'Brak'], ['stripes', 'Pręgi'], ['spots', 'Cętki'], ['glow', 'Świecące plamy']]),
+    s('patternSize', 'Wielkość wzoru'),
   ] },
   { id: 'accessory', letter: 'X', label: 'Dodatki', noneMeansEmpty: true, fields: [
     // accessories are off the menu for now (user, 2026-10-15): old codes still draw them, the dice never pick them
@@ -145,6 +151,7 @@ export const BLOCKS: readonly BlockDef[] = [
   { id: 'hands', letter: 'G', label: 'Ręce', noneMeansEmpty: true, fields: [
     e('type', [['none', 'Brak'], ['grip', 'Chwytne dłonie'], ['talons', 'Szpony'], ['mitts', 'Łapki']]),
     s('length', 'Długość'),
+    s('thick', 'Grubość'),
     e('dir', [['hold', 'Przed sobą'], ['raise', 'Uniesione'], ['down', 'Opuszczone']], 0, 'Ułożenie'),
   ] },
   { id: 'sculpt', letter: 'I', label: 'Deformacja', fields: [
@@ -169,7 +176,8 @@ export const BLOCKS: readonly BlockDef[] = [
  *
  * Variant numbers: an enum whose first option is "none" uses the option index (00 = none); one without "none" starts
  * at 01 (00 never appears). The palette is numbered from 00. New genes are only appended (a code without them reads
- * them as 00); new variants are only appended to a field's options.
+ * them as 00); new variants are only appended to a field's options. A gene can also grow a digit at its END (the size
+ * sliders, 2026-10-15): a code written before it lacks that digit and reads it as the size every creature had then.
  */
 export interface GeneDef {
   letter: string;
@@ -184,9 +192,9 @@ const gene = (letter: string, label: string, block: BlockId | null, field = 'typ
 });
 export const GENES: readonly GeneDef[] = [
   gene('B', 'Tułów', 'body', 'shape', 'length', 'girth'),
-  gene('L', 'Nogi', 'legs', 'foot', 'length'),
-  gene('N', 'Szyja', 'head', 'neck', 'neckLength'),
-  gene('H', 'Czaszka', 'head', 'skull'),
+  gene('L', 'Nogi', 'legs', 'foot', 'length', 'thick'),
+  gene('N', 'Szyja', 'head', 'neck', 'neckLength', 'neckThick'),
+  gene('H', 'Czaszka', 'head', 'skull', 'size'),
   gene('S', 'Pysk', 'snout', 'type', 'reach'),
   gene('E', 'Uszy', 'ears', 'type', 'scale', 'dir'),
   gene('R', 'Rogi', 'horns', 'type', 'span', 'dir'),
@@ -194,12 +202,12 @@ export const GENES: readonly GeneDef[] = [
   gene('T', 'Ogon', 'tail', 'type', 'length', 'dir'),
   gene('U', 'Końcówka ogona', null),
   gene('C', 'Grzywa / czub / kolce', 'crest', 'type', 'scale'),
-  gene('O', 'Oczy', 'face', 'eyes', 'eyeSet', 'eyeShape'),
+  gene('O', 'Oczy', 'face', 'eyes', 'eyeSet', 'eyeShape', 'eyeSize'),
   gene('M', 'Mina', 'face', 'expression'),
   gene('Z', 'Zęby', 'face', 'teeth'),
-  gene('V', 'Wąsy', 'face', 'whiskers', 'whiskerDir'),
+  gene('V', 'Wąsy', 'face', 'whiskers', 'whiskerDir', 'whiskerSize'),
   gene('F', 'Faktura', 'coat', 'texture'),
-  gene('D', 'Deseń', 'coat', 'pattern'),
+  gene('D', 'Deseń', 'coat', 'pattern', 'patternSize'),
   gene('A', 'Dodatek na ciało', 'accessory', 'type'),
   gene('G', 'Dodatek na głowę', null),
   gene('P', 'Paleta', 'palette', 'index'),
@@ -207,7 +215,7 @@ export const GENES: readonly GeneDef[] = [
   gene('Y', 'Plan ciała', 'plan', 'type'),
   gene('Q', 'Podstawka', 'stand', 'type'),
   gene('K', 'Czułki', 'antennae', 'type', 'length', 'dir'),
-  gene('X', 'Ręce', 'hands', 'type', 'length', 'dir'),
+  gene('X', 'Ręce', 'hands', 'type', 'length', 'dir', 'thick'),
   // deformation sliders (3D view): one hex digit per slider, 8 = unchanged; no variant (always 00)
   { letter: 'I', label: 'Deformacja', variant: null, sizes: ['length', 'girth', 'width', 'chest', 'waist', 'haunch', 'shoulder', 'neckLength', 'neckThick'].map((field) => ({ block: 'sculpt' as BlockId, field })) },
 ];

@@ -61,7 +61,8 @@ export function armSpecOf(g: MorphotypeGenome, torso: XY, bodyL: number, bodyG: 
   if (!h || !h.type || !D.hasArms(plan)) return null;
   // a humanoid's arms hang from the top corners of its upright chest, and are long (an ape's reach the knees)
   const human = plan === D.PLAN.humanoid;
-  return { shoulder: armShoulder(torso, bodyL, bodyG, tilt, human ? D.HUMANOID.shoulder : undefined), len: D.ARM_LEN[h.length!]! * (human ? D.HUMANOID.arm : 1), legW, hand: h.type, pose: h.dir!, human };
+  // hand thickness slider: the arm and the hand grow thicker together
+  return { shoulder: armShoulder(torso, bodyL, bodyG, tilt, human ? D.HUMANOID.shoulder : undefined), len: D.ARM_LEN[h.length!]! * (human ? D.HUMANOID.arm : 1), legW: legW * D.factorAt(D.HAND_THICK, h.thick), hand: h.type, pose: h.dir!, human };
 }
 
 /** Insect legs per slot: the hind pair in legB, the front and middle pairs in legF (see insectLimb). */
@@ -270,7 +271,8 @@ export const DIR_TURN = {
 } as const;
 export const WHISKER_PAD = [3.4, 2.6] as const;
 export const WHISKER_W = 1.4;
-export const whiskerLength = (type: number): number => (type === 1 ? 6 : 11);
+/** A whisker's length (mm) by kind and the length slider (step 2 = as before it). */
+export const whiskerLength = (type: number, size?: number): number => (type === 1 ? 6 : 11) * D.factorAt(D.WHISKER_SIZE, size);
 /** Where the whisker pad sits on the muzzle side (x, y), from the muzzle tip. */
 export const whiskerRoot = (tipX: number, tip: XY): XY => [tipX - 4.2, tip[1] + 0.6];
 
@@ -537,19 +539,20 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
     pt.append(tube([torso[0] - tRx * 0.45, torso[1] + tRy * 0.58], [torso[0] + tRx * 0.45, torso[1] + tRy * 0.58], 1.8, 1.8));
   }
   if (pattern > 0) {
+    const pk = D.factorAt(D.PATTERN_SIZE, g.coat!.patternSize); // pattern size slider: wider stripes, bigger spots
     if (pattern === 1) {
       for (let i = 0; i < 6; i++) {
         const x = torso[0] + (i - 2.5) * (n.bodyL / 6.2);
-        pt.append(polygon([[x - 1.7, torso[1] + tRy + 2], [x + 1.7, torso[1] + tRy + 2], [x + 2.2, torso[1] - tRy - 2], [x - 1.2, torso[1] - tRy - 2]]));
+        pt.append(polygon([[x - 1.7 * pk, torso[1] + tRy + 2], [x + 1.7 * pk, torso[1] + tRy + 2], [x + 0.25 + 1.95 * pk, torso[1] - tRy - 2], [x + 0.25 - 1.45 * pk, torso[1] - tRy - 2]]));
       }
     } else if (pattern === 3) {
       // glowing spots: two rows of round photophores along the flank (c3, made for a glow-in-the-dark filament)
       for (const [fy, cnt, r] of [[0.12, 5, 1.5], [-0.28, 4, 1.25]] as const) {
-        for (let i = 0; i < cnt; i++) pt.append(ellipse(torso[0] + ((i - (cnt - 1) / 2) / cnt) * n.bodyL * 0.78, torso[1] + fy * n.bodyG, r, r));
+        for (let i = 0; i < cnt; i++) pt.append(ellipse(torso[0] + ((i - (cnt - 1) / 2) / cnt) * n.bodyL * 0.78, torso[1] + fy * n.bodyG, r * pk, r * pk));
       }
     } else {
       const pts: [number, number, number][] = [[-0.55, 0.35, 2], [-0.2, 0.55, 1.6], [0.2, 0.3, 2.2], [0.5, 0.5, 1.7], [-0.4, -0.1, 1.5], [0, -0.05, 2], [0.4, -0.2, 1.6]];
-      for (const [fx, fy, r] of pts) pt.append(ellipse(torso[0] + fx * n.bodyL * 0.9, torso[1] + fy * n.bodyG, r, r * 0.85));
+      for (const [fx, fy, r] of pts) pt.append(ellipse(torso[0] + fx * n.bodyL * 0.9, torso[1] + fy * n.bodyG, r * pk, r * 0.85 * pk));
     }
   }
   if (!pt.empty) put('pattern', tilted(pt));
@@ -595,11 +598,11 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
   const dir: XY = [head[0] - neckBase[0], head[1] - neckBase[1]];
   const dl = Math.hypot(dir[0], dir[1]) || 1;
   const up: XY = [-dir[1] / dl, dir[0] / dl];
-  put('neck', anat ? limbOutline(neckLimb(neckBase, head, n.bodyG, n.headR)) : tube(neckBase, head, n.bodyG * 0.72, n.headR * 1.15));
+  put('neck', anat ? limbOutline(neckLimb(neckBase, head, n.bodyG, n.headR, n.neckK)) : tube(neckBase, head, n.bodyG * 0.72 * n.neckK, n.headR * 1.15 * n.neckK));
   const neckType = g.head!.neck!;
   const at = (t: number, off: number): XY => [neckBase[0] + dir[0] * t + up[0] * off, neckBase[1] + dir[1] * t + up[1] * off];
   const upSign = up[1] >= 0 ? 1 : -1;
-  const neckW = (t: number): number => (n.bodyG * 0.72) * (1 - t) + n.headR * 1.15 * t;
+  const neckW = (t: number): number => ((n.bodyG * 0.72) * (1 - t) + n.headR * 1.15 * t) * n.neckK;
   const deco = new Path();
   if (neckType === 1) { // crested: raised zig-zag ridge, 1.6 mm wide
     const pts: XY[] = [];
@@ -804,7 +807,8 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
 
   // ---- face -------------------------------------------------------------------------
   const face = g.face!;
-  const er2 = EYE_R[face.eyes!] ?? 2.4;
+  // eye size slider; a huge eye still fits on the head
+  const er2 = Math.min((EYE_R[face.eyes!] ?? 2.4) * D.factorAt(D.EYE_SIZE, face.eyeSize), hs.ry * (face.eyes === EYES.many ? 0.42 : 0.62));
   const eye: XY = [head[0] + hs.rx * 0.32, head[1] + hs.ry * 0.25];
   const eyes: [XY, number][] = face.eyes === EYES.many
     ? [[eye, er2], [[head[0] - hs.rx * 0.08, head[1] + hs.ry * 0.5], er2 * 0.8], [[head[0] + hs.rx * 0.62, head[1] + hs.ry * 0.02], er2 * 0.75], [[head[0] + hs.rx * 0.05, head[1] + hs.ry * 0.05], er2 * 0.7]]
@@ -887,12 +891,12 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
     // Whiskers stick out SIDEWAYS from the muzzle (a flat plate lying in the horizontal plane, see whiskerTop in
     // spec3d). Seen from the side they are foreshortened: the strands that fan back and forward from one root (drawn as
     // the dot where they leave the muzzle; the pad that seats a printed set is not drawn, see buildParts3D `print`).
-    const len = whiskerLength(face.whiskers!);
+    const len = whiskerLength(face.whiskers!, face.whiskerSize);
     const wk = new Path();
     const [cx, cy] = whiskerRoot(tipX, tip);
     wk.append(ellipse(cx, cy, 1, 1));
     const off = WHISKER_TURN[face.whiskerDir ?? 0] ?? 0; // a strand pointing straight sideways shows no length here
-    for (const a of WHISKER_FAN) if (Math.abs(Math.sin(a + off)) * len > 3) wk.append(tube([cx, cy + Math.sign(a)], [cx + Math.sin(a + off) * len, cy + Math.sign(a)], 1.2, 1.2)); // strands 1 mm apart fuse into one band
+    for (const a of WHISKER_FAN) if (Math.abs(Math.sin(a + off)) * len > 3) wk.append(tube([cx, cy + Math.sign(a)], [cx + Math.sin(a + off) * len, cy + Math.sign(a)], 1.6, 1.6)); // strands 1 mm apart fuse into one band; 1.6 = the printed plate's thickness
     put('whiskers', wk);
   }
 

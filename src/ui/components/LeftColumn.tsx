@@ -1,12 +1,9 @@
-import {
-  PRESETS, SIZE_CLASSES, blockDef, presetGenome, serialize, stepToClass, type EnumField, type Op, type StepField,
-} from '../../core';
+import { PRESETS, blockDef, presetGenome, serialize, type EnumField } from '../../core';
 import { PALETTES } from '../../core/palette';
 import { useEffect, useRef, useState } from 'react';
 import { studio, useStudioState } from '../studio';
 import { SOCKET_TILE, TILE_GROUPS, type TileDef, type TileField } from '../tiles';
 
-const CLASS_LABELS = ['1: Mały', '2: Średni', '3: Duży'];
 
 function Segmented({ items, value, onChange, disabled }: {
   items: { label: string; value: number }[]; value: number; onChange: (v: number) => void; disabled?: boolean;
@@ -42,7 +39,9 @@ function isOff(tf: TileField, g: Genome): boolean {
     if (tf.field === 'eyeSet') return face.eyes === EYES_STALKS;
     if (tf.field === 'whiskerDir') return face.whiskers === 0;
     if (tf.field === 'teeth') return face.teeth === 0;
+    if (tf.field === 'whiskerSize') return face.whiskers === 0;
   }
+  if (tf.block === 'coat' && tf.field === 'patternSize') return g.coat!.pattern === 0;
   return false;
 }
 
@@ -61,10 +60,15 @@ function FieldControl({ tf }: { tf: TileField }) {
         onChange={(open) => studio.applyOps([{ kind: 'set', block: 'face', field: 'teeth', value: open ? Math.max(1, value) : 0 }])} />
     );
   } else if (field.kind === 'step') {
-    control = (
-      <Segmented disabled={off} value={stepToClass(value)}
-        items={Array.from({ length: SIZE_CLASSES }, (_, c) => ({ label: CLASS_LABELS[c]!, value: c }))}
-        onChange={(cls) => studio.applyOps([{ kind: 'size', block: tf.block, field: tf.field, cls }])} />
+    const sz = sizeOf(tf);
+    const level = sz.steps.indexOf(levelStep(sz, value));
+    return (
+      <label className={`field size-field${off ? ' off' : ''}`}>
+        <span className="control-label">{tf.label}<b>{off ? '' : sz.words[level]}</b></span>
+        <input type="range" className={`size-slider levels-${sz.steps.length}`} min={0} max={sz.steps.length - 1} step={1} value={level}
+          disabled={off} aria-label={tf.label} aria-valuetext={sz.words[level]}
+          onChange={(e) => studio.applyOps([{ kind: 'set', block: tf.block, field: tf.field, value: sz.steps[Number(e.target.value)]! }])} />
+      </label>
     );
   } else {
     const f = field as EnumField;
@@ -74,15 +78,8 @@ function FieldControl({ tf }: { tf: TileField }) {
     control = (
       <Segmented disabled={off} value={value}
         items={order.flatMap((i) => (skip(i) || (f.options[i]!.retired && i !== value) ? [] : [{ label: f.options[i]!.label, value: i }]))}
-        onChange={(v) => {
-          const ops: Op[] = [{ kind: 'set', block: tf.block, field: tf.field, value: v }];
-          // leaving "Brak" must also give a sensible size (class 2), not the zeroed one
-          const step = def.fields.find((x): x is StepField => x.kind === 'step');
-          if (def.noneMeansEmpty && field === def.fields[0] && value === 0 && v > 0 && step) {
-            ops.push({ kind: 'size', block: tf.block, field: step.name, cls: 1 });
-          }
-          studio.applyOps(ops);
-        }} />
+        // leaving "Brak" gives the part its middle sizes (see setField)
+        onChange={(v) => studio.applyOps([{ kind: 'set', block: tf.block, field: tf.field, value: v }])} />
     );
   }
   return (
@@ -93,19 +90,47 @@ function FieldControl({ tf }: { tf: TileField }) {
   );
 }
 
-/** How big a part is, in words that agree with its name (a closed category shows it next to the chosen shape). */
-const SIZE_WORDS: Record<string, readonly [string, string, string]> = {
-  'snout.reach': ['krótki', 'średni', 'długi'],
-  'ears.scale': ['małe', 'średnie', 'duże'],
-  'horns.span': ['małe', 'średnie', 'duże'],
-  'crest.scale': ['mały', 'średni', 'duży'],
-  'head.neckLength': ['krótka', 'średnia', 'długa'],
-  'body.length': ['krótki', 'średni', 'długi'],
-  'wings.scale': ['małe', 'średnie', 'duże'],
-  'legs.length': ['krótkie', 'średnie', 'długie'],
-  'hands.length': ['krótkie', 'średnie', 'długie'],
-  'tail.length': ['mały', 'średni', 'duży'],
+/**
+ * Size sliders: six levels for the head and what sits on it (and the neck), three clearly different ones for the
+ * body, limbs, tail and pattern. A 3-level slider uses the steps 0, 2 and 5 of the gene's six.
+ */
+interface SizeScale { steps: readonly number[]; words: readonly string[] }
+const SIX = [0, 1, 2, 3, 4, 5], THREE = [0, 2, 5];
+const six = (w: string): SizeScale => {
+  const [a, b, c, d, e, f] = w.split(' ');
+  return { steps: SIX, words: [a!, b!, c!, d!, e!, f!].map((x) => x.replace(/_/g, ' ')) };
 };
+const three = (w: string): SizeScale => ({ steps: THREE, words: w.split(' ') });
+const SIZES: Record<string, SizeScale> = {
+  'head.size': six('malutka mała średnia duża bardzo_duża ogromna'),
+  'face.eyeSize': six('malutkie małe średnie duże bardzo_duże ogromne'),
+  'snout.reach': six('bardzo_krótki krótki średni długi bardzo_długi ogromny'),
+  'face.whiskerSize': six('bardzo_krótkie krótkie średnie długie bardzo_długie ogromne'),
+  'ears.scale': six('malutkie małe średnie duże bardzo_duże ogromne'),
+  'horns.span': six('malutkie małe średnie duże bardzo_duże ogromne'),
+  'antennae.length': six('bardzo_krótkie krótkie średnie długie bardzo_długie ogromne'),
+  'crest.scale': six('malutki mały średni duży bardzo_duży ogromny'),
+  'head.neckLength': six('bardzo_krótka krótka średnia długa bardzo_długa ogromna'),
+  'head.neckThick': six('bardzo_cienka cienka średnia gruba bardzo_gruba ogromna'),
+  'body.length': three('krótki średni długi'),
+  'body.girth': three('smukły średni pękaty'),
+  'wings.scale': three('małe średnie duże'),
+  'legs.length': three('krótkie średnie długie'),
+  'legs.thick': three('cienkie średnie grube'),
+  'hands.length': three('krótkie średnie długie'),
+  'hands.thick': three('cienkie średnie grube'),
+  'tail.length': three('mały średni duży'),
+  'coat.patternSize': three('drobne średnie duże'),
+};
+const sizeOf = (tf: TileField): SizeScale => SIZES[`${tf.block}.${tf.field}`] ?? three('mały średni duży');
+/** The slider step a stored step shows as (an old code may hold a step between the three levels). */
+const levelStep = (sz: SizeScale, step: number): number =>
+  sz.steps.reduce((best, s) => (Math.abs(s - step) < Math.abs(best - step) ? s : best), sz.steps[0]!);
+const wordOf = (tf: TileField, g: Genome): string => {
+  const sz = sizeOf(tf);
+  return sz.words[sz.steps.indexOf(levelStep(sz, g[tf.block]![tf.field]!))]!;
+};
+const isSize = (tf: TileField): boolean => blockDef(tf.block).fields.find((x) => x.name === tf.field)?.kind === 'step';
 
 const cap = (w: string): string => w.charAt(0).toUpperCase() + w.slice(1);
 
@@ -114,12 +139,12 @@ function statusOf(tile: TileDef, g: Genome): string {
   const first = tile.fields[0];
   if (!first) return `Triada ${g.palette!.index! + 1}`;
   const f = blockDef(first.block).fields.find((x) => x.name === first.field)!;
-  const wordOf = (tf: TileField): string => SIZE_WORDS[`${tf.block}.${tf.field}`]![stepToClass(g[tf.block]![tf.field]!)]!;
-  if (f.kind !== 'enum') return SIZE_WORDS[`${first.block}.${first.field}`] ? cap(wordOf(first)) : CLASS_LABELS[stepToClass(g[first.block]![first.field]!)]!;
+  const sized = tile.fields.filter((tf) => isSize(tf) && !isOff(tf, g));
+  if (f.kind !== 'enum') return cap(sized.slice(0, 2).map((tf) => wordOf(tf, g)).join(', ')); // the neck: "Długa, gruba"
   const shape = f.options[g[first.block]![first.field]!]!.label;
-  const sized = tile.fields.find((tf) => SIZE_WORDS[`${tf.block}.${tf.field}`] && !isOff(tf, g));
+  const word = sized[0] ? wordOf(sized[0], g) : null;
   // the size, unless the shape already says it ("Krótki, krótki")
-  return sized && sized !== first && wordOf(sized) !== shape.toLowerCase() ? `${shape}, ${wordOf(sized)}` : shape;
+  return word && word !== shape.toLowerCase() ? `${shape}, ${word}` : shape;
 }
 
 function PaletteGrid() {

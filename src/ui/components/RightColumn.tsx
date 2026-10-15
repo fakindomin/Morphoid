@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { FINE_LEVELS, FINE_ZERO, fineOffset, fineScale, BLOCKS, parse, sculptValue, solveRig, STEPS } from '../../core';
+import { parse } from '../../core';
 import { exportBundle } from '../../core/bake/orient';
 import { export3mf } from '../../core/bake/threemf';
 import { PALETTES } from '../../core/palette';
@@ -186,66 +186,7 @@ function PrintBody({ view, explode, setExplode }: Props) {
   );
 }
 
-const THROTTLE_MS = 250;
 
-/** The creature's 3D deformation (gene I): sliders saved in the DNA; long pulls carry over into the size genes. */
-function SculptBody() {
-  const { genome } = useStudioState();
-  const anatomical = solveRig(genome).dims.anatomical;
-  const dragging = useRef(false);
-  // while a slider is dragged it follows the hand at once; the creature (DNA, print check, 3D) catches up at most
-  // every THROTTLE_MS and on release, so a weaker computer does not recompute on every pixel
-  const [live, setLive] = useState<{ name: string; value: number } | null>(null);
-  const last = useRef(0), timer = useRef(0), pend = useRef<{ name: string; value: number } | null>(null);
-  const flush = (): void => {
-    window.clearTimeout(timer.current);
-    const p = pend.current;
-    if (!p) return;
-    pend.current = null; last.current = performance.now();
-    studio.sculpt(p.name, p.value, dragging.current);
-    dragging.current = true;
-  };
-  const move = (name: string, value: number): void => {
-    setLive({ name, value });
-    pend.current = { name, value };
-    window.clearTimeout(timer.current);
-    const wait = THROTTLE_MS - (performance.now() - last.current);
-    if (wait <= 0) flush(); else timer.current = window.setTimeout(flush, wait);
-  };
-  const release = (): void => { flush(); dragging.current = false; setLive(null); };
-  useEffect(() => () => window.clearTimeout(timer.current), []);
-  const fields = BLOCKS.find((b) => b.id === 'sculpt')!.fields;
-  const moved = fields.some((f) => genome.sculpt?.[f.name] !== FINE_ZERO);
-  const MASS = new Set(['chest', 'waist', 'haunch', 'shoulder']);
-  return (
-    <>
-      <p className="hint">Każdy ruch zapisuje się w kodzie DNA. Drobne zmiany widać tylko w 3D; przeciągnięte za pół kroku zmieniają też rozmiar w szkicu 2D.</p>
-      {fields.map((f) => {
-        if (f.kind !== 'fine') return null;
-        const off = MASS.has(f.name) && !anatomical;
-        const v = genome.sculpt?.[f.name] ?? FINE_ZERO;
-        const coarse = !!f.coarse;
-        const val = live?.name === f.name ? live.value : coarse ? sculptValue(genome, f.name) : v;
-        const step = coarse ? genome[f.coarse!.block]![f.coarse!.field]! : 0;
-        const pct = Math.round(coarse ? fineOffset(v) * 100 : (fineScale(v) - 1) * 100);
-        const text = coarse ? `krok ${step + 1}${pct ? ` ${pct > 0 ? '+' : ''}${pct}%` : ''}` : `${pct > 0 ? '+' : ''}${pct}%`;
-        return (
-          <label key={f.name} className={`slider-row${off ? ' off' : ''}`}>
-            <span className="control-label">{f.label} <b>{text}</b></span>
-            <input type="range" disabled={off} aria-label={f.label}
-              min={coarse ? -0.5 : 0} max={coarse ? STEPS - 1 + (FINE_LEVELS - 1 - FINE_ZERO) / FINE_LEVELS : FINE_LEVELS - 1}
-              step={coarse ? 1 / FINE_LEVELS : 1} value={val}
-              onPointerDown={() => { dragging.current = false; last.current = 0; }}
-              onChange={(e) => move(f.name, Number(e.target.value))}
-              onPointerUp={release} onKeyUp={release} onBlur={release} />
-          </label>
-        );
-      })}
-      {!anatomical && <p className="hint">Klatka, talia, zad i łopatki działają na korpusie „Zwierzęcy”.</p>}
-      <button type="button" className="btn-soft" disabled={!moved} onClick={() => studio.resetSculpt()}>Wyzeruj deformację</button>
-    </>
-  );
-}
 
 /** How the creature is shown: in 2D the sketch's colours and bones, in 3D the grey filament, framing and smoothing. */
 function ViewBody({ view }: { view: ViewMode }) {
@@ -359,14 +300,12 @@ export function RightColumn(props: Props) {
   const parts = report.pieces.length;
   const issues = report.issues.filter((i) => i.severity !== 'info' && i.severity !== 'support').length;
   const viewSketch = useViewOptions().sketchMode;
-  const sculptCount = Object.values(genome.sculpt ?? {}).filter((v) => v !== FINE_ZERO).length;
   return (
     <aside className="column right acc-column right-panel">
       <div className="right-scroll">
         <Category id="view" title="Widok" value={props.view === '2d' ? (viewSketch === 'color' ? 'Kolor Morphoida' : 'Druk') : 'Studio 3D'} open={open} setOpen={setOpen}><ViewBody view={props.view} /></Category>
         <Category id="morphoid" title="Morphoid" value={studio.creature().name} open={open} setOpen={setOpen}><MorphoidBody /></Category>
         <Category id="project" title="Projekt" value={saved ? 'zapisany' : 'niezapisany'} open={open} setOpen={setOpen}><ProjectBody /></Category>
-        {props.view === '3d' && <Category id="sculpt" title="Deformacja" value={sculptCount ? `zmian: ${sculptCount}` : 'brak'} open={open} setOpen={setOpen}><SculptBody /></Category>}
         <Category id="print" title="Opcje druku" value={kind === 'whole' ? 'Całość' : `Części · ${parts}`} badge={issues} open={open} setOpen={setOpen}><PrintBody {...props} /></Category>
       </div>
       <ExportFooter />

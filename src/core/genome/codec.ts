@@ -63,8 +63,15 @@ export function canonicalize(g: MorphotypeGenome): MorphotypeGenome {
       for (const sz of gd.sizes) out[sz.block]![sz.field] = 0;
     }
   }
+  // the size sliders of parts that can be absent keep their middle size while the part is away (the code still writes
+  // 0), so a part switched on in code (a preset, the dice) looks as it did before the sliders existed
+  for (const [block, name, part] of KEEP_MIDDLE) if (out[part[0]]![part[1]] === 0) out[block]![name] = 2;
   return out;
 }
+
+const KEEP_MIDDLE: readonly [BlockId, string, [BlockId, string]][] = [
+  ['face', 'whiskerSize', ['face', 'whiskers']], ['coat', 'patternSize', ['coat', 'pattern']], ['hands', 'thick', ['hands', 'type']],
+];
 
 // ------------------------------------------------------------ N -> 2N rule
 
@@ -213,6 +220,9 @@ export function describeGene(genome: MorphotypeGenome, gd: GeneDef): string {
   return [`${gd.label}: ${variant}`, ...sizes].join(' · ');
 }
 
+/** Genes that grew a size digit at their end: how many digits they had before. */
+const LEGACY_DIGITS: Record<string, number> = { L: 1, N: 1, H: 0, O: 2, V: 1, D: 0, X: 2 };
+
 const GENE_RE = /^([A-Z])([0-9A-F]{2})(?:\.([0-9A-F]*))?$/;
 
 function parseV2(body: string, base?: MorphotypeGenome): ParseResult {
@@ -243,6 +253,8 @@ function parseV2(body: string, base?: MorphotypeGenome): ParseResult {
         if (ch !== undefined) g[sz.block]![sz.field] = parseInt(ch, 16);
         return;
       }
+      // a digit the gene did not have yet when the code was written: the look of that time (the default)
+      if (digits[i] === undefined && i >= (LEGACY_DIGITS[gd.letter] ?? Infinity)) { g[sz.block]![sz.field] = defaultValue(blockDef(sz.block), field(sz.block, sz.field)); return; }
       const d = Number(digits[i] ?? NaN);
       if (d >= 1 && d <= fieldRange(field(sz.block, sz.field))) g[sz.block]![sz.field] = d - 1;
       else if (!(d === 0 || Number.isNaN(d))) badGenes.push(tok);
@@ -288,10 +300,18 @@ export function parse(input: string, base?: MorphotypeGenome): ParseResult {
 
 // ------------------------------------------------------------------ editing
 
-export function setField(g: MorphotypeGenome, block: BlockId, field: string, value: number): MorphotypeGenome {
+export function setField(g: MorphotypeGenome, block: BlockId, name: string, value: number): MorphotypeGenome {
   blockDef(block); // throws on unknown block
   const next = cloneGenome(g);
-  next[block]![field] = value;
+  // a part coming back from "Brak" gets its middle sizes, not the zeroed ones
+  for (const gd of GENES) {
+    if (gd.variant?.block !== block || gd.variant.field !== name) continue;
+    const f = field(block, name);
+    if (zeroBased(block, f) && g[block]![name] === 0 && value > 0) {
+      for (const sz of gd.sizes) if (field(sz.block, sz.field).kind === 'step') next[sz.block]![sz.field] = 2;
+    }
+  }
+  next[block]![name] = value;
   return canonicalize(next);
 }
 

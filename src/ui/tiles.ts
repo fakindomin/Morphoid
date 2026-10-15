@@ -20,7 +20,9 @@ export const TILE_GROUPS: TileGroup[] = [
   { title: 'Od głowy po ogon', tiles: [
     { id: 'head', title: 'Głowa', fields: [
       { block: 'head', field: 'skull', label: 'Kształt czaszki' },
+      { block: 'head', field: 'size', label: 'Wielkość głowy' },
       { block: 'face', field: 'eyes', label: 'Oczy' },
+      { block: 'face', field: 'eyeSize', label: 'Wielkość oczu' },
       { block: 'face', field: 'eyeSet', label: 'Osadzenie oczu' },
       { block: 'face', field: 'eyeShape', label: 'Kształt oczu' },
     ] },
@@ -31,6 +33,7 @@ export const TILE_GROUPS: TileGroup[] = [
       { block: 'face', field: 'teeth', label: 'Pysk', control: 'mouth' },
       { block: 'face', field: 'teeth', label: 'Zęby' },
       { block: 'face', field: 'whiskers', label: 'Wąsy' },
+      { block: 'face', field: 'whiskerSize', label: 'Długość wąsów' },
       { block: 'face', field: 'whiskerDir', label: 'Kierunek wąsów' },
     ] },
     { id: 'ears', title: 'Uszy', fields: [
@@ -48,10 +51,11 @@ export const TILE_GROUPS: TileGroup[] = [
     ] },
     { id: 'crest', title: 'Czub, grzywa, kolce', fields: [
       { block: 'crest', field: 'type', label: 'Rodzaj wyrostków' },
-      { block: 'crest', field: 'scale', label: 'Skala wyrostków' },
+      { block: 'crest', field: 'scale', label: 'Wielkość wyrostków' },
     ] },
     { id: 'neck', title: 'Szyja', fields: [
       { block: 'head', field: 'neckLength', label: 'Długość szyi' },
+      { block: 'head', field: 'neckThick', label: 'Grubość szyi' },
     ] },
     { id: 'body', title: 'Tułów', fields: [
       { block: 'plan', field: 'type', label: 'Plan ciała' },
@@ -67,10 +71,12 @@ export const TILE_GROUPS: TileGroup[] = [
     { id: 'legs', title: 'Nogi i stopy', fields: [
       { block: 'legs', field: 'foot', label: 'Kształt stóp (płaska baza Y=0)' },
       { block: 'legs', field: 'length', label: 'Wysokość nóg' },
+      { block: 'legs', field: 'thick', label: 'Grubość nóg' },
     ] },
     { id: 'hands', title: 'Ręce', fields: [
       { block: 'hands', field: 'type', label: 'Dłonie' },
       { block: 'hands', field: 'length', label: 'Długość rąk' },
+      { block: 'hands', field: 'thick', label: 'Grubość rąk' },
       { block: 'hands', field: 'dir', label: 'Ułożenie rąk' },
     ] },
     { id: 'tail', title: 'Ogon', fields: [
@@ -83,6 +89,7 @@ export const TILE_GROUPS: TileGroup[] = [
     { id: 'palette', title: 'Kolory', fields: [], palette: true },
     { id: 'coat', title: 'Wzór', fields: [
       { block: 'coat', field: 'pattern', label: 'Wzór' },
+      { block: 'coat', field: 'patternSize', label: 'Wielkość wzoru' },
       { block: 'coat', field: 'texture', label: 'Faktura' },
     ] },
     { id: 'stand', title: 'Podstawka', fields: [{ block: 'stand', field: 'type', label: 'Podstawka (osobny wydruk)' }] },
