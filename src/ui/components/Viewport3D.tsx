@@ -187,11 +187,19 @@ export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
   if (failed) return <div className="viewport3d-fail">Przeglądarka nie udostępnia WebGL, więc podgląd 3D jest niedostępny.</div>;
   return (
     <div className={`viewport3d ${variant}`} ref={host}>
-      {variant === 'main' && preview.busy && !baked && explode < 0.02 && <div className="viewport-busy">Przeliczam bryłę…</div>}
+      {variant === 'main' && preview.busy && preview.quality === 'draft' && !baked && explode < 0.02 && <div className="viewport-busy">Przeliczam bryłę…</div>}
       {variant === 'main' && (
         <div className="viewport-tools">
           <button type="button" className={`btn-mini${grey ? ' on' : ''}`} aria-pressed={grey} title="Jak wydruk z jednego, szarego filamentu" onClick={() => setGrey((g) => !g)}>Szary filament</button>
           <button type="button" className="btn-mini" onClick={() => api.current?.resetView()}>Wyśrodkuj widok</button>
+          {!baked && explode < 0.02 && (
+            <button type="button" className={`btn-mini smooth${preview.quality === 'smooth' ? ' on' : ''}`}
+              disabled={preview.quality !== 'draft' || (preview.busy && preview.code !== studio.code())}
+              title="Podgląd podczas zmian jest uproszczony, żeby działał płynnie. Wygładzenie pokazuje model tak, jak wyjdzie w pliku do druku."
+              onClick={() => previewStore.smooth()}>
+              {preview.quality === 'smoothing' ? 'Wygładzam…' : preview.quality === 'smooth' ? 'Model wygładzony' : 'Wygładź model'}
+            </button>
+          )}
         </div>
       )}
     </div>

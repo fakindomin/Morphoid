@@ -177,11 +177,34 @@ function PrintBody({ view, explode, setExplode }: Props) {
   );
 }
 
+const THROTTLE_MS = 250;
+
 /** The creature's 3D deformation (gene I): sliders saved in the DNA; long pulls carry over into the size genes. */
 function SculptBody() {
   const { genome } = useStudioState();
   const anatomical = solveRig(genome).dims.anatomical;
   const dragging = useRef(false);
+  // while a slider is dragged it follows the hand at once; the creature (DNA, print check, 3D) catches up at most
+  // every THROTTLE_MS and on release, so a weaker computer does not recompute on every pixel
+  const [live, setLive] = useState<{ name: string; value: number } | null>(null);
+  const last = useRef(0), timer = useRef(0), pend = useRef<{ name: string; value: number } | null>(null);
+  const flush = (): void => {
+    window.clearTimeout(timer.current);
+    const p = pend.current;
+    if (!p) return;
+    pend.current = null; last.current = performance.now();
+    studio.sculpt(p.name, p.value, dragging.current);
+    dragging.current = true;
+  };
+  const move = (name: string, value: number): void => {
+    setLive({ name, value });
+    pend.current = { name, value };
+    window.clearTimeout(timer.current);
+    const wait = THROTTLE_MS - (performance.now() - last.current);
+    if (wait <= 0) flush(); else timer.current = window.setTimeout(flush, wait);
+  };
+  const release = (): void => { flush(); dragging.current = false; setLive(null); };
+  useEffect(() => () => window.clearTimeout(timer.current), []);
   const fields = BLOCKS.find((b) => b.id === 'sculpt')!.fields;
   const moved = fields.some((f) => genome.sculpt?.[f.name] !== FINE_ZERO);
   const MASS = new Set(['chest', 'waist', 'haunch', 'shoulder']);
@@ -193,7 +216,7 @@ function SculptBody() {
         const off = MASS.has(f.name) && !anatomical;
         const v = genome.sculpt?.[f.name] ?? FINE_ZERO;
         const coarse = !!f.coarse;
-        const val = coarse ? sculptValue(genome, f.name) : v;
+        const val = live?.name === f.name ? live.value : coarse ? sculptValue(genome, f.name) : v;
         const step = coarse ? genome[f.coarse!.block]![f.coarse!.field]! : 0;
         const pct = Math.round(coarse ? fineOffset(v) * 100 : (fineScale(v) - 1) * 100);
         const text = coarse ? `krok ${step + 1}${pct ? ` ${pct > 0 ? '+' : ''}${pct}%` : ''}` : `${pct > 0 ? '+' : ''}${pct}%`;
@@ -203,9 +226,9 @@ function SculptBody() {
             <input type="range" disabled={off} aria-label={f.label}
               min={coarse ? -0.5 : 0} max={coarse ? STEPS - 1 + (FINE_LEVELS - 1 - FINE_ZERO) / FINE_LEVELS : FINE_LEVELS - 1}
               step={coarse ? 1 / FINE_LEVELS : 1} value={val}
-              onPointerDown={() => { dragging.current = false; }}
-              onChange={(e) => { studio.sculpt(f.name, Number(e.target.value), dragging.current); dragging.current = true; }}
-              onPointerUp={() => { dragging.current = false; }} />
+              onPointerDown={() => { dragging.current = false; last.current = 0; }}
+              onChange={(e) => move(f.name, Number(e.target.value))}
+              onPointerUp={release} onKeyUp={release} onBlur={release} />
           </label>
         );
       })}
