@@ -9,6 +9,7 @@ import type { Grid3 } from './surfacenets';
 import { limbBox, limbField, limbSd, type Limb } from '../art/limb';
 import { coatDepth, type Coat } from '../art/coat';
 import { reliefDepth } from '../art/relief';
+import { applyCuts } from '../art/form';
 
 export const BIG = 6; // mm, "far away" distance written into empty space
 
@@ -112,6 +113,48 @@ const GROUP: Partial<Record<string, number>> = {
 };
 export const blendGroup = (slot: string): number => GROUP[slot] ?? 0;
 
+/** Body masses: they melt into each other with the full blend radius (bake BLEND_MM). */
+const BODY_MASS = new Set<string>(['legB', 'legF', 'torso', 'neck', 'head', 'snout', 'saddle', 'collar', 'neckDecor', 'arms']);
+/** Blend radius of an appendage as a share of its own thickness (rule "hierarchia zlewania"). */
+export const BLEND_SHARE = 0.42;
+/** The tightest blend of an appendage (mm): tighter leaves hairline slits at its root that a printer cannot close. */
+export const BLEND_MIN_MM = 0.7;
+
+/** How thick a part is (mm): a slab's thickness, a round part's mean diameter. */
+export function partSize(p: Part3D): number {
+  const l = p.limb;
+  if (l && (l.cones.length || l.domes.length)) {
+    let s = 0, n = 0;
+    for (const c of l.cones) { s += c.ra + c.rb; n += 2; }
+    for (const d of l.domes) { s += Math.min(d.r[0], d.r[1], d.r[2]); n++; }
+    return (2 * s) / n;
+  }
+  return p.thickness;
+}
+
+/**
+ * Blend radius of a part: body masses melt into each other softly (`big`), an appendage only as much as its own size
+ * allows. An ear or a horn then grows out of the head with a small fillet and stays a readable shape, instead of the
+ * thick roll of "plasticine" every joint got with one radius for all.
+ */
+export function blendOf(p: Part3D, big: number): number {
+  // wings hang beside the torso across a gap that only the full blend bridges
+  if (BODY_MASS.has(p.slot) || p.slot === 'wingNear' || p.id.startsWith('muscle')) return big;
+  return Math.min(big, Math.max(BLEND_MIN_MM, partSize(p) * (p.blendShare ?? BLEND_SHARE)));
+}
+
+/**
+ * Fuse all parts of a piece: body masses first, then appendages from the biggest blend to the smallest (each union is
+ * shaped by the smaller part), then the crisp insets and the cuts.
+ */
+export function fuseParts(g: Grid3, parts: Part3D[], big: number, inset: number, carve: number): void {
+  const solid = parts.filter((p) => !p.inset && !p.carve).map((p) => ({ p, k: blendOf(p, big) }));
+  solid.sort((a, b) => b.k - a.k);
+  for (const { p, k } of solid) addPart(g, p, k);
+  for (const p of parts) if (p.inset) addPart(g, p, inset);
+  for (const p of parts) if (p.carve) addPart(g, p, carve);
+}
+
 /** Union of the node with a new value: smooth with the body and the part's own group, sharp with another appendage. */
 function unite(g: Grid3, idx: number, d3: number, k: number, grp: number): void {
   const cur = g.data[idx]!;
@@ -156,7 +199,13 @@ export function widthAt(p: Part3D, x: number): number {
  * Signed distance to a part's slab from the 2D distance `sd` to its outline and the offset `w` from its centre plane
  * along the extrusion: a box with rounded edges, or with `dome` a flat inner face and a round outer side.
  */
-export function slabDist(p: Part3D, sd: number, w: number, x?: number): number {
+export function slabDist(p: Part3D, sd: number, w: number, x?: number, y?: number): number {
+  const d = slabBase(p, sd, w, x);
+  // planes cut into a side-view part (cheeks, temples, the back), see form.ts
+  return p.cuts && x !== undefined && y !== undefined && p.plane !== 'xz' ? applyCuts(p.cuts, d, x, y, w + p.z) : d;
+}
+
+function slabBase(p: Part3D, sd: number, w: number, x?: number): number {
   const half = (p.thickness / 2) * (x === undefined ? 1 : widthAt(p, x));
   if (p.dome && p.side) {
     // the outer half of a slab grown inwards by R and rounded by R, cut flat at the inner face
@@ -199,7 +248,9 @@ export function addPart(g: Grid3, part: Part3D, k: number): void {
   const d2 = new Float32Array(w2 * (v1 - v0 + 1));
   for (let v = v0; v <= v1; v++) for (let i = i0; i <= i1; i++) d2[(v - v0) * w2 + (i - i0)] = sdPolys(edges, part.polys, g.ox + i * h, vo + v * h);
   closeOutline(d2, w2, v1 - v0 + 1, h, SLIT_CLOSE_MM);
-  const slab = (sd: number, wz: number, x: number): number => {
+  const cuts = top ? undefined : part.cuts;
+  const slab = (sd: number, wz: number, x: number, y: number): number => {
+    if (cuts) return slabDist(part, sd, wz, x, y);
     if (dome) return slabDist(part, sd, wz);
     if (part.widths) return slabDist(part, sd, wz, x);
     const wx = sd + r, wy = Math.abs(wz) - half + r;
@@ -215,12 +266,13 @@ export function addPart(g: Grid3, part: Part3D, k: number): void {
       const sd = d2[(v - v0) * w2 + (i - i0)]!;
       if (sd > far) continue; // farther than the blend radius from this part's outline: cannot matter
       const x = g.ox + i * h;
-      let d3 = slab(sd, wz, x);
+      const y = vo + v * h;
+      let d3 = slab(sd, wz, x, y);
       if (coat && Math.abs(d3) < 1.5) { // coat relief: sunk along the surface normal (the slab's own gradient)
         const ia = Math.max(i - 1, i0), ib = Math.min(i + 1, i1), va = Math.max(v - 1 - v0, 0), vb = Math.min(v + 1 - v0, vMax);
-        const gx = slab(d2[(v - v0) * w2 + (ib - i0)]!, wz, g.ox + ib * h) - slab(d2[(v - v0) * w2 + (ia - i0)]!, wz, g.ox + ia * h);
-        const gy = slab(d2[vb * w2 + (i - i0)]!, wz, x) - slab(d2[va * w2 + (i - i0)]!, wz, x);
-        const gz = slab(sd, wz + h, x) - slab(sd, wz - h, x);
+        const gx = slab(d2[(v - v0) * w2 + (ib - i0)]!, wz, g.ox + ib * h, y) - slab(d2[(v - v0) * w2 + (ia - i0)]!, wz, g.ox + ia * h, y);
+        const gy = slab(d2[vb * w2 + (i - i0)]!, wz, x, vo + (vb + v0) * h) - slab(d2[va * w2 + (i - i0)]!, wz, x, vo + (va + v0) * h);
+        const gz = slab(sd, wz + h, x, y) - slab(sd, wz - h, x, y);
         const gl = Math.hypot(gx, gy, gz) || 1;
         d3 += coatDepth(coat, x, vo + v * h, wz + part.z, gx / gl, gy / gl, gz / gl);
       }

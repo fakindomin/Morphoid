@@ -27,7 +27,6 @@ export function App() {
   const [theme, setTheme] = useState<Theme>(initialTheme);
   const [view, setView] = useState<ViewMode>('2d');
   const [showBones, setShowBones] = useState(false);
-  const [breathing, setBreathing] = useState(true);
   const [explode, setExplode] = useState(0);
   const job = useBake();
   const radial = useRadial();
@@ -51,8 +50,7 @@ export function App() {
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       const mod = e.ctrlKey || e.metaKey;
-      if (e.code === 'Space') { e.preventDefault(); setBreathing((b) => !b); }
-      else if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? studio.redo() : studio.undo(); }
+      if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? studio.redo() : studio.undo(); }
       else if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); studio.redo(); }
     };
     window.addEventListener('keydown', onKey);
@@ -75,14 +73,11 @@ export function App() {
               <button type="button" className={`tool-btn${showBones ? ' on' : ''}`} aria-pressed={showBones} title="Pokaż kości" aria-label="Pokaż kości" onClick={() => setShowBones((b) => !b)}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><circle cx="5" cy="6" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="8" r="2" /><circle cx="12" cy="20" r="2" /><path d="M6.6 7.2l3.8 3.6M13.8 11.2l3.4-2M12 14v4" /></svg>
               </button>
-              <button type="button" className={`tool-btn${breathing ? ' on' : ''}`} aria-pressed={breathing} title="Oddech (spacja)" aria-label="Oddech" onClick={() => setBreathing((b) => !b)}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M3 12c2.5-5 5.5-5 8 0s5.5 5 8 0" /><path d="M3 17c2.5-3 5.5-3 8 0s5.5 3 8 0" opacity=".5" /></svg>
-              </button>
             </div>
           )}
           <div className="hud-tag">{view === '2d' ? 'WIDOK Z BOKU · kliknij pomarańczowy punkt, aby zmienić część' : '3D STUDIO · obracaj myszą, kółko = zbliżenie'}</div>
           {view === '2d' ? (
-            <Canvas2D showBones={showBones} breathing={breathing} frozen={radial.state.open} onSocket={onSocket} markers={markers} />
+            <Canvas2D showBones={showBones} onSocket={onSocket} markers={markers} />
           ) : (
             <Viewport3D variant="main" explode={explode} baked={job.showBaked && job.result && job.signature === signatureOf(studio.code(), plan.separate) ? job.result : null} />
           )}
@@ -102,7 +97,7 @@ export function App() {
         <span className="muted">Model {size.length.toFixed(0)} × {size.width.toFixed(0)} × {size.height.toFixed(0)} mm</span>
         <StatusBake onOpen={() => setView('3d')} />
         <span className="spacer" />
-        <span className="muted"><kbd>Spacja</kbd> pauza oddechu <kbd>Ctrl+Z</kbd> cofnij <kbd>Klik ●</kbd> koło wyboru</span>
+        <span className="muted"><kbd>Ctrl+Z</kbd> cofnij <kbd>Klik ●</kbd> koło wyboru</span>
       </footer>
       <RadialMenu ctl={radial} />
     </div>

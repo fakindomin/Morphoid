@@ -59,6 +59,11 @@ export const TILE_GROUPS: TileGroup[] = [
       { block: 'legs', field: 'foot', label: 'Kształt stóp (płaska baza Y=0)' },
       { block: 'legs', field: 'length', label: 'Wysokość nóg' },
     ] },
+    { id: 'hands', title: 'Ręce', fields: [
+      { block: 'hands', field: 'type', label: 'Dłonie' },
+      { block: 'hands', field: 'length', label: 'Długość rąk' },
+      { block: 'hands', field: 'dir', label: 'Ułożenie rąk' },
+    ] },
     { id: 'tail', title: 'Ogon', fields: [
       { block: 'tail', field: 'type', label: 'Kształt ogona' },
       { block: 'tail', field: 'length', label: 'Wielkość ogona' },

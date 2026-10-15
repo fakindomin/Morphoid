@@ -107,6 +107,10 @@ kbd { font: 10.5px ui-monospace, Menlo, monospace; padding: 1px 6px; border: 1px
 .palette-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .swatch { display: flex; height: 26px; border-radius: 6px; overflow: hidden; border: 2px solid transparent; }
 .swatch span { flex: 1; }
+.preset-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.preset { padding: 7px 6px; border-radius: 6px; font-size: 11.5px; font-weight: 600; color: var(--muted); background: var(--bg-input); border: 1px solid transparent; transition: .12s; }
+.preset:hover { color: var(--text); }
+.preset.active { background: var(--pill-on); color: var(--pill-on-text); font-weight: 700; }
 .swatch.active { border-color: var(--cyan); box-shadow: 0 0 10px var(--cyan-glow); }
 
 .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }

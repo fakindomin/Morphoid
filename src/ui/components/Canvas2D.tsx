@@ -25,7 +25,7 @@ type Layer = 'far' | 'behind' | 'skin' | 'over' | 'detail';
 const BEHIND = new Set<string>(['stand', 'horns', 'antennae', 'tuft', 'spines', 'finD', 'mane']);
 const OVER_LEGS = ['legOver0', 'legOver1', 'legOver2'] as const;
 const layerOf = (id: string, kind: SlotKind): Layer | null =>
-  kind === 'clip' || id === 'shadow' || id.startsWith('legOver') ? null
+  kind === 'clip' || id === 'shadow' || id.startsWith('legOver') || id === 'hands' ? null
     : DETAIL.includes(kind) || kind === 'bone' ? 'detail'
     : id === 'neckDecor' ? 'over'
     : kind === 'skinFar' || kind === 'accentFar' ? 'far'
@@ -44,15 +44,12 @@ const SOCKETS: { id: SocketId; title: string }[] = [
 
 interface Props {
   showBones: boolean;
-  breathing: boolean;
-  /** menu open: freeze idle + mouse tracking so sockets don't drift under the cursor */
-  frozen: boolean;
   onSocket: (socket: SocketId, screen: { x: number; y: number }) => void;
   /** print problems to point at (rig mm) */
   markers?: { at: [number, number]; severity: 'info' | 'support' | 'warn' | 'error'; text: string }[];
 }
 
-export function Canvas2D({ showBones, breathing, frozen, onSocket, markers = [] }: Props) {
+export function Canvas2D({ showBones, onSocket, markers = [] }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   /** every element drawing a slot (its fill, its silhouette copy, its clip copy) */
   const slotEls = useRef<Record<string, (SVGPathElement | null)[]>>({});
@@ -62,14 +59,12 @@ export function Canvas2D({ showBones, breathing, frozen, onSocket, markers = [] 
   const insectRef = useRef<SVGGElement>(null);
   const socketEls = useRef<Record<string, SVGGElement | null>>({});
   const sizeRef = useRef<SVGTextElement>(null);
-  const live = useRef({ showBones, breathing, frozen });
-  live.current = { showBones, breathing, frozen };
-  const mouse = useRef({ x: 0, y: 0 });
+  const live = useRef({ showBones });
+  live.current = { showBones };
 
   useEffect(() => {
     let raf = 0;
     let last = performance.now();
-    let t = 0;
     let cur: Pose | null = null;
     let lastCode = '';
     const cache: Partial<Record<keyof Shapes, string>> = {};
@@ -80,7 +75,7 @@ export function Canvas2D({ showBones, breathing, frozen, onSocket, markers = [] 
     const frame = (now: number): void => {
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
-      const { breathing: br, frozen: fz, showBones: sb } = live.current;
+      const { showBones: sb } = live.current;
       const g = studio.getState().genome;
       const rig = solveRig(g);
       const pal = g.palette!.index!;
@@ -91,14 +86,14 @@ export function Canvas2D({ showBones, breathing, frozen, onSocket, markers = [] 
         svgRef.current.style.setProperty('--c2', c2);
         svgRef.current.style.setProperty('--c3', c3);
       }
-      if (br && !fz) t += dt * 2;
-      const m = fz ? { x: 0, y: 0 } : mouse.current;
-      const tgt = targetPose(rig, g, t, br && !fz, m);
+      // the creature stands still: no breathing, the head does not follow the cursor
+      const tgt = targetPose(rig, g, 0, false, { x: 0, y: 0 });
       if (!cur) cur = clonePose(tgt);
       const remaining = easePose(cur, tgt, 1 - Math.exp(-dt * 14));
       if (rig.code !== lastCode || sb !== lastBones) { dirty = true; lastCode = rig.code; lastBones = sb; }
 
-      if (dirty || remaining > 1e-3 || (br && !fz)) {
+      // redrawn only while something changes (a gene, the bones toggle, the pose easing to a new shape)
+      if (dirty || remaining > 1e-3) {
         const shapes = buildShapes(cur, g, rig, to, sb);
         insectRef.current?.setAttribute('visibility', rig.dims.plan === D.PLAN.insect ? 'visible' : 'hidden');
         for (const [id] of SLOTS) {
@@ -131,14 +126,8 @@ export function Canvas2D({ showBones, breathing, frozen, onSocket, markers = [] 
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  const onMove = (e: React.PointerEvent): void => {
-    const r = e.currentTarget.getBoundingClientRect();
-    const rx = (e.clientX - r.left) / r.width - 0.5, ry = (e.clientY - r.top) / r.height - 0.5;
-    mouse.current = { x: -rx * 3.5, y: -ry * 2.5 }; // +x is "forward" = screen-left
-  };
-
     return (
-    <div className="creature-viewport" onPointerMove={onMove}>
+    <div className="creature-viewport">
       <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Rzut boczny Morphoida">
         <defs>
           <linearGradient id="skinGrad" x1="0" y1="0" x2="0" y2="1">
@@ -154,8 +143,12 @@ export function Canvas2D({ showBones, breathing, frozen, onSocket, markers = [] 
             <path ref={reg('torsoClip', 0)} d="" />
           </clipPath>
           {/* the coat texture shows only on the parts that carry it in 3D, and not where a part in front hides them */}
+          {/* rest zones: the coat fades out towards the belly, as in 3D (coat.ts restZone) */}
+          <linearGradient id="coatRest" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#fff" /><stop offset="0.5" stopColor="#fff" /><stop offset="1" stopColor="#000" />
+          </linearGradient>
           <mask id="coatMask" maskUnits="userSpaceOnUse" x={-W} y={-H} width={3 * W} height={3 * H}>
-            <path ref={reg('coatOn', 3)} fill="#fff" d="" />
+            <path ref={reg('coatOn', 3)} fill="url(#coatRest)" d="" />
             {COAT_CUT.map((id) => <path key={id} ref={reg(id, 3)} fill="#000" d="" />)}
           </mask>
           <mask id="coatLegMask" maskUnits="userSpaceOnUse" x={-W} y={-H} width={3 * W} height={3 * H}>
@@ -265,6 +258,11 @@ export function Canvas2D({ showBones, breathing, frozen, onSocket, markers = [] 
                 <path ref={reg(id, 0)} className="shape skin" style={{ stroke: 'none' }} d="" />
               </g>
             ))}
+          </g>
+          {/* the near arm lies over the body: drawn on top with its own outline, so the hand reads against the chest */}
+          <g className="arm-near" filter="url(#form)">
+            <path ref={reg('hands', 6)} className="leg-ink" d="" />
+            <path ref={reg('hands', 0)} className="shape skin s-hands" style={{ stroke: 'none' }} d="" />
           </g>
         </g>
         <rect ref={lightRef} className="light" clipPath="url(#silClip)" fill="url(#lightGrad)" />

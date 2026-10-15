@@ -1,5 +1,5 @@
 import {
-  SIZE_CLASSES, blockDef, stepToClass, type EnumField, type Op, type StepField,
+  PRESETS, SIZE_CLASSES, blockDef, presetGenome, serialize, stepToClass, type EnumField, type Op, type StepField,
 } from '../../core';
 import { PALETTES } from '../../core/palette';
 import { useEffect, useRef, useState } from 'react';
@@ -82,6 +82,20 @@ function PaletteGrid() {
   );
 }
 
+/** Ready-made animals: one click loads the whole creature, which can then be changed like any other. */
+function PresetGrid() {
+  const { genome } = useStudioState();
+  const code = serialize(genome);
+  return (
+    <div className="preset-grid">
+      {PRESETS.map((p) => (
+        <button key={p.id} type="button" className={`preset${serialize(presetGenome(p)) === code ? ' active' : ''}`}
+          onClick={() => studio.loadPreset(p)}>{p.name}</button>
+      ))}
+    </div>
+  );
+}
+
 /**
  * The creature's parts as categories from head to tail, all closed at first. Opening one closes the one that was open,
  * so the column never grows past the screen; clicking a part on the sketch opens its category and lights it up.
@@ -97,8 +111,21 @@ export function LeftColumn({ activeSocket }: { activeSocket: string | null }) {
     refs.current[hot]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [hot]);
   let n = 0;
+  const preset = PRESETS.find((p) => serialize(presetGenome(p)) === serialize(genome));
   return (
     <aside className="column left acc-column">
+      <div className="acc-group">
+        <p className="acc-group-title">Gotowce</p>
+        <section className={`cat${open === 'presets' ? ' open' : ''}`}>
+          <button type="button" className="cat-h" aria-expanded={open === 'presets'} onClick={() => setOpen(open === 'presets' ? null : 'presets')}>
+            <span className="cat-n">★</span>
+            <span className="cat-t">Zwierzęta na start</span>
+            <span className="cat-v">{preset?.name ?? 'Własny'}</span>
+            <i className="chev" aria-hidden />
+          </button>
+          {open === 'presets' && <div className="cat-b"><PresetGrid /></div>}
+        </section>
+      </div>
       {TILE_GROUPS.map((grp) => (
         <div key={grp.title} className="acc-group">
           <p className="acc-group-title">{grp.title}</p>

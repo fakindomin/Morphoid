@@ -4,8 +4,8 @@
  * wrap this in Zustand/React with `subscribe` + `getState` unchanged.
  */
 import {
-  creatureName, defaultGenome, mulberry32, mutate, parse, randomGenome, serialize,
-  type MorphotypeGenome, type ParseResult,
+  creatureName, defaultGenome, mulberry32, mutate, parse, presetGenome, serialize, surpriseGenome,
+  type MorphotypeGenome, type ParseResult, type Preset,
 } from './genome';
 import { applyOp, type Op } from './radial';
 import { solveRig, type Rig } from './rig';
@@ -56,6 +56,13 @@ export function createStudioStore(initial: MorphotypeGenome = defaultGenome()) {
       emit();
     },
     setNames(names: Record<string, string>): void { state = { ...state, names }; emit(); },
+    /** start from a ready-made animal: its genome, named after it (Morphoid Kot) */
+    loadPreset(p: Preset): void {
+      const g = presetGenome(p), key = nameKey(serialize(g));
+      commit(g);
+      state = { ...state, names: { ...state.names, [key]: p.name } };
+      emit();
+    },
 
     applyOps(ops: readonly Op[]): boolean { return commit(ops.reduce(applyOp, state.genome)); },
     /** `base`: what genes missing from the text keep (hand edits keep the current creature) */
@@ -64,7 +71,7 @@ export function createStudioStore(initial: MorphotypeGenome = defaultGenome()) {
       if (r.ok) commit(r.genome);
       return r;
     },
-    randomize(seed: number): void { commit(randomGenome(mulberry32(seed))); },
+    randomize(seed: number): void { commit(surpriseGenome(mulberry32(seed))); }, // one signature feature, the rest calm
     mutateLight(seed: number): void { commit(mutate(state.genome, mulberry32(seed))); },
     reset(): void { commit(defaultGenome()); },
 

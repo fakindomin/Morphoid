@@ -11,12 +11,13 @@ import { dimensions as D, type Rig } from '../rig';
 import { groupOfSlot, type PartGroup } from '../print/plan';
 import { COAT_LIMB, type Coat } from './coat';
 import { reliefSpec, rootOf, type Relief } from './relief';
-import { EYES, eyelids, LIP_R, WHISKER_TURN, insectHips, insectLegW, insectRise, prolegXs, roundTail, STALK_W, wingRibs, STAND_MARGIN_MM, STAND_MM, WHISKER_FAN, WHISKER_PAD, WHISKER_W, whiskerLength, type SlotId, type SlotPaths } from './shapes';
+import { armSpecOf, EYES, eyelids, LIP_R, WHISKER_TURN, insectHips, insectLegW, insectRise, prolegXs, roundTail, STALK_W, wingRibs, STAND_MARGIN_MM, STAND_MM, WHISKER_FAN, WHISKER_PAD, WHISKER_W, whiskerLength, type SlotId, type SlotPaths } from './shapes';
 import type { XY } from './path';
 import { typeSize } from './pose';
-import { insectLimb, legLimb, legSpecOf, octopusLimb, prolegLimb, type Cone, type Dome, type Limb } from './limb';
+import { armLimb, armZ, insectLimb, legLimb, legSpecOf, octopusLimb, prolegLimb, type Cone, type Dome, type Limb } from './limb';
 import { blendGroup, edgesOf, sdPolys, slabDist, type Edge } from '../bake/field';
 import { hostsOf, mountAt, skinZ, slabSd, type Host } from './mounts';
+import { cutPlanes, langOf, speakLanguage, type Cut } from './form';
 
 export type ColorKey = 'c1' | 'c1dark' | 'c2' | 'c2soft' | 'c3' | 'ink' | 'white';
 
@@ -61,6 +62,10 @@ export interface Part3D {
   carve?: boolean;
   /** raised 3D ribs fused onto the slab (wing bones, feather shafts), world mm */
   ribs?: Limb;
+  /** blend radius of this appendage as a share of its thickness (its shape language), see blendOf in field.ts */
+  blendShare?: number;
+  /** flat planes cut into the part (cheeks, temples, the back), see form.ts */
+  cuts?: Cut[];
   /** coat texture (fur, scales, armour): a shallow relief sunk into the surface, see coat.ts */
   coat?: Coat;
 }
@@ -77,7 +82,7 @@ export const SPEC_3D: Record<SlotId, Spec | null> = {
   shadow: null, torsoClip: null, belly: null, legOver0: null, legOver1: null, legOver2: null, glint: null, bones: null, blush: null, toes: null, // render-only
   relief: null, // grooves sunk into the accessories (Part3D.relief), see relief.ts
   wingRibs: null, // drawn crests of the wing ribs; the ribs themselves are `ribs` on the wing, see buildParts3D
-  legBFar: null, legFFar: null, wingFar: null,                          // mirror images, generated from the near slot
+  legBFar: null, legFFar: null, wingFar: null, handsFar: null,                          // mirror images, generated from the near slot
   torso: { color: 'c1', mirror: false, z: centre, t: (c) => c.W, bevel: (t) => round(0.48)(t) },
   pattern: null, // painted onto the torso surface (colour region), see the viewport
   coat: null, coatLegs: null, coatOn: null, coatLegB: null, coatLegF: null, // a relief sunk into the solid (Part3D.coat), see coat.ts
@@ -112,6 +117,7 @@ export const SPEC_3D: Record<SlotId, Spec | null> = {
   tongue: { color: 'c2soft', mirror: false, z: centre, t: (c) => Math.max(1.6, c.snoutW * 0.5), bevel: (t) => round(0.45)(t) },
   mouth: { color: 'ink', mirror: true, z: (c) => c.snoutW / 2 - 0.1, t: () => 0.5, bevel: () => 0.1 }, // painted, and carved as a groove (see lipsAndNostrils)
   lips: { color: 'c1dark', mirror: true, z: (c) => c.snoutW / 2, t: () => 1.2, bevel: () => 0.5 }, // rolled along the jaws' edges, see lipsAndNostrils
+  hands: { color: 'c1', mirror: true, z: (c) => armZ(c.W, c.legW).out, t: (c) => c.legW * 0.7, bevel: (t) => round(0.4)(t) }, // arms with hands, see buildParts3D
   claws: { color: 'c1dark', mirror: true, z: (c) => c.legZ, t: () => 1.6, bevel: () => 0.6 }, // the legs' tips, see buildParts3D
   nostrils: { color: 'ink', mirror: true, z: (c) => c.snoutW * 0.18, t: () => 1, bevel: () => 0.4 }, // holes in the nose, see lipsAndNostrils
   teeth: { color: 'white', mirror: true, z: (c) => c.snoutW / 2 - 0.9, t: () => 1.4, bevel: () => 0.5 }, // along the jaws' rims
@@ -122,11 +128,13 @@ export const SPEC_3D: Record<SlotId, Spec | null> = {
 
 export function ctxFor(rig: Rig): Ctx {
   const W = rig.dims.bodyWidth, G = rig.dims.bodyGirth;
-  const headW = Math.max(8, W * 0.9);
+  const headW = Math.max(8, Math.min(W * 0.9, rig.dims.headR * 1.7)); // never wider than the head is tall (rule 1)
   return { W, G, legW: rig.dims.legWidth, legZ: W * 0.32, headW, snoutW: headW * 0.62, neckT: Math.max(6, W * 0.7) };
 }
 
 const LEG_SLOTS = new Set<SlotId>(['legB', 'legF', 'legBFar', 'legFFar']);
+/** Parts whose tips (claws, hooves, talons) make up the darker 'claws' part. */
+const TIP_SLOTS = new Set<SlotId>([...LEG_SLOTS, 'hands']);
 
 /**
  * `print`: the parts as the bake makes them, with the hidden seating that only a separately printed piece needs (the
@@ -150,6 +158,9 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
   }
   const head = out.find((p) => p.slot === 'head');
   if (head) for (const p of out) if (p.slot === 'ear') p.polys = seatOn(p, head);
+  const lang = langOf(g, rig);
+  speakLanguage(out, lang); // round, square or sharp edges
+  cutPlanes(out, lang, rig.dims.plan); // planes on the head, the Pysk and the back, before anything is mounted on them
   { const muzzle = hostsOf(out, ['snout', 'head']); for (const p of out) if (p.slot === 'whiskers') whiskerTop(p, g, ctx, muzzle, print); }
   // teeth and tongue stay crisp shapes in the open mouth (tight blend, see bake)
   for (const p of out) if (p.slot === 'teeth' || p.slot === 'tongue') p.inset = true;
@@ -170,9 +181,12 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
     const [top, foot] = p.slot === 'legB' ? [rig.nodes.hipB, rig.nodes.footBL] : [rig.nodes.shoulderF, rig.nodes.footFL];
     p.limb = legLimb(legSpecOf(p.slot, biped, [top.x, top.y], [foot.x, foot.y], rig.dims.legWidth, g.legs!.foot!, rig.dims.soleLength, rig.dims.build === 2), p.z);
   }
-  // claws and hooves: one darker part per side holding the tips of that side's legs
+  // arms with hands: real 3D chains out of the upper chest, one per side
+  { const n = rig.nodes, arm = armSpecOf(g, [n.torso.x, n.torso.y], rig.dims.bodyLength, rig.dims.bodyGirth, rig.dims.tilt, rig.dims.legWidth, plan);
+    for (const p of out) if (p.slot === 'hands' && arm) p.limb = armLimb(arm, p.z); }
+  // claws, hooves and talons: one darker part per side holding the tips of that side's legs and hand
   for (const c of out) if (c.slot === 'claws') {
-    const tips = out.filter((p) => LEG_SLOTS.has(p.slot) && p.side === c.side && p.limb?.tips).flatMap((p) => p.limb!.tips!);
+    const tips = out.filter((p) => TIP_SLOTS.has(p.slot) && p.side === c.side && p.limb?.tips).flatMap((p) => p.limb!.tips!);
     c.limb = { cones: tips, domes: [] };
     c.inset = true; // crisp points, not lumps
   }

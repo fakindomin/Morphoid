@@ -25,7 +25,7 @@ export function hostsOf(out: Part3D[], slots: SlotId[]): Host[] {
 
 /** Signed distance to a part's rounded slab (the shape the bake fuses). */
 export function slabSd(p: Part3D, e: Edge[], x: number, y: number, z: number): number {
-  return slabDist(p, sdPolys(e, p.polys, x, y), z - p.z, x);
+  return slabDist(p, sdPolys(e, p.polys, x, y), z - p.z, x, y);
 }
 
 /** The host's skin at (x, y): the largest z where a point is still `depth` mm inside it, or -Infinity outside it. */

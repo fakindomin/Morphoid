@@ -30,6 +30,18 @@ export const ANTENNA_LEN = table([6, 8, 10, 13, 16, 20]);
 /** Head ellipse radius (mm); the muzzle starts at the head's front edge. */
 export const HEAD_RADIUS = 9.5;
 
+/**
+ * Head radius of a creature (rule "duży, średni, mały"): the head follows the torso's girth, so it is always clearly the
+ * medium mass next to the big torso (about 0.85 of the girth across), never a second ball as big as the body. Belly
+ * plans (caterpillar, fish, octopus) keep the fixed head their outlines are tuned for.
+ */
+export const HEAD_SHARE = 0.42;
+export const HEAD_MIN = 7.5, HEAD_MAX = 10.5;
+export function headRadius(girth: number, plan: number): number {
+  if (plan === 2 || plan === 4 || plan === 5) return HEAD_RADIUS;
+  return Math.round(Math.min(HEAD_MAX, Math.max(HEAD_MIN, girth * HEAD_SHARE)) * 10) / 10;
+}
+
 /** Body width (Z) as a fraction of its girth, per body shape. */
 export const BODY_WIDTH_RATIO = [0.9, 0.7, 1.15] as const;
 
@@ -47,10 +59,27 @@ export const BUILD: readonly Build[] = [
 ];
 
 /**
+ * Silhouette test (rule "test sylwetki"): the light under a standing creature's belly, in mm. The belly sits about
+ * 0.15 of the girth plus 1.5 mm below the hips, so legs shorter than this leave the body lying on the bed.
+ */
+export const BELLY_GAP_MM = 3.5;
+export const minLegForGap = (girth: number): number => BELLY_GAP_MM + 1.5 + 0.15 * girth;
+
+/** Gesture: how far (rad) a quadruped's chest rises over its hips. */
+export const GESTURE = { chestUp: 0.07 } as const;
+
+/**
  * Body plan (gene Y). A biped stands on its hind legs under the middle of a torso tilted nose-up; its legs are longer
  * and its soles longer (toes forward, a spur back), since two feet must carry it.
  */
 export const BIPED = { tilt: 0.32, hipX: 0.06, leg: 1.35, sole: 1.5 } as const;
+
+/**
+ * Arms with hands (gene X): a pair growing out of the upper chest, in front of the front legs. Length per size step
+ * (shoulder to wrist, mm); the plans that have no chest to carry them (fish, octopus) show none.
+ */
+export const ARM_LEN: readonly number[] = [14, 17, 20, 23, 27, 31];
+export const hasArms = (plan: number): boolean => plan !== PLAN.fish && plan !== PLAN.octopus;
 
 /** Body plans by index (gene Y). Belly plans lie on the bed: the torso's flat underside is their sole. */
 export const PLAN = { quadruped: 0, biped: 1, caterpillar: 2, insect: 3, fish: 4, octopus: 5 } as const;

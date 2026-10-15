@@ -257,6 +257,39 @@ export function randomGenome(rand: () => number): MorphotypeGenome {
   return canonicalize(g);
 }
 
+/**
+ * Features a creature can show off: one of them is pushed to its extreme on a dice roll (rule "jedna przesada na
+ * stwora"). Each is a size field, used only when its part is there.
+ */
+const SIGNATURES: readonly { block: BlockId; field: string; when?: (g: MorphotypeGenome) => boolean }[] = [
+  { block: 'ears', field: 'scale', when: (g) => g.ears!.type! > 0 },
+  { block: 'horns', field: 'span', when: (g) => g.horns!.type! > 0 },
+  { block: 'snout', field: 'reach' },
+  { block: 'head', field: 'neckLength' },
+  { block: 'tail', field: 'length', when: (g) => g.tail!.type! > 0 },
+  { block: 'legs', field: 'length' },
+  { block: 'crest', field: 'scale', when: (g) => g.crest!.type! > 0 },
+  { block: 'wings', field: 'scale', when: (g) => g.wings!.type! > 0 },
+];
+
+/**
+ * The dice ("Zaskocz mnie"): a random creature with one signature feature. Unique comes from one bold trait, not from
+ * ten average ones: the signature goes to its largest size, every other size stays in the calm middle band, so nothing
+ * competes with it. Returns the genome and which feature was chosen.
+ */
+export function surpriseGenome(rand: () => number): MorphotypeGenome {
+  const g = randomGenome(rand);
+  const pool = SIGNATURES.filter((s) => !s.when || s.when(g));
+  const sig = pool[Math.floor(rand() * pool.length)]!;
+  for (const b of BLOCKS) for (const f of b.fields) {
+    if (f.kind !== 'step') continue;
+    const v = g[b.id]![f.name]!;
+    if (b.id === sig.block && f.name === sig.field) g[b.id]![f.name] = STEPS - 1;
+    else g[b.id]![f.name] = Math.min(STEPS - 2, Math.max(1, v)); // canonicalize zeroes it again on an absent part
+  }
+  return canonicalize(g);
+}
+
 /** Change `count` random fields by one notch/variant. */
 export function mutate(g: MorphotypeGenome, rand: () => number, count = 2): MorphotypeGenome {
   let out = cloneGenome(g);

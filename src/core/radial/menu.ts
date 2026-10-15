@@ -103,7 +103,7 @@ export function treeForSocket(socket: SocketId): MenuNode {
   });
   switch (socket) {
     case 'head': return make('Głowa', ['horns', 'snout', 'ears']);
-    case 'chest': return make('Kark / Szyja / Skrzydła', ['head', 'wings', 'crest']);
+    case 'chest': return make('Kark / Szyja / Skrzydła / Ręce', ['head', 'wings', 'crest', 'hands']);
     case 'tail': return make('Ogon', ['tail']);
     case 'legF': return make('Noga przednia', ['legs']);
     case 'legB': return make('Noga tylna', ['legs']);
