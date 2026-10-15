@@ -114,5 +114,9 @@ export const FOOT_SOLE: readonly FootSole[] = [
   { length: 12, width: 9 }, // paw
   { length: 12, width: 9 }, // claws - toes are raised, but the sole stays flat
   { length: 10, width: 9 }, // hoof
+  { length: 9, width: 9 },  // cat's paw: short and round
+  { length: 14, width: 9 }, // bear's paw: long, flat
+  { length: 14, width: 9 }, // webbed: long toes
+  { length: 10, width: 9 }, // cloven hoof
 ];
 export const MIN_SOLE_AREA_MM2 = 60;

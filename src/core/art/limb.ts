@@ -59,7 +59,7 @@ export interface LegSpec {
   /** hip or shoulder (side view, mm) and the foot node on the bed */
   top: XY; foot: XY;
   legW: number;
-  /** foot gene: 0 paw, 1 claws, 2 hoof */
+  /** foot gene: 0 paw, 1 claws, 2 hoof, 3 cat's paw, 4 bear's paw, 5 webbed, 6 cloven hoof */
   footType: number;
   soleL: number;
   /** muscular build: a fuller thigh */
@@ -79,7 +79,7 @@ export function legLimb(s: LegSpec, z: number): Limb {
   // short legs bend less: the joints need room between them
   const bend = Math.min(1, Math.max(0, (H - 1.2 * w) / (1.6 * w)));
   const paw = pawOf(s, z);
-  const ankle: V3 = [fx + (s.footType === 2 ? 0 : -s.soleL * 0.04), paw.ankleY, z];
+  const ankle: V3 = [fx + (isHoof(s.footType) ? 0 : -s.soleL * 0.04), paw.ankleY, z];
   const pts: { p: V3; r: number }[] = [{ p: [tx, ty, z], r: r(0) }];
   JOINTS[s.kind].forEach(([dx, fy], i) => {
     const x = fx + (tx - fx) * fy + dx * H * bend;
@@ -106,26 +106,48 @@ export function legLimb(s: LegSpec, z: number): Limb {
 
 function pawOf(s: LegSpec, z: number): { ankleY: number; cones: Cone[]; domes: Dome[]; tips: Cone[] } {
   const fx = s.foot[0], w = s.legW;
-  if (s.footType === 2) { // hoof: a flat-bottomed horn cone, a little wider at the bed, under a short pastern
+  if (isHoof(s.footType)) { // hoof: a flat-bottomed horn cone, a little wider at the bed, under a short pastern
     const rb = Math.max(2.6, Math.min(w * 0.62, Math.abs(z) - 1.5)), rt = Math.max(LIMB_MIN_R, w * 0.4);
-    return { ankleY: 4.6, cones: [{ a: [fx, 3.4, z], b: [fx, 4.6, z], ra: rt * 1.05, rb: rt }], domes: [], tips: [{ a: [fx, 0, z], b: [fx, 3.8, z], ra: rb, rb: rt * 1.08 }] };
+    const pastern: Cone[] = [{ a: [fx, 3.4, z], b: [fx, 4.6, z], ra: rt * 1.05, rb: rt }];
+    if (s.footType === FOOT.cloven) { // a cloven hoof (a deer's, a goat's, a cow's): two toes side by side, split in front
+      const rh = Math.max(1.5, rb * 0.56), dz = rb - rh;
+      const toe = (k: number): Cone => ({ a: [fx + 0.5, 0, z + k * dz], b: [fx - 0.2, 3.6, z + k * dz * 0.4], ra: rh, rb: rt * 0.62 });
+      return { ankleY: 4.6, cones: pastern, domes: [], tips: [toe(1), toe(-1)] };
+    }
+    return { ankleY: 4.6, cones: pastern, domes: [], tips: [{ a: [fx, 0, z], b: [fx, 3.8, z], ra: rb, rb: rt * 1.08 }] };
+  }
+  if (s.footType === FOOT.webbed) { // webbed foot (a duck's, a frog's): three long toes fanned forward, a thin web between them
+    const rz = Math.max(LIMB_MIN_R + 0.4, Math.min(w * 0.6, Math.abs(z) - 1.5)), len = Math.max(4, s.soleL * 0.62), tr = Math.max(0.9, Math.min(1.4, w * 0.2));
+    const cx = fx + s.soleL * 0.05, heel: V3 = [cx, tr, z];
+    const tips: Cone[] = [], cones: Cone[] = [];
+    for (const k of [-1, 0, 1]) cones.push({ a: heel, b: [cx + len * (1 - Math.abs(k) * 0.12), tr * 0.9, z + k * rz * 0.95], ra: tr * 1.25, rb: tr });
+    for (const k of [-1, 0, 1]) { const t = cones[k + 1]!.b; tips.push({ a: t, b: [t[0] + 1.6, 0.25, t[2]], ra: tr * 0.7, rb: 0.25 }); }
+    const domes: Dome[] = [{ c: [cx + len * 0.45, 0, z], r: [len * 0.55, 0.9, rz * 0.9] }, { c: [cx - 0.5, 0, z], r: [Math.max(2.6, tr * 2.4), Math.max(2.4, w * 0.36), Math.min(rz, w * 0.45)] }];
+    return { ankleY: Math.max(2.4, w * 0.36) * 0.8, cones, domes, tips };
   }
   // the paw is a little wider than the ankle, but keeps a 3 mm gap to its pair (a narrower gap fuses on the bed)
-  const rx = Math.max(3, s.soleL / 2), rz = Math.max(LIMB_MIN_R + 0.4, Math.min(w * 0.55, Math.abs(z) - 1.5)), ry = Math.max(2.4, w * 0.4);
-  const cx = fx + s.soleL * 0.2;
+  // a cat's paw is short and round, a bear's broad and flat with five toes
+  const cat = s.footType === FOOT.cat, bear = s.footType === FOOT.bear;
+  const rx = Math.max(3, s.soleL / 2), rz = Math.max(LIMB_MIN_R + 0.4, Math.min(w * (bear ? 0.68 : cat ? 0.5 : 0.55), Math.abs(z) - 1.5)), ry = Math.max(2.4, w * (bear ? 0.34 : cat ? 0.46 : 0.4));
+  const cx = fx + s.soleL * (cat ? 0.12 : 0.2);
   const domes: Dome[] = [{ c: [cx, 0, z], r: [rx, ry, rz] }];
-  // toes: round knuckles along the front of the paw (four, or three on a narrow paw)
-  const n = rz < 2.2 ? 3 : 4, tr = Math.min(rz * (n === 4 ? 0.36 : 0.44), ry * 0.55);
+  // toes: round knuckles along the front of the paw (four, or three on a narrow paw; a bear has five)
+  const n = rz < 2.2 ? 3 : bear && rz >= 3 ? 5 : 4, tr = Math.min(rz * (n === 5 ? 0.3 : n === 4 ? 0.36 : 0.44), ry * (cat ? 0.6 : 0.55));
   const cones: Cone[] = [], tips: Cone[] = [];
   for (let i = 0; i < n; i++) {
-    const k = i - (n - 1) / 2, dz = k * rz * (n === 4 ? 0.46 : 0.58);
+    const k = i - (n - 1) / 2, dz = k * rz * (n === 5 ? 0.38 : n === 4 ? 0.46 : 0.58);
     const t: V3 = [cx + rx * Math.sqrt(Math.max(0.25, 1 - (dz / rz) ** 2)) - tr * 0.35 - Math.abs(k) * 0.25, tr * 1.05, z + dz]; // half out of the paw's front
     cones.push({ a: t, b: t, ra: tr, rb: tr });
     // claws: a curved point out of every toe, down to the bed
-    if (s.footType === 1) tips.push({ a: [t[0] + tr * 0.4, t[1], t[2]], b: [t[0] + tr + 2.2, 0.25, t[2] + dz * 0.15], ra: tr * 0.7, rb: 0.2 });
+    if (s.footType === FOOT.claws) tips.push({ a: [t[0] + tr * 0.4, t[1], t[2]], b: [t[0] + tr + 2.2, 0.25, t[2] + dz * 0.15], ra: tr * 0.7, rb: 0.2 });
+    else if (bear) tips.push({ a: [t[0] + tr * 0.4, t[1], t[2]], b: [t[0] + tr + 1.4, 0.3, t[2] + dz * 0.1], ra: tr * 0.6, rb: 0.25 }); // short, blunt claws
   }
   return { ankleY: ry * 0.8, cones, domes, tips };
 }
+
+/** Foot types (gene L). */
+export const FOOT = { paw: 0, claws: 1, hoof: 2, cat: 3, bear: 4, webbed: 5, cloven: 6 } as const;
+export const isHoof = (t: number): boolean => t === FOOT.hoof || t === FOOT.cloven;
 
 const dist = (a: V3, b: V3): number => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 

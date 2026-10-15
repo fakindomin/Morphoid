@@ -8,7 +8,11 @@
   "L": {
     "01": "paw",
     "02": "claws",
-    "03": "hoof"
+    "03": "hoof",
+    "04": "catpaw",
+    "05": "bearpaw",
+    "06": "webbed",
+    "07": "cloven"
   },
   "N": {
     "01": "smooth",
@@ -25,14 +29,20 @@
     "02": "wolf",
     "03": "beak",
     "04": "cat",
-    "05": "dog"
+    "05": "dog",
+    "06": "horse",
+    "07": "bear",
+    "08": "rodent"
   },
   "E": {
     "00": "none",
     "01": "wolf",
     "02": "bear",
     "03": "rabbit",
-    "04": "floppy"
+    "04": "floppy",
+    "05": "cat",
+    "06": "mouse",
+    "07": "horse"
   },
   "R": {
     "00": "none",

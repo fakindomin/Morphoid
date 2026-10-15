@@ -142,6 +142,21 @@ function earPaths(type: number, e: number, ex: number, ey: number): { outer: Pat
   if (type === 2) {
     return { outer: ellipse(ex, ey + e * 0.45, e * 0.48, e * 0.42), inner: ellipse(ex, ey + e * 0.45, e * 0.26, e * 0.22) };
   }
+  if (type === EAR.cat) { // a cat's: a wide-based triangle, the tip a little rounded
+    return {
+      outer: new Path().M(ex - 4, ey + 1.5).L(ex - 1.6, ey + 1.6 + e * 0.9).Q(ex - 0.6, ey + 2.2 + e * 0.98, ex + 0.2, ey + 1.6 + e * 0.86).L(ex + 4.4, ey + 1).Z(),
+      inner: polygon([[ex - 2.4, ey + 2.4], [ex - 1, ey + 1.6 + e * 0.66], [ex + 2.4, ey + 1.8]]),
+    };
+  }
+  if (type === EAR.mouse) { // a mouse's: big, round and thin, standing off the side of the crown
+    return { outer: ellipse(ex - 0.5, ey + e * 0.52, e * 0.6, e * 0.56), inner: ellipse(ex - 0.3, ey + e * 0.55, e * 0.34, e * 0.31) };
+  }
+  if (type === EAR.horse) { // a horse's: a narrow, pointed leaf standing upright
+    return {
+      outer: new Path().M(ex - 2.2, ey + 1).Q(ex - 2.8, ey + e * 0.6, ex - 0.3, ey + 1 + e * 1.05).Q(ex + 1.8, ey + e * 0.55, ex + 2.2, ey + 1).Z(),
+      inner: new Path().M(ex - 1.2, ey + 1.8).Q(ex - 1.6, ey + e * 0.6, ex - 0.3, ey + 1 + e * 0.8).Q(ex + 0.9, ey + e * 0.55, ex + 1.2, ey + 1.8).Z(),
+    };
+  }
   return {
     outer: ellipse(ex - 1.5, ey + e * 0.9, e * 0.24, e * 0.9, 0.25),
     inner: ellipse(ex - 1.5, ey + e * 0.9, e * 0.12, e * 0.66, 0.25),
@@ -161,15 +176,17 @@ export const EYE_SET = { bulging: 0, deep: 1 } as const;
 
 /** Ear type (gene E) that hangs down the side of the head. */
 export const EAR_FLOPPY = 4;
+/** Ear types (gene E) with their own outline. */
+export const EAR = { cat: 5, mouse: 6, horse: 7 } as const;
 
 /** Body shape (gene B) with a deep chest and a tucked waist. */
 export const BODY_ATHLETIC = 3;
 
 /** Muzzle types (gene S) with their own outline: a cat's and a dog's. */
-export const SNOUT = { cat: 3, dog: 4 } as const;
+export const SNOUT = { beak: 2, cat: 3, dog: 4, horse: 5, bear: 6, rodent: 7 } as const;
 
 /** Eye shape (gene O, last digit): a round human-like eye, a cat's almond, or an animal's dark eye. */
-export const EYE_SHAPE = { round: 0, almond: 1, animal: 2 } as const;
+export const EYE_SHAPE = { round: 0, almond: 1, animal: 2, sleepy: 3, reptile: 4, goat: 5 } as const;
 /**
  * Per eye shape: how far the upper and lower lid edges close over the ball (share of its radius from the centre; the
  * round eye's 0.55 and 0.82 leave it wide open) and how much the opening is turned (rad): an animal's eye slants, its
@@ -179,6 +196,9 @@ const LID_SHAPE: readonly { upper: number; lower: number; turn: number }[] = [
   { upper: 0.55, lower: 0.82, turn: 0 },
   { upper: 0.3, lower: 0.52, turn: -0.26 },
   { upper: 0.42, lower: 0.66, turn: -0.12 },
+  { upper: 0.04, lower: 0.7, turn: 0.1 },    // sleepy: the upper lid drawn down to the middle, drooping outwards
+  { upper: 0.38, lower: 0.58, turn: -0.08 }, // reptile: a narrow, level opening
+  { upper: 0.46, lower: 0.7, turn: 0 },      // goat: wide open, level
 ];
 
 export function eyelids(r: number, deep = false, shape = 0): { arc: [number, number, number][]; upper: boolean }[] {
@@ -619,6 +639,21 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
     put('snout', new Path().M(topB[0], topB[1]).Q(topB[0] + 0.2, stop[1] + 0.4, stop[0], stop[1]).L(tipX - 1.4, tip[1] + 1.4)
       .Q(tipX + 0.4, tip[1] + 1.2, tipX + 0.2, tip[1] - 1.2).L(tipX - 0.4, tip[1] - 3)
       .Q(tipX - 3, tip[1] - 3.4, tipX - (tipX - botB[0]) * 0.55, tip[1] - 5.2).Q(botB[0] + 1.2, botB[1] - 0.6, botB[0], botB[1]).Z());
+  } else if (snoutType === SNOUT.horse) {
+    // a horse's muzzle: a long straight bridge, a deep soft nose end and a full lower lip under it
+    put('snout', new Path().M(topB[0], topB[1]).Q(topB[0] + 2, topB[1] - 0.2, tipX - 2.4, tip[1] + 2.4)
+      .Q(tipX + 0.9, tip[1] + 2, tipX + 0.7, tip[1] - 1).Q(tipX + 0.5, tip[1] - 3.4, tipX - 1.6, tip[1] - 4.4)
+      .Q(tipX - 3.4, tip[1] - 5, tipX - 4.6, tip[1] - 4).Q(botB[0] + 1.6, botB[1] - 1.2, botB[0], botB[1]).Z());
+  } else if (snoutType === SNOUT.bear) {
+    // a bear's muzzle: short, broad and blunt, the big nose at its square end
+    put('snout', new Path().M(topB[0], topB[1]).Q(topB[0] + 1.5, topB[1] + 0.2, tipX - 1.6, tip[1] + 2.2)
+      .Q(tipX + 0.8, tip[1] + 1.8, tipX + 0.7, tip[1] - 0.6).Q(tipX + 0.4, tip[1] - 3.4, tipX - 2.4, tip[1] - 3.6)
+      .Q(botB[0] + 1.2, botB[1] - 0.8, botB[0], botB[1]).Z());
+  } else if (snoutType === SNOUT.rodent) {
+    // a rodent's muzzle: tapering to a round nose that overhangs a small, receding chin
+    put('snout', new Path().M(topB[0], topB[1]).Q(tipX - 3.2, tip[1] + 2.2, tipX - 0.4, tip[1] + 0.9)
+      .Q(tipX + 0.8, tip[1] - 0.2, tipX - 0.5, tip[1] - 1.4).Q(tipX - 2.2, tip[1] - 2.4, tipX - 3.4, tip[1] - 2)
+      .Q(botB[0] + 1, botB[1] - 0.4, botB[0], botB[1]).Z());
   } else {
     put('snout', new Path().M(topB[0], topB[1]).Q(tipX - 4, topB[1] + 2, tipX, tip[1] - 1.5)
       .L(tipX - 3.5, tip[1] - 4).L(botB[0], botB[1]).Z());
@@ -626,7 +661,9 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
   // the nose: a cat's is a small triangle-ish pad, a dog's a broad leathery end
   if (snoutType === SNOUT.cat) put('nose', ellipse(tipX - 0.9, tip[1] + 0.5, 1.15, 0.85));
   else if (snoutType === SNOUT.dog) put('nose', ellipse(tipX - 0.8, tip[1] + 0.4, 1.8, 1.4));
-  else if (snoutType !== 2) put('nose', ellipse(tipX - 1.1, tip[1] + 0.7, 1.5, 1.2));
+  else if (snoutType === SNOUT.bear) put('nose', ellipse(tipX - 0.7, tip[1] + 0.7, 2, 1.5));
+  else if (snoutType === SNOUT.rodent) put('nose', ellipse(tipX - 0.5, tip[1] + 0.1, 1.05, 0.95));
+  else if (snoutType !== SNOUT.beak && snoutType !== SNOUT.horse) put('nose', ellipse(tipX - 1.1, tip[1] + 0.7, 1.5, 1.2)); // a horse has no leathery nose, only nostrils
 
 
   // ---- ears (behind the head so their base is hidden) -----------------------------
@@ -759,7 +796,13 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
     if (eyeShape === EYE_SHAPE.almond) { // a cat's eye: the iris fills the opening, the pupil is an upright slit
       ei.append(ellipse(x + r * 0.12, y, r * 0.98, r * 1.04));
       ep.append(ellipse(x + r * 0.16, y, r * 0.17, r * 0.8));
-    } else if (eyeShape === EYE_SHAPE.animal) { // an animal's eye: almost all dark, a thin ring of iris
+    } else if (eyeShape === EYE_SHAPE.reptile) { // a reptile's eye: the iris fills the opening, a thin upright slit
+      ei.append(ellipse(x + r * 0.1, y, r * 0.98, r * 1.04));
+      ep.append(ellipse(x + r * 0.14, y, r * 0.1, r * 0.86));
+    } else if (eyeShape === EYE_SHAPE.goat) { // a goat's or a sheep's eye: a level, oblong pupil across a pale iris
+      ei.append(ellipse(x + r * 0.1, y, r * 0.98, r * 1.04));
+      ep.append(ellipse(x + r * 0.14, y, r * 0.72, r * 0.22));
+    } else if (eyeShape === EYE_SHAPE.animal || eyeShape === EYE_SHAPE.sleepy) { // an animal's eye: almost all dark, a thin ring of iris
       ei.append(ellipse(x + r * 0.1, y, r * 0.98, r * 1.04));
       ep.append(ellipse(x + r * 0.14, y, r * 0.8, r * 0.86));
     } else {
@@ -813,8 +856,9 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
     put('mouth', mouth);
   }
   // a nostril in the front of the nose (in 3D: a hole on each side of the nose's tip)
-  if (snoutType !== 2) {
-    const ns = ellipse(tipX - 0.15, tip[1] + 0.55, 0.42, 0.34);
+  if (snoutType !== SNOUT.beak) {
+    const big = snoutType === SNOUT.horse ? 2 : 1; // a horse's wide, flaring nostrils
+    const ns = ellipse(tipX - 0.15 * big, tip[1] + 0.55, 0.42 * big, 0.34 * big);
     ns.spines = [[[tipX + 0.8, tip[1] + 0.55], [tipX - 1.0, tip[1] + 0.6]]];
     put('nostrils', ns);
   }

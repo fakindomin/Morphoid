@@ -15,8 +15,8 @@ export interface Preset {
 
 export const PRESETS: readonly Preset[] = [
   { id: 'cat', name: 'Kot', genes: {
-    body: { shape: 3, length: 3, girth: 1 }, legs: { foot: 0, length: 4 }, head: { skull: 0, neckLength: 2 },
-    snout: { type: 3, reach: 1 }, ears: { type: 1, scale: 3, dir: 0 }, tail: { type: 1, length: 5, dir: 2 },
+    body: { shape: 3, length: 3, girth: 1 }, legs: { foot: 3, length: 4 }, head: { skull: 0, neckLength: 2 },
+    snout: { type: 3, reach: 1 }, ears: { type: 5, scale: 3, dir: 0 }, tail: { type: 1, length: 5, dir: 2 },
     face: { eyes: 2, whiskers: 2, whiskerDir: 0, eyeShape: 1 }, coat: { texture: 1, pattern: 1 }, palette: { index: 3 },
   } },
   { id: 'dog', name: 'Pies', genes: {
@@ -30,30 +30,30 @@ export const PRESETS: readonly Preset[] = [
     crest: { type: 1, scale: 2 }, face: { eyes: 2, eyeShape: 2 }, palette: { index: 5 },
   } },
   { id: 'bull', name: 'Byk', genes: {
-    body: { shape: 2, length: 4, girth: 4 }, build: { type: 2 }, legs: { foot: 2, length: 3 }, head: { skull: 2, neckLength: 0 },
+    body: { shape: 2, length: 4, girth: 4 }, build: { type: 2 }, legs: { foot: 6, length: 3 }, head: { skull: 2, neckLength: 0 },
     snout: { type: 0, reach: 2 }, ears: { type: 2, scale: 1, dir: 0 }, horns: { type: 1, span: 4, dir: 1 },
     tail: { type: 1, length: 2, dir: 1 }, face: { expression: 2, eyeShape: 2 }, coat: { texture: 0 }, palette: { index: 7 },
   } },
   { id: 'giraffe', name: 'Żyrafa', genes: {
     face: { eyeShape: 2 },
-    body: { shape: 1, length: 2, girth: 2 }, legs: { foot: 2, length: 5 }, head: { skull: 1, neckLength: 5 },
-    snout: { type: 1, reach: 3 }, ears: { type: 1, scale: 1, dir: 1 }, antennae: { type: 1, length: 0, dir: 1 },
+    body: { shape: 1, length: 2, girth: 2 }, legs: { foot: 6, length: 5 }, head: { skull: 1, neckLength: 5 },
+    snout: { type: 5, reach: 3 }, ears: { type: 7, scale: 1, dir: 1 }, antennae: { type: 1, length: 0, dir: 1 },
     tail: { type: 1, length: 2, dir: 1 }, crest: { type: 2, scale: 0 }, coat: { pattern: 2 }, palette: { index: 2 },
   } },
   { id: 'horse', name: 'Koń', genes: {
     face: { eyeShape: 2 },
     body: { shape: 1, length: 4, girth: 2 }, legs: { foot: 2, length: 4 }, head: { skull: 1, neckLength: 4 },
-    snout: { type: 1, reach: 4 }, ears: { type: 1, scale: 1, dir: 0 }, crest: { type: 2, scale: 3 },
+    snout: { type: 5, reach: 4 }, ears: { type: 7, scale: 1, dir: 0 }, crest: { type: 2, scale: 3 },
     tail: { type: 2, length: 4, dir: 1 }, palette: { index: 9 },
   } },
   { id: 'deer', name: 'Jeleń', genes: {
     face: { eyeShape: 2 },
-    body: { shape: 1, length: 3, girth: 2 }, legs: { foot: 2, length: 4 }, head: { skull: 1, neckLength: 3 },
-    snout: { type: 1, reach: 3 }, ears: { type: 1, scale: 2, dir: 1 }, horns: { type: 4, span: 4, dir: 0 },
+    body: { shape: 1, length: 3, girth: 2 }, legs: { foot: 6, length: 4 }, head: { skull: 1, neckLength: 3 },
+    snout: { type: 1, reach: 3 }, ears: { type: 7, scale: 2, dir: 1 }, horns: { type: 4, span: 4, dir: 0 },
     tail: { type: 1, length: 0, dir: 0 }, coat: { pattern: 2 }, palette: { index: 4 },
   } },
   { id: 'lion', name: 'Lew', genes: {
-    body: { shape: 2, length: 4, girth: 3 }, build: { type: 2 }, legs: { foot: 1, length: 3 }, head: { skull: 2, neckLength: 1 },
+    body: { shape: 2, length: 4, girth: 3 }, build: { type: 2 }, legs: { foot: 3, length: 3 }, head: { skull: 2, neckLength: 1 },
     snout: { type: 3, reach: 2 }, ears: { type: 2, scale: 1, dir: 0 }, crest: { type: 2, scale: 5 },
     tail: { type: 1, length: 5, dir: 1 }, face: { teeth: 1, whiskers: 1, eyeShape: 1 }, coat: { texture: 1 }, palette: { index: 2 },
   } },
@@ -64,25 +64,35 @@ export const PRESETS: readonly Preset[] = [
   } },
   { id: 'rabbit', name: 'Królik', genes: {
     body: { shape: 0, length: 1, girth: 4 }, build: { type: 3 }, legs: { foot: 0, length: 1 }, head: { skull: 0, neckLength: 0 },
-    snout: { type: 0, reach: 0 }, ears: { type: 3, scale: 5, dir: 0 }, tail: { type: 2, length: 0, dir: 0 },
+    snout: { type: 7, reach: 0 }, ears: { type: 3, scale: 5, dir: 0 }, tail: { type: 2, length: 0, dir: 0 },
     face: { eyes: 2, whiskers: 1, eyeShape: 2 }, coat: { texture: 1 }, palette: { index: 0 },
   } },
   { id: 'mouse', name: 'Mysz', genes: {
     body: { shape: 0, length: 2, girth: 2 }, legs: { foot: 1, length: 0 }, head: { skull: 1, neckLength: 0 },
-    snout: { type: 1, reach: 2 }, ears: { type: 2, scale: 5, dir: 0 }, tail: { type: 1, length: 5, dir: 1 },
+    snout: { type: 7, reach: 2 }, ears: { type: 6, scale: 5, dir: 0 }, tail: { type: 1, length: 5, dir: 1 },
     face: { eyes: 2, whiskers: 2, eyeShape: 2 }, palette: { index: 8 },
   } },
   { id: 'bear', name: 'Niedźwiedź', genes: {
     face: { eyeShape: 2 },
-    body: { shape: 2, length: 3, girth: 5 }, build: { type: 3 }, legs: { foot: 1, length: 1 }, head: { skull: 0, neckLength: 0 },
-    snout: { type: 0, reach: 3 }, ears: { type: 2, scale: 2, dir: 0 }, tail: { type: 2, length: 0, dir: 0 },
+    body: { shape: 2, length: 3, girth: 5 }, build: { type: 3 }, legs: { foot: 4, length: 1 }, head: { skull: 0, neckLength: 0 },
+    snout: { type: 6, reach: 3 }, ears: { type: 2, scale: 2, dir: 0 }, tail: { type: 2, length: 0, dir: 0 },
     coat: { texture: 1 }, palette: { index: 10 },
   } },
   { id: 'dragon', name: 'Smok', genes: {
     body: { shape: 2, length: 4, girth: 3 }, build: { type: 2 }, legs: { foot: 1, length: 3 }, head: { skull: 1, neckLength: 3 },
     snout: { type: 1, reach: 4 }, ears: { type: 0 }, horns: { type: 1, span: 3, dir: 2 }, wings: { type: 2, scale: 4 },
-    crest: { type: 3, scale: 3 }, tail: { type: 1, length: 5, dir: 1 }, face: { teeth: 1, expression: 2, eyeShape: 1 },
+    crest: { type: 3, scale: 3 }, tail: { type: 1, length: 5, dir: 1 }, face: { teeth: 1, expression: 2, eyeShape: 4 },
     coat: { texture: 2 }, palette: { index: 11 },
+  } },
+  { id: 'goat', name: 'Koza', genes: {
+    body: { shape: 3, length: 2, girth: 2 }, legs: { foot: 6, length: 3 }, head: { skull: 1, neckLength: 2 },
+    snout: { type: 5, reach: 2 }, ears: { type: 7, scale: 2, dir: 1 }, horns: { type: 2, span: 2, dir: 2 },
+    tail: { type: 1, length: 0, dir: 2 }, face: { eyeShape: 5 }, coat: { texture: 1 }, palette: { index: 13 },
+  } },
+  { id: 'duck', name: 'Kaczka', genes: {
+    plan: { type: 1 }, body: { shape: 0, length: 2, girth: 3 }, legs: { foot: 5, length: 1 }, head: { skull: 0, neckLength: 2 },
+    snout: { type: 2, reach: 3 }, ears: { type: 0 }, wings: { type: 1, scale: 2 }, tail: { type: 4, length: 1, dir: 1 },
+    face: { eyes: 1, eyeShape: 2 }, palette: { index: 3 },
   } },
   { id: 'monkey', name: 'Małpa', genes: {
     plan: { type: 1 }, body: { shape: 1, length: 2, girth: 2 }, legs: { foot: 0, length: 2 }, head: { skull: 0, neckLength: 0 },

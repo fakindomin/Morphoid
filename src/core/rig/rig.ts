@@ -130,8 +130,8 @@ function build(g: MorphotypeGenome, code: string): Rig {
   const tailLen = g.tail!.type === 0 ? 0 : D.TAIL_LENGTH[g.tail!.length!]!;
   const up = (mm: number): number => Math.ceil(mm / D.NOZZLE_MM - 1e-9) * D.NOZZLE_MM;
   const soleL = D.FOOT_SOLE[g.legs!.foot!]!.length * B.sole * (biped ? D.BIPED.sole : 1);
-  // an animal's paw is round, not a long slipper: about as long as the slim leg is wide allows, never below the minimum sole area
-  const sole = { length: anat ? Math.max(up(D.MIN_SOLE_AREA_MM2 / legW), Math.min(D.snap(soleL), up(legW * 1.7))) : D.snap(soleL), width: legW };
+  // an animal's paw is round, not a long slipper (about as long as the slim leg is wide); no sole is below the minimum area
+  const sole = { length: Math.max(up(D.MIN_SOLE_AREA_MM2 / legW), anat ? Math.min(D.snap(soleL), up(legW * 1.7)) : D.snap(soleL)), width: legW };
   // caterpillar prolegs peek out of the flanks
   const legZ = W * (plan === D.PLAN.caterpillar ? 0.45 : 0.32);
   const legX = Math.max(5, L * (insect ? 0.27 : 0.3));

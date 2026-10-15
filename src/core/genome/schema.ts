@@ -57,7 +57,7 @@ export const BLOCKS: readonly BlockDef[] = [
     s('length', 'Długość'), s('girth', 'Pękatość'),
   ] },
   { id: 'legs', letter: 'L', label: 'Nogi', fields: [
-    e('foot', [['paw', 'Łapa'], ['claws', 'Pazury'], ['hoof', 'Kopyto']]),
+    e('foot', [['paw', 'Łapa'], ['claws', 'Pazury'], ['hoof', 'Kopyto'], ['catpaw', 'Kocia łapka'], ['bearpaw', 'Niedźwiedzia łapa'], ['webbed', 'Płetwiasta'], ['cloven', 'Racica']]),
     s('length', 'Wysokość'),
   ] },
   { id: 'head', letter: 'H', label: 'Głowa i szyja', fields: [
@@ -66,11 +66,11 @@ export const BLOCKS: readonly BlockDef[] = [
     s('neckLength', 'Długość szyi'),
   ] },
   { id: 'snout', letter: 'S', label: 'Pysk', fields: [
-    e('type', [['pug', 'Krótki'], ['wolf', 'Wilczy'], ['beak', 'Dziób'], ['cat', 'Koci'], ['dog', 'Psi']], 1),
+    e('type', [['pug', 'Krótki'], ['wolf', 'Wilczy'], ['beak', 'Dziób'], ['cat', 'Koci'], ['dog', 'Psi'], ['horse', 'Koński'], ['bear', 'Niedźwiedzi'], ['rodent', 'Gryzonia']], 1),
     s('reach', 'Wysunięcie'),
   ] },
   { id: 'ears', letter: 'E', label: 'Uszy', noneMeansEmpty: true, fields: [
-    e('type', [['none', 'Brak'], ['wolf', 'Wilcze'], ['bear', 'Misiowe'], ['rabbit', 'Zajęcze'], ['floppy', 'Opadające (psie)']], 1),
+    e('type', [['none', 'Brak'], ['wolf', 'Wilcze'], ['bear', 'Misiowe'], ['rabbit', 'Zajęcze'], ['floppy', 'Opadające (psie)'], ['cat', 'Kocie'], ['mouse', 'Mysie (duże okrągłe)'], ['horse', 'Końskie']], 1),
     s('scale', 'Skala'),
     e('dir', [['up', 'Do góry'], ['back', 'Położone do tyłu'], ['forward', 'Do przodu']]),
   ] },
@@ -99,7 +99,7 @@ export const BLOCKS: readonly BlockDef[] = [
     e('whiskerDir', [['side', 'Na boki'], ['forward', 'Skośnie do przodu'], ['back', 'Skośnie do tyłu']]),
     e('expression', [['calm', 'Spokojna'], ['grin', 'Uśmiech'], ['angry', 'Zła']]),
     e('eyeSet', [['bulging', 'Wyłupiaste'], ['deep', 'Osadzone głębiej']], 0, 'Osadzenie'),
-    e('eyeShape', [['round', 'Okrągłe'], ['almond', 'Kocie (migdałowe)'], ['animal', 'Zwierzęce (ciemne)']], 0, 'Kształt'),
+    e('eyeShape', [['round', 'Okrągłe'], ['almond', 'Kocie (migdałowe)'], ['animal', 'Zwierzęce (ciemne)'], ['sleepy', 'Senne (przymknięte)'], ['reptile', 'Gadzie (wąska źrenica)'], ['goat', 'Kozie (pozioma źrenica)']], 0, 'Kształt'),
   ] },
   { id: 'coat', letter: 'K', label: 'Pokrycie i wzór', fields: [
     e('texture', [['smooth', 'Gładkie'], ['fur', 'Futro'], ['scales', 'Łuski'], ['armor', 'Pancerz']]),
