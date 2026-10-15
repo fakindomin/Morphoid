@@ -1,0 +1,100 @@
+/**
+ * An animal's trunk and neck built from anatomical masses, not one extruded side outline.
+ *
+ * The trunk is a ribcage (deep at the chest, a keel between the front legs), the forechest, a loin drawn in at the
+ * waist, the pelvis with the haunches over the hind legs, a pair of shoulder blades standing up at the withers and the
+ * long back muscles along the spine. The neck is a tapered column from deep in the chest up to the back of the skull.
+ * All of it is one round 3D solid (a Limb whose pieces melt into each other), and the 2D drawing is its side
+ * silhouette, so the sketch and the print are one shape.
+ *
+ * Masses are placed in the torso's own frame as shares of its length L, girth G (height) and width W, then turned
+ * with the torso's tilt. Their radii stay axis-aligned: the tilt is a few degrees.
+ */
+import { limbBox, limbSd, type Cone, type Dome, type Limb, type V3 } from './limb';
+import type { XY } from './path';
+
+export interface TrunkSpec {
+  /** the torso node (side view, mm) */
+  torso: XY;
+  L: number; G: number; W: number;
+  /** torso tilt (rad, chest up) */
+  tilt: number;
+}
+
+/** How softly the masses melt into each other, as a share of the girth. */
+const TRUNK_BLEND = 0.13;
+
+/** [x, y, z] centre and [x, y, z] radii as shares of L, G, W; `pair` masses sit on both flanks. */
+interface Mass { c: V3; r: V3; pair?: boolean }
+const MASSES: readonly Mass[] = [
+  { c: [0.2, -0.12, 0], r: [0.25, 0.53, 0.5] },                   // ribcage: the deepest part, a keel down between the elbows
+  { c: [0.36, -0.05, 0], r: [0.14, 0.36, 0.36] },                 // forechest, round in front of the shoulders
+  { c: [-0.02, 0.04, 0], r: [0.15, 0.34, 0.46] },                // the last ribs, already shallower
+  { c: [-0.12, 0.12, 0], r: [0.2, 0.3, 0.38] },                  // loin: the waist, the belly tucked up high
+  { c: [-0.3, 0.07, 0], r: [0.2, 0.37, 0.44] },                   // pelvis and croup
+  { c: [-0.27, -0.1, 0.28], r: [0.16, 0.27, 0.2], pair: true },   // haunches: the thigh muscles down to the stifle
+  { c: [0.25, 0.15, 0.33], r: [0.1, 0.3, 0.14], pair: true },     // shoulder blades, standing up at the withers
+];
+/** The back muscles: a column along the spine, from the withers over a slight rise at the loin to the croup. Points (x, y) and radius in G. */
+const SPINE = { pts: [[0.32, 0.27], [-0.06, 0.3], [-0.37, 0.26]] as XY[], r: 0.19 };
+
+export function trunkLimb(s: TrunkSpec): Limb {
+  const { torso, L, G, W, tilt } = s;
+  const c = Math.cos(tilt), sn = Math.sin(tilt);
+  const at = (fx: number, fy: number, z: number): V3 => {
+    const lx = fx * L, ly = fy * G;
+    return [torso[0] + lx * c - ly * sn, torso[1] + lx * sn + ly * c, z];
+  };
+  const domes: Dome[] = [];
+  for (const m of MASSES) {
+    const r: V3 = [m.r[0] * L, m.r[1] * G, m.r[2] * W];
+    if (m.pair) for (const side of [1, -1]) domes.push({ c: at(m.c[0], m.c[1], side * m.c[2] * W), r });
+    else domes.push({ c: at(m.c[0], m.c[1], 0), r });
+  }
+  const spine: Cone[] = SPINE.pts.slice(1).map((b, i) => ({ a: at(SPINE.pts[i]![0], SPINE.pts[i]![1], 0), b: at(b[0], b[1], 0), ra: SPINE.r * G, rb: SPINE.r * G }));
+  return { cones: spine, domes, blend: Math.max(1.6, TRUNK_BLEND * G) };
+}
+
+/**
+ * The neck: thick where it leaves the chest (it is mostly muscle), narrowing to the back of the skull, with the
+ * throat a little fuller below. `base` is deep inside the chest, `head` the skull's centre.
+ */
+export function neckLimb(base: XY, head: XY, G: number, headR: number): Limb {
+  const r0 = 0.33 * G, r1 = Math.max(2.4, 0.5 * headR);
+  const mid: XY = [base[0] + (head[0] - base[0]) * 0.55, base[1] + (head[1] - base[1]) * 0.55];
+  const rm = (r0 + r1) / 2 * 0.96;
+  const end: XY = [head[0] - headR * 0.25, head[1] - headR * 0.1];
+  return {
+    cones: [
+      { a: [base[0], base[1], 0], b: [mid[0], mid[1], 0], ra: r0, rb: rm },
+      { a: [mid[0], mid[1], 0], b: [end[0], end[1], 0], ra: rm, rb: r1 },
+    ],
+    domes: [],
+    blend: Math.max(1.2, 0.08 * G),
+  };
+}
+
+/**
+ * The side silhouette of a round solid: for every direction from `centre` the outermost point still inside it (the
+ * solid is sampled at the depths `zs`, so masses off the centre plane, the shoulder blades, show too).
+ */
+export function sideOutline(l: Limb, centre: XY, zs: readonly number[] = [0], n = 128): XY[] {
+  const { lo, hi } = limbBox(l);
+  const R = Math.hypot(Math.max(hi[0] - centre[0], centre[0] - lo[0]), Math.max(hi[1] - centre[1], centre[1] - lo[1])) + 1;
+  const f = (x: number, y: number): number => { let d = Infinity; for (const z of zs) d = Math.min(d, limbSd(l, x, y, z)); return d; };
+  const pts: XY[] = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2, dx = Math.cos(a), dy = Math.sin(a);
+    // walk in from outside until inside, then halve the step to the surface
+    let out = R, r = R;
+    while (r > 0 && f(centre[0] + dx * r, centre[1] + dy * r) >= 0) { out = r; r -= 0.8; }
+    if (r <= 0) { pts.push([centre[0], centre[1]]); continue; }
+    let inn = r;
+    for (let k = 0; k < 8; k++) { const m = (inn + out) / 2; if (f(centre[0] + dx * m, centre[1] + dy * m) < 0) inn = m; else out = m; }
+    pts.push([centre[0] + dx * inn, centre[1] + dy * inn]);
+  }
+  return pts;
+}
+
+/** The depths at which the trunk's silhouette is sampled: the centre plane and the flank masses. */
+export const trunkDepths = (W: number): number[] => [0, 0.28 * W, 0.33 * W];

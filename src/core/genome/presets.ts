@@ -15,12 +15,12 @@ export interface Preset {
 
 export const PRESETS: readonly Preset[] = [
   { id: 'cat', name: 'Kot', genes: {
-    body: { shape: 3, length: 4, girth: 1 }, legs: { foot: 0, length: 3 }, head: { skull: 0, neckLength: 2 },
+    body: { shape: 3, length: 3, girth: 1 }, legs: { foot: 0, length: 4 }, head: { skull: 0, neckLength: 2 },
     snout: { type: 3, reach: 1 }, ears: { type: 1, scale: 3, dir: 0 }, tail: { type: 1, length: 5, dir: 2 },
     face: { eyes: 2, whiskers: 2, whiskerDir: 0, eyeShape: 1 }, coat: { texture: 1, pattern: 1 }, palette: { index: 3 },
   } },
   { id: 'dog', name: 'Pies', genes: {
-    body: { shape: 3, length: 3, girth: 2 }, legs: { foot: 0, length: 3 }, head: { skull: 0, neckLength: 2 },
+    body: { shape: 3, length: 2, girth: 3 }, legs: { foot: 0, length: 4 }, head: { skull: 0, neckLength: 2 },
     snout: { type: 4, reach: 3 }, ears: { type: 4, scale: 3, dir: 0 }, tail: { type: 1, length: 3, dir: 0 },
     face: { expression: 1, eyeShape: 2 }, coat: { texture: 1, pattern: 2 }, palette: { index: 1 },
   } },

@@ -16,6 +16,7 @@ import type { XY } from './path';
 import { typeSize } from './pose';
 import { armLimb, armZ, insectLimb, legLimb, legSpecOf, octopusLimb, prolegLimb, type Cone, type Dome, type Limb } from './limb';
 import { blendGroup, edgesOf, sdPolys, slabDist, type Edge } from '../bake/field';
+import { neckLimb, trunkLimb } from './anatomy';
 import { hostsOf, mountAt, skinZ, slabSd, type Host } from './mounts';
 import { cutPlanes, langOf, speakLanguage, type Cut } from './form';
 
@@ -157,16 +158,30 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
       out.push({ id: slot, slot, group, polys, z, thickness: t, bevel, color: spec.color, side: 0 });
     }
   }
+  // an animal's trunk and neck are round solids of anatomical masses (their outlines are the drawing's, see anatomy.ts)
+  if (rig.dims.anatomical) {
+    const n = rig.nodes, d = rig.dims;
+    for (const p of out) {
+      if (p.slot === 'torso') { p.limb = trunkLimb({ torso: [n.torso.x, n.torso.y], L: d.bodyLength, G: d.bodyGirth, W: d.bodyWidth, tilt: d.tilt }); p.thickness = d.bodyWidth * 1.1; }
+      else if (p.slot === 'neck') { p.limb = neckLimb([n.neckBase.x, n.neckBase.y], [n.head.x, n.head.y], d.bodyGirth, d.headR); p.thickness = d.bodyGirth * 0.7; }
+    }
+  }
   const head = out.find((p) => p.slot === 'head');
   if (head) for (const p of out) if (p.slot === 'ear') p.polys = seatOn(p, head);
   // a hanging ear lies against the side of the head: its root sinks into the skin, the leaf hangs just off the cheek
-  if (head) for (const p of out) if (p.slot === 'earFlop') {
-    const host = hostsOf(out, ['head'])[0]!, top = p.polys.flat().reduce((a, b) => (b[1] > a[1] ? b : a));
-    p.z = p.side * (skinZ(host, top[0] - 1.5, top[1] - 1.5) + p.thickness / 2 - 1.2);
-  }
   const lang = langOf(g, rig);
   speakLanguage(out, lang); // round, square or sharp edges
   cutPlanes(out, lang, rig.dims.plan); // planes on the head, the Pysk and the back, before anything is mounted on them
+  // a hanging ear lies on the side of the head: the leaf rests on the cheek's widest point, standing out of the skin,
+  // and a short root runs from its top into the crown (which is narrower than the cheek)
+  if (head) for (const p of out) if (p.slot === 'earFlop') {
+    const host = hostsOf(out, ['head'])[0]!, pts = p.polys.flat(), top = pts.reduce((a, b) => (b[1] > a[1] ? b : a));
+    const skin = Math.max(0, ...pts.filter((_, i) => i % 3 === 0).map(([x, y]) => skinZ(host, x, y)));
+    const zc = skin + p.thickness / 2 - 0.5;
+    p.z = p.side * zc;
+    const rx = top[0] - 1, ry = top[1] - 1.6, zin = Math.max(0, skinZ(host, rx, ry) - 1.2);
+    p.ribs = { cones: [{ a: [rx, ry, p.side * zc], b: [rx, ry, p.side * zin], ra: 1.5, rb: 1.5 }], domes: [] };
+  }
   { const muzzle = hostsOf(out, ['snout', 'head']); for (const p of out) if (p.slot === 'whiskers') whiskerTop(p, g, ctx, muzzle, print); }
   // teeth and tongue stay crisp shapes in the open mouth (tight blend, see bake)
   for (const p of out) if (p.slot === 'teeth' || p.slot === 'tongue') p.inset = true;
@@ -207,7 +222,7 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
     p.limb = insectLimb(hips[p.slot], insectLegW(rig.dims.legWidth), insectRise(rig.dims.bodyGirth), rig.dims.bodyWidth, p.z);
   }
   if (plan !== D.PLAN.fish) for (const p of out) if (p.slot === 'tail') { // wolf and fluffy tails are round
-    const n = rig.nodes, tl = roundTail(g, rig.dims.bodyGirth, [n.tailBase.x, n.tailBase.y], [n.tailMid.x, n.tailMid.y], [n.tailTip.x, n.tailTip.y]);
+    const n = rig.nodes, tl = roundTail(g, rig.dims.bodyGirth, [n.tailBase.x, n.tailBase.y], [n.tailMid.x, n.tailMid.y], [n.tailTip.x, n.tailTip.y], rig.dims.anatomical);
     if (tl) p.limb = tl;
   }
   if (plan === D.PLAN.caterpillar) for (const p of out) if (p.slot === 'legF') p.limb = prolegLimb(prolegXs(rig.nodes.torso.x, rig.dims.bodyLength), p.z);
@@ -225,7 +240,7 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
   const pat = paths.pattern.flatten(8);
   if (pat.length) for (const p of out) if (p.slot === 'torso' && !p.limb) p.pattern = pat;
   // muscles: a shoulder and a haunch over the top of every jointed leg (strongest on a muscular build)
-  const brawn = MUSCLE[rig.dims.build] ?? 0;
+  const brawn = rig.dims.anatomical ? 0 : MUSCLE[rig.dims.build] ?? 0; // an animal's trunk has its own shoulders and haunches
   if ((plan === D.PLAN.quadruped || biped) && brawn > 0) for (const side of [1, -1] as const) {
     const w = rig.dims.legWidth, z = side * (ctx.legZ + w * 0.12);
     const at = (n: { x: number; y: number }, k: [number, number, number], dy: number): Dome => ({ c: [n.x, n.y + dy * w, z], r: [k[0] * w * brawn, k[1] * w * brawn, Math.min(k[2] * w * brawn, Math.abs(z) * 0.5)] });
@@ -381,7 +396,7 @@ function separateAppendages(out: Part3D[]): void {
     near.get(u)!.add(v); near.get(v)!.add(u);
   }
   // how far out each unit may slide while its root stays buried in the head or body
-  const bodies = out.filter((p) => BODY_SLOTS.has(p.slot) && !p.limb && !p.plane).map((p) => ({ p, e: edgesOf(p.polys) }));
+  const bodies = out.filter((p) => BODY_SLOTS.has(p.slot) && !p.plane).map((p) => ({ p, e: edgesOf(p.polys) }));
   for (const u of units) if (u.side && near.get(u)!.size) u.reach = span(u)[1] + reachOut(u, bodies);
   for (const side of [1, -1] as const) {
     const row = units.filter((u) => u.side === side && near.get(u)!.size);

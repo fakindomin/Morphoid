@@ -8,6 +8,7 @@
  */
 import type { Part3D } from './spec3d';
 import type { SlotId } from './shapes';
+import { limbSd } from './limb';
 import { edgesOf, sdPolys, slabDist, type Edge } from '../bake/field';
 
 /** A solid an element can be mounted on, with its outline's edges. */
@@ -25,6 +26,7 @@ export function hostsOf(out: Part3D[], slots: SlotId[]): Host[] {
 
 /** Signed distance to a part's rounded slab (the shape the bake fuses). */
 export function slabSd(p: Part3D, e: Edge[], x: number, y: number, z: number): number {
+  if (p.limb) return limbSd(p.limb, x, y, z); // a round body mass (an animal's trunk or neck)
   return slabDist(p, sdPolys(e, p.polys, x, y), z - p.z, x, y);
 }
 

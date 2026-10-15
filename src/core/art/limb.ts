@@ -21,6 +21,8 @@ export interface Limb {
   cones: Cone[]; domes: Dome[];
   /** claws or a hoof at the foot: a separate, darker part of the same leg (spec3d makes them the 'claws' slot) */
   tips?: Cone[];
+  /** blend radius (mm) between all of its pieces: an anatomical trunk melts its masses together (a leg's cones meet sharply) */
+  blend?: number;
 }
 
 /** The narrowest a leg may get (mm radius): 3.2 mm across is two perimeters a side and still stiff. */
@@ -163,8 +165,9 @@ function sdEllipsoid(x: number, y: number, z: number, d: Dome): number {
 /** Signed distance to the whole limb, flat on the bed (nothing below y = 0). */
 export function limbSd(l: Limb, x: number, y: number, z: number): number {
   let d = Infinity;
-  for (const c of l.cones) d = Math.min(d, sdRoundCone(x, y, z, c));
-  for (const m of l.domes) d = smin(d, sdEllipsoid(x, y, z, m), PAW_BLEND);
+  const k = l.blend ?? PAW_BLEND;
+  for (const c of l.cones) d = l.blend ? smin(d, sdRoundCone(x, y, z, c), k) : Math.min(d, sdRoundCone(x, y, z, c));
+  for (const m of l.domes) d = smin(d, sdEllipsoid(x, y, z, m), k);
   return Math.max(d, -y);
 }
 
@@ -175,6 +178,7 @@ export function limbSd(l: Limb, x: number, y: number, z: number): number {
  */
 export function limbField(l: Limb, ox: number, oy: number, oz: number, h: number, nx: number, ny: number, nz: number, reach: number): Float32Array {
   const out = new Float32Array(nx * ny * nz).fill(Infinity);
+  const kb = l.blend ?? PAW_BLEND;
   const span = (lo: number, hi: number, o: number, n: number): [number, number] =>
     [Math.max(0, Math.floor((lo - o) / h)), Math.min(n - 1, Math.ceil((hi - o) / h))];
   const each = (lo: V3, hi: V3, f: (idx: number, x: number, y: number, z: number) => void): void => {
@@ -182,15 +186,16 @@ export function limbField(l: Limb, ox: number, oy: number, oz: number, h: number
     for (let k = k0; k <= k1; k++) for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) f((k * ny + j) * nx + i, ox + i * h, oy + j * h, oz + k * h);
   };
   for (const c of l.cones) {
-    const r = Math.max(c.ra, c.rb) + reach + PAW_BLEND;
+    const r = Math.max(c.ra, c.rb) + reach + kb;
     each([Math.min(c.a[0], c.b[0]) - r, Math.min(c.a[1], c.b[1]) - r, Math.min(c.a[2], c.b[2]) - r],
       [Math.max(c.a[0], c.b[0]) + r, Math.max(c.a[1], c.b[1]) + r, Math.max(c.a[2], c.b[2]) + r],
-      (idx, x, y, z) => { const d = sdRoundCone(x, y, z, c); if (d < out[idx]!) out[idx] = d; });
+      l.blend ? (idx, x, y, z) => { out[idx] = smin(out[idx]!, sdRoundCone(x, y, z, c), kb); }
+        : (idx, x, y, z) => { const d = sdRoundCone(x, y, z, c); if (d < out[idx]!) out[idx] = d; });
   }
   for (const m of l.domes) {
-    const r = reach + PAW_BLEND;
+    const r = reach + kb;
     each([m.c[0] - m.r[0] - r, m.c[1] - m.r[1] - r, m.c[2] - m.r[2] - r], [m.c[0] + m.r[0] + r, m.c[1] + m.r[1] + r, m.c[2] + m.r[2] + r],
-      (idx, x, y, z) => { out[idx] = smin(out[idx]!, sdEllipsoid(x, y, z, m), PAW_BLEND); });
+      (idx, x, y, z) => { out[idx] = smin(out[idx]!, sdEllipsoid(x, y, z, m), kb); });
   }
   for (let k = 0; k < nz; k++) for (let j = 0; j < ny; j++) {
     const y = oy + j * h;

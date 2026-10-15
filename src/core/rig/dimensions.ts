@@ -65,6 +65,22 @@ export const BUILD: readonly Build[] = [
 export const BELLY_GAP_MM = 3.5;
 export const minLegForGap = (girth: number): number => BELLY_GAP_MM + 1.5 + 0.15 * girth;
 
+/**
+ * Anatomical body (a quadruped with the animal trunk, body shape 3): the trunk and neck are built from masses (see
+ * art/anatomy.ts) and the creature stands like an animal, not a toy. Its legs are slender and their length follows the
+ * chest's depth (a share of the girth per leg-length step), the neck rises from inside the chest at a natural angle
+ * and carries the head up and forward of the withers, and the tail is thin at the root.
+ */
+export const ANATOMY = {
+  shape: 3,
+  legK: [0.85, 0.95, 1.05, 1.15, 1.25, 1.4],
+  legW: 0.68, legWMin: 4.8,
+  neckAngle: 0.95, neckK: 1, neckHead: 0.9,
+  neckBase: [0.38, 0.12] as const,
+  tailY: 0.28,
+} as const;
+export const isAnatomical = (plan: number, shape: number): boolean => plan === PLAN.quadruped && shape === ANATOMY.shape;
+
 /** Gesture: how far (rad) a quadruped's chest rises over its hips. */
 export const GESTURE = { chestUp: 0.07 } as const;
 

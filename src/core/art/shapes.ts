@@ -11,6 +11,7 @@ import { PRINT_RULES } from '../print/rules';
 import { ellipse, Path, polygon, taper, tube, type ToPx, type XY } from './path';
 import type { Pose } from './pose';
 import { coatPath } from './coat';
+import { neckLimb, sideOutline, trunkDepths, trunkLimb } from './anatomy';
 import { reliefPath, reliefSpec, rootOf } from './relief';
 import { edgesOf, sdPolys } from '../bake/field';
 import { armLimb, armShoulder, insectLimb, legLimb, legSpecOf, limbOutline, octopusLimb, prolegLimb, tailLimb, type ArmSpec, type Limb } from './limb';
@@ -67,11 +68,11 @@ export function insectHips(hipB: XY, shF: XY): { legB: { hip: XY; dir: number }[
   return { legB: [{ hip: hipB, dir: -1 }], legF: [{ hip: shF, dir: 1 }, { hip: mid, dir: 0 }] };
 }
 /** Round tail (wolf, fluffy) as a 3D chain along the rig's tail curve; null for the flat kinds. */
-export function roundTail(g: MorphotypeGenome, bodyG: number, base: XY, mid: XY, tip: XY): Limb | null {
+export function roundTail(g: MorphotypeGenome, bodyG: number, base: XY, mid: XY, tip: XY, anatomical = false): Limb | null {
   const type = g.tail!.type!;
   if (type !== 1 && type !== 2) return null;
   const ctrl: XY = [2 * mid[0] - (base[0] + tip[0]) / 2, 2 * mid[1] - (base[1] + tip[1]) / 2];
-  const w0 = bodyG * 0.46;
+  const w0 = Math.max(4, bodyG * (anatomical ? 0.3 : 0.46)); // an animal's tail is slim at the root
   const width = type === 1 ? (t: number) => Math.max(1.8, w0 * (1 - t * 0.9))
     : (t: number) => Math.max(1.8, w0 * (1 - t) + bodyG * 0.62 * Math.sin(Math.PI * Math.min(0.98, t * 0.95 + 0.04))); // round, so slimmer than the old flat outline
   return tailLimb(base, ctrl, tip, width, DIR_TURN.tail[g.tail!.dir ?? 0] ?? 0);
@@ -483,6 +484,9 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
     const wx = torso[0] + lx * Math.cos(n.tilt) - ly * Math.sin(n.tilt), wy = torso[1] + lx * Math.sin(n.tilt) + ly * Math.cos(n.tilt);
     trunkPts.push([wx, belly ? Math.max(0, wy) : wy]); // a belly plan lies flat on the bed
   }
+  // an animal's trunk: the side silhouette of its anatomical masses (the same solid the print is made of)
+  const anat = rig.dims.anatomical;
+  if (anat) trunkPts.splice(0, trunkPts.length, ...sideOutline(trunkLimb({ torso, L: n.bodyL, G: n.bodyG, W: n.bodyW, tilt: n.tilt }), torso, trunkDepths(n.bodyW)));
   /** height of the trunk's top outline at x (for parts that stand on the back) */
   const trunkTop = (x: number): number => {
     let top = -Infinity;
@@ -492,7 +496,7 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
     }
     return top === -Infinity ? torso[1] : top;
   };
-  const trunk = (): Path => (muscular || shaped || belly || segs > 1 ? polygon(trunkPts) : ellipse(torso[0], torso[1], tRx, tRy, n.tilt));
+  const trunk = (): Path => (anat || muscular || shaped || belly || segs > 1 ? polygon(trunkPts) : ellipse(torso[0], torso[1], tRx, tRy, n.tilt));
   /** a shape drawn in the torso's own (untilted) frame, turned with the torso */
   const tilted = (path: Path): Path => path.rotated(torso[0], torso[1], n.tilt);
   put('torso', trunk());
@@ -562,14 +566,14 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
       const width = (t: number): number => Math.max(1.8, w0 * (1 - t) + n.bodyG * 1.1 * t * t);
       // (one-sided: widths are the FULL thickness measured upwards from the spine)
       put('tail', taper(tailBase, ctrl, tailTip, width, 14, true).rotated(tailBase[0], tailBase[1], DIR_TURN.tail[g.tail!.dir ?? 0] ?? 0)); // lower edge = spine (>= 45 deg)
-    } else put('tail', limbOutline(roundTail(g, n.bodyG, tailBase, tailMid, tailTip)!)); // wolf, fluffy: round in 3D
+    } else put('tail', limbOutline(roundTail(g, n.bodyG, tailBase, tailMid, tailTip, rig.dims.anatomical)!)); // wolf, fluffy: round in 3D
   }
 
   // ---- neck ---------------------------------------------------------------------
   const dir: XY = [head[0] - neckBase[0], head[1] - neckBase[1]];
   const dl = Math.hypot(dir[0], dir[1]) || 1;
   const up: XY = [-dir[1] / dl, dir[0] / dl];
-  put('neck', tube(neckBase, head, n.bodyG * 0.72, n.headR * 1.15));
+  put('neck', anat ? limbOutline(neckLimb(neckBase, head, n.bodyG, n.headR)) : tube(neckBase, head, n.bodyG * 0.72, n.headR * 1.15));
   const neckType = g.head!.neck!;
   const at = (t: number, off: number): XY => [neckBase[0] + dir[0] * t + up[0] * off, neckBase[1] + dir[1] * t + up[1] * off];
   const upSign = up[1] >= 0 ? 1 : -1;
