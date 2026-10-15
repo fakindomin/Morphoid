@@ -173,7 +173,9 @@ function unite(g: Grid3, idx: number, d3: number, k: number, grp: number): void 
  * field it ends up as a tiny through-hole once the topology is repaired.
  */
 export function closeOutline(d2: Float32Array, w: number, hgt: number, h: number, rc: number): void {
-  const r = Math.max(1, Math.round(rc / h));
+  // the test disk reaches past rc in EVERY direction (a pixel disk is shorter along its diagonals): a smaller one also
+  // filled cells along a plain slanted edge, which left a comb of steps on the skin (the back of a neck)
+  const r = Math.ceil(rc / h) + 1;
   const disk: [number, number][] = [];
   for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) if (di * di + dj * dj <= r * r) disk.push([di, dj]);
   const dil = new Uint8Array(w * hgt);
