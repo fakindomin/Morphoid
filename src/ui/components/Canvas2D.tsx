@@ -68,6 +68,7 @@ export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPick
   const infoRef = useRef<HTMLSpanElement>(null);
   const swRef = useRef<HTMLElement>(null);
   const legendRefs = useRef<(HTMLElement | null)[]>([]);
+  const legendBoxRef = useRef<HTMLSpanElement>(null);
   /** the category under the pointer on the sketch itself */
   const pointerTile = useRef<string | null>(null);
   const live = useRef({ showBones, mode, report, hotTile });
@@ -214,7 +215,14 @@ export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPick
           const el = legendRefs.current[i];
           if (el) el.textContent = `${Math.round((out.area[l] / total) * 100)}%`;
         });
-        if (infoRef.current && swRef.current) {
+        // the top view shows the shape only: no support colours there, so no legend either
+        const fromAbove = md === 'print' && (turn ? turn.to.view : shown?.view) === 'top';
+        if (legendBoxRef.current) legendBoxRef.current.style.display = fromAbove ? 'none' : '';
+        if (infoRef.current && swRef.current && fromAbove) {
+          infoRef.current.textContent = hot ? `${TITLE[hot] ?? hot}. Kliknij, żeby zmienić.`
+            : 'Z góry widać kształt stwora. Podpory pokazują widoki z boku i z przodu.';
+          swRef.current.style.background = HEAT_SWATCH[HEAT.none];
+        } else if (infoRef.current && swRef.current) {
           if (hot) {
             const v = verdict(hot, rep, out.hits);
             infoRef.current.textContent = md === 'print' ? `${v.text} Kliknij, żeby zmienić.` : `${TITLE[hot] ?? hot}. Kliknij, żeby zmienić.`;
@@ -280,7 +288,7 @@ export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPick
         <i ref={swRef} className="sk-sw" />
         <span ref={infoRef} className="sketch-info-t" />
         {mode === 'print' && (
-          <span className="sketch-legend">
+          <span className="sketch-legend" ref={legendBoxRef}>
             {LEVELS.map((l, i) => (
               <span key={l} title={HEAT_NAME[l]}><i className="sk-sw" style={{ background: HEAT_SWATCH[l] }} />{HEAT_NAME[l]} <b ref={(el) => { legendRefs.current[i] = el; }} /></span>
             ))}

@@ -47,18 +47,17 @@ function prepare(e: End): Prepared {
 /** The view's drawn extent (mm), for fitting it to the stage. */
 export const extentOfView = (e: End): Prepared['ext'] & { view: ViewId } => ({ ...prepare(e).ext, view: e.view });
 
-/** The worst print heat along a line of sight through the part (its visible depth span), side-view heat grids. */
-function heatFn(view: ViewId, p: ViewPart, heat: readonly HeatGrid[], lift: number): (u: number, v: number) => HeatLevel {
+/** The worst print heat along a line of sight through the part (its depth span from ahead), side-view heat grids. */
+function heatFn(view: ViewId, p: ViewPart, heat: readonly HeatGrid[]): (u: number, v: number) => HeatLevel {
   if (view === 'side') return (u, v) => heatAt(heat, u, v);
   return (u, v) => {
-    const span = spanAt(p.map, u, v - lift);
+    const span = spanAt(p.map, u, v);
     if (!span) return HEAT.none;
     const a = Math.min(span[0], span[1]), b = Math.max(span[0], span[1]);
     let lv = 0;
-    for (let t = a; t <= b + 1e-6; t += Math.max(0.6, (b - a) / 24)) {
-      let h: number = view === 'front' ? heatAt(heat, t, v) : heatAt(heat, u, t);
-      // lying on the bed shows only where the bed is seen: the bottom row from ahead, a flat plate from above
-      if (h === HEAT.bed && !(view === 'front' ? v - lift < 1.5 : b < 1.5)) h = HEAT.none;
+    for (let x = a; x <= b + 1e-6; x += Math.max(0.6, (b - a) / 24)) {
+      let h: number = heatAt(heat, x, v);
+      if (h === HEAT.bed && v >= 1.5) h = HEAT.none; // the bed is seen only along the bottom row
       lv = Math.max(lv, h);
       if (lv === HEAT.attention) break;
     }
@@ -68,12 +67,11 @@ function heatFn(view: ViewId, p: ViewPart, heat: readonly HeatGrid[], lift: numb
 
 const levelCache = new WeakMap<ViewPart, { heat: readonly HeatGrid[]; levels: HeatLevel[] }>();
 function levelsOf(e: End, pr: Prep, heat: readonly HeatGrid[]): HeatLevel[] {
+  // from above there is nothing to support: the top view shows the shape alone, all of it in the safe blues
+  if (e.view === 'top') return [];
   const hit = levelCache.get(pr.part);
   if (hit && hit.heat === heat) return hit.levels;
-  let v0 = Infinity;
-  if (e.view === 'top') for (const p of e.vs.top) for (const r of p.rings) for (const q of r) v0 = Math.min(v0, q[1]);
-  const lift = e.view === 'top' ? -v0 : 0;
-  const fn = heatFn(e.view, pr.part, heat, lift);
+  const fn = heatFn(e.view, pr.part, heat);
   const levels = facetsOf(pr.ring, pr.salt).map((f) => {
     const [a, b, c] = f.pts;
     const cx = (a[0] + b[0] + c[0]) / 3, cy = (a[1] + b[1] + c[1]) / 3;
