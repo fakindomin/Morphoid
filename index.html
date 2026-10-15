@@ -97,9 +97,9 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .tile { background: var(--tile); border-radius: 24px; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
 .tile .art { aspect-ratio: 440 / 300; max-width: 100%; }
 .tile .art svg { display: block; width: 100%; height: 100%; }
-.tile .txt { padding: 0 24px 22px; }
+.tile .txt { padding: 0 24px 22px; container-type: inline-size; text-align: center; }
 .tile .step { font-size: 13px; font-weight: 600; color: var(--muted); letter-spacing: 0.02em; }
-.tile h2 { font-size: clamp(28px, 3vw, 38px); line-height: 1.05; font-weight: 700; letter-spacing: -0.03em; margin-top: 6px; }
+.tile h2 { white-space: nowrap; font-size: min(34px, 9.6cqi); line-height: 1.05; font-weight: 700; letter-spacing: -0.03em; margin-top: 6px; }
 .tile p { font-size: 16px; color: var(--muted); margin-top: 6px; line-height: 1.45; }
 .tile .step { color: var(--blue); }
 .tile.dark { background: #0b0b0c; color: #f5f5f7; }
@@ -259,25 +259,19 @@ body.menu .drawer { transform: none; visibility: visible; transition: transform 
       <article class="tile">
         <div class="art draw" id="art-2d"></div>
         <div class="txt">
-          <p class="step">2D</p>
-          <h2>Narysuj.</h2>
-          <p>Składasz stwora z klocków na płaskim szkicu. Kolor każdej płaszczyzny od razu mówi, co wydrukuje się dobrze, a co wymaga uwagi.</p>
+          <h2>Stwórz projekt w 2D.</h2>
         </div>
       </article>
       <article class="tile">
         <div class="art solid" id="art-3d"></div>
         <div class="txt">
-          <p class="step">3D</p>
-          <h2>Obejrzyj.</h2>
-          <p>Jeden przełącznik i ten sam stwór nabiera bryły. Zmiana w jednym widoku od razu trafia do drugiego.</p>
+          <h2>Dopracuj w 3D.</h2>
         </div>
       </article>
       <article class="tile dark">
         <div class="art" id="art-print"></div>
         <div class="txt">
-          <p class="step">Druk</p>
-          <h2>Wydrukuj.</h2>
-          <p>Szczelna bryła STL prosto na stół Bambu Lab P1S. Podział na części i kolory AMS, kiedy ich potrzebujesz.</p>
+          <h2>Wydrukuj model.</h2>
         </div>
       </article>
     </div>
@@ -686,9 +680,35 @@ body.menu .drawer { transform: none; visibility: visible; transition: transform 
 
     // the 2D tile: one creature morphing into the next, coloured by how each part will print
     const SHOW = ['Pies', 'Smok', 'Ptak', 'Jeleń', 'Kot'];
-    function morphTile(el) {
+    // the same creature as a smooth solid: every part keeps its outline from the sketch, shaded like a rounded body
+    const SOLID_GRAD = { b: ['#a9c0ff', '#3b63e0', '#0f1a45'], k: ['#7f98e6', '#2846a8', '#0a1233'], a: ['#ff6a74', '#e01f30', '#5a0910'] };
+    const solidFill = p => (p.id.startsWith('horn') ? 'a' : p.far ? 'k' : 'b');
+    function solidParts(P, id) {
+      const g = build(P);
+      let x0 = 1e9, x1 = -1e9, y0 = 1e9;
+      for (const p of PARTS) if (g[p.id].on > .05) for (const v of g[p.id].shape.verts) { x0 = Math.min(x0, v.p.x); x1 = Math.max(x1, v.p.x); y0 = Math.min(y0, v.p.y); }
+      const k = Math.min(2.9, 360 / (x1 - x0), 196 / -y0), tx = 236 - ((x0 + x1) / 2) * k;
+      const pt = q => `${(tx + q.x * k).toFixed(1)},${(G + q.y * k).toFixed(1)}`;
+      let out = `<ellipse cx="${((x0 + x1) / 2 * k + tx).toFixed(1)}" cy="${G + 2}" rx="${((x1 - x0) / 2 * k).toFixed(1)}" ry="10" fill="#000" style="opacity:var(--shadow)" filter="url(#${id}blur)"/>`;
+      for (const p of PARTS) {
+        const part = g[p.id]; if (part.on <= .05) continue;
+        out += `<polygon points="${part.shape.outline.map(i => pt(part.shape.verts[i].p)).join(' ')}" fill="url(#${id}${solidFill(p)})" stroke-linejoin="round" opacity="${Math.min(1, part.on * 1.6).toFixed(2)}"/>`;
+      }
+      const H = g.head.H, r = P.headR * k, ex = tx + (H.x - P.headR * .38) * k, ey = G + (H.y - P.headR * .12) * k;
+      out += `<circle cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="${(r * .2).toFixed(1)}" fill="url(#${id}a)"/><circle cx="${(ex - r * .07).toFixed(1)}" cy="${(ey - r * .07).toFixed(1)}" r="${(r * .06).toFixed(1)}" fill="#fff" opacity=".85"/>`;
+      return out;
+    }
+    function solidSvg(P, id, label) {
+      const rg = (n, c) => `<radialGradient id="${id}${n}" cx="38%" cy="30%" r="78%"><stop offset="0" stop-color="${c[0]}"/><stop offset=".55" stop-color="${c[1]}"/><stop offset="1" stop-color="${c[2]}"/></radialGradient>`;
+      const defs = `<defs>${Object.entries(SOLID_GRAD).map(([n, c]) => rg(n, c)).join('')}<filter id="${id}blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="7"/></filter></defs>`;
+      return `<svg viewBox="0 0 440 300" role="img" aria-label="${label}">${defs}<g class="cr">${solidParts(P, id)}</g></svg>`;
+    }
+
+    /** The 2D sketch and the 3D solid show the same creature and change together. */
+    function morphTile(el, el3d) {
       el.innerHTML = sketchSvg(PRESETS.Pies, 'print', 'Szkic stwora pocięty na płaszczyzny; kolor pokazuje, jak wydrukuje się każda część');
-      const host = el.querySelector('.cr');
+      el3d.innerHTML = solidSvg(PRESETS.Pies, 's', 'Ten sam stwór jako bryła 3D');
+      const host = el.querySelector('.cr'), host3 = el3d.querySelector('.cr');
       if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
       let idx = 0, from = { ...PRESETS.Pies }, to = from, t0 = 0, raf = 0, timer = 0;
       const ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -696,13 +716,14 @@ body.menu .drawer { transform: none; visibility: visible; transition: transform 
         const k = ease(Math.min(1, (now - t0) / 1100)), P = {};
         for (const key of Object.keys(from)) P[key] = from[key] + (to[key] - from[key]) * k;
         host.innerHTML = creature(P, 'print').svg;
+        host3.innerHTML = solidParts(P, 's');
         if (k < 1) raf = requestAnimationFrame(step);
       };
       const next = () => { from = { ...to }; idx = (idx + 1) % SHOW.length; to = PRESETS[SHOW[idx]]; t0 = performance.now(); cancelAnimationFrame(raf); raf = requestAnimationFrame(step); };
       new IntersectionObserver(es => { clearInterval(timer); if (es[0].isIntersecting) timer = setInterval(next, 2600); }, { threshold: .25 }).observe(el);
     }
 
-    return { creature, sketchSvg, morphTile, PRESETS };
+    return { creature, sketchSvg, solidSvg, morphTile, PRESETS };
   })();
 
   const S = {
@@ -764,13 +785,12 @@ body.menu .drawer { transform: none; visibility: visible; transition: transform 
   }
 
   // Spotlight across the three steps: the sketch morphs, the solid comes into focus, the print grows under a moving nozzle
-  F.morphTile(document.getElementById('art-2d'));
+  F.morphTile(document.getElementById('art-2d'), document.getElementById('art-3d'));
   let pr = shaded('p', true);
   pr = pr.replace('</defs>', '<clipPath id="pgrow"><rect class="grow" x="0" y="0" width="440" height="250"/></clipPath></defs>');
   const pi = pr.indexOf('<g fill="url(#p'), pj = pr.lastIndexOf('</svg>'), pbody = pr.slice(pi, pj);
   pr = pr.slice(0, pi) + `<g class="ghost">${pbody}</g><g clip-path="url(#pgrow)">${pbody}</g>` +
     '<g class="nozzle"><path d="M196 236 h20 l-4 10 h-12 z" fill="#c9c9cf"/><rect x="186" y="222" width="40" height="14" rx="3" fill="#8a8a92"/><path d="M60 229 H380" stroke="#8a8a92" stroke-opacity=".35" stroke-width="2"/></g>' + pr.slice(pj);
-  document.getElementById('art-3d').innerHTML = shaded('s', false);
   document.getElementById('art-print').innerHTML = pr;
   const tilesEl = document.querySelector('.tiles'), spotTiles = [...tilesEl.querySelectorAll('.tile')];
   if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
