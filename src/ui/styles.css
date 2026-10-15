@@ -412,10 +412,9 @@ button.status-bake:hover { color: var(--cyan); }
   padding: 7px 14px; border-radius: 10px; background: var(--bg-card); border: 1px solid var(--border); transition: border-color .2s, box-shadow .2s; }
 .dna-strip:hover { border-color: var(--cyan); box-shadow: 0 0 14px var(--cyan-glow); }
 .dna-strip.copied { border-color: var(--cyan); box-shadow: 0 0 0 2px var(--cyan-glow); }
-/* the code (about 130 characters, a monospace character is 0.6 em) shrinks a little to stay on one line, but never
-   below a readable size: in a narrow window it wraps between genes and stays inside its frame */
-.dna-strip code { display: block; white-space: normal; overflow-wrap: anywhere; text-align: center; text-wrap: balance; font: 12px/1.35 ui-monospace, Menlo, monospace;
-  font-size: clamp(10.5px, (100cqw - 140px) / 80, 12px); color: var(--text); }
+/* the code: one line when it fits, else even lines cut between genes (DnaStrip balancedLines); the frame hugs it */
+.dna-strip code { display: block; text-align: center; font: 12px/1.35 ui-monospace, Menlo, monospace; color: var(--text); }
+.dna-strip .dna-line { display: block; white-space: nowrap; }
 .dna-toast { position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); z-index: 6; white-space: nowrap; pointer-events: none;
   padding: 5px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; background: var(--text); color: var(--bg-card);
   box-shadow: 0 4px 14px rgba(0, 0, 0, .2); animation: dna-toast 1.6s ease forwards; }

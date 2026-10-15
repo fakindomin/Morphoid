@@ -10,6 +10,8 @@ import { HEAT, heatAt, type HeatGrid, type HeatLevel } from '../core/print';
 import { facetHeat, type ViewPartDraw } from './sketch';
 
 const N = 40;
+/** how far above an overhang seen from ahead the red reaches (mm) */
+const BAND = [1.2, 2.4, 3.6, 4.8];
 
 export interface End { vs: ViewSet; view: ViewId }
 
@@ -58,6 +60,9 @@ function heatFn(view: ViewId, p: ViewPart, heat: readonly HeatGrid[]): (u: numbe
     for (let x = a; x <= b + 1e-6; x += Math.max(0.6, (b - a) / 24)) {
       let h: number = heatAt(heat, x, v);
       if (h === HEAT.bed && v >= 1.5) h = HEAT.none; // the bed is seen only along the bottom row
+      // an overhang is a thin band along the skin underneath: from ahead it shows on the lower few mm of the part,
+      // as large as the side view's red facets
+      for (const dv of BAND) if (heatAt(heat, x, v - dv) === HEAT.support || heatAt(heat, x, v - dv) === HEAT.attention) h = Math.max(h, HEAT.support);
       lv = Math.max(lv, h);
       if (lv === HEAT.attention) break;
     }
