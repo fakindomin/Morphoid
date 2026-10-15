@@ -11,6 +11,7 @@ import { facetsOf, resample } from '../core/art/facets';
 import type { XY } from '../core/art/path';
 import { HEAT, heatAt, type HeatLevel, type PrintReport } from '../core/print';
 import { SLOT_TILE } from './tiles';
+import type { ColorKey } from '../core/art/spec3d';
 
 export type SketchMode = 'color' | 'print';
 
@@ -227,4 +228,97 @@ function detailColour(kind: SlotKind, mode: SketchMode, c1: string, c2: string, 
     case 'nostril': return mix(c1, '#000000', 0.6);
     default: return mix(c3, ink, 0.4);
   }
+}
+
+/** One part of a turned view (front, top, or between two views), its outline already morphed. */
+export interface ViewPartDraw {
+  slot: SlotId;
+  color: ColorKey;
+  /** the outline resampled to an even count, index 0 = the cut's start */
+  ring: XY[];
+  /** smaller outlines of the same part, drawn flat */
+  extra: XY[][];
+  /** 0 = far from the viewer, 1 = nearest: far parts are darker */
+  near: number;
+  /** print heat of each facet (facetsOf order), worked out on the view it comes from */
+  levels: readonly HeatLevel[];
+  /** stable per part: the same facets in every view */
+  salt: number;
+}
+
+export interface PartsInput {
+  parts: ViewPartDraw[];
+  mode: SketchMode;
+  palette: readonly [string, string, string];
+  hot: string | null;
+}
+
+/** The turned sketch: the parts back to front, cut into facets like the side view. */
+export function drawParts(ctx: CanvasRenderingContext2D, px: number, s: PartsInput): SketchOutput {
+  const [c1, c2, c3] = s.palette;
+  const hits: SketchOutput['hits'] = [];
+  const area: Record<HeatLevel, number> = { 0: 0, 1: 0, 2: 0, 3: 0 };
+  const path = (poly: readonly XY[]): void => {
+    ctx.beginPath();
+    poly.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.closePath();
+  };
+  const baseOf = (k: ColorKey): string | null =>
+    k === 'c1' ? c1 : k === 'c1dark' ? mix(c1, '#000000', 0.3) : k === 'c2' ? c2 : k === 'c2soft' ? mix(c2, '#ffffff', 0.45) : k === 'c3' ? c3 : null;
+
+  if (s.hot) {
+    ctx.save();
+    ctx.lineJoin = 'round';
+    for (const [w, col] of [[9, 'rgba(15,23,42,.45)'], [6, '#ffffff']] as const) {
+      ctx.lineWidth = w * px;
+      ctx.strokeStyle = col;
+      for (const p of s.parts) if (SLOT_TILE[p.slot] === s.hot) for (const r of [p.ring, ...p.extra]) { path(r); ctx.stroke(); }
+    }
+    ctx.restore();
+  }
+
+  for (const p of s.parts) {
+    const tile = SLOT_TILE[p.slot] ?? null;
+    const lit = !!tile && tile === s.hot;
+    if (tile) hits.push({ slot: p.slot, tile, polys: [p.ring, ...p.extra] });
+    const base = baseOf(p.color);
+    const shade = 0.62 + 0.38 * p.near;
+    const flat = (): string => {
+      if (!base) return p.color === 'white' ? (s.mode === 'print' ? '#e0f2fe' : '#fbfbf8') : '#0b1220';
+      return s.mode === 'print' ? PRINT_PAL[HEAT.none][2]! : base;
+    };
+    for (const r of p.extra) { ctx.fillStyle = flat(); path(r); ctx.fill(); }
+    if (!base || polyArea(p.ring) < MIN_FACET_AREA) {
+      ctx.fillStyle = lit ? mix(flat(), '#ffffff', 0.15) : flat();
+      path(p.ring); ctx.fill();
+      continue;
+    }
+    const facets = facetsOf(p.ring, p.salt);
+    ctx.save();
+    path(p.ring);
+    ctx.clip();
+    ctx.fillStyle = s.mode === 'print' ? PRINT_PAL[HEAT.none][1]! : mix(base, '#000000', 0.12);
+    ctx.fill();
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 0.6 * px;
+    facets.forEach((f, fi) => {
+      let lum = (0.5 + 0.36 * f.light + (f.seed - 0.5) * 0.42) * shade;
+      if (lit) lum += 0.08;
+      let col: string;
+      const [a, b, c] = f.pts;
+      if (s.mode === 'print') {
+        const lv = p.levels[fi] ?? HEAT.none;
+        const pal = PRINT_PAL[lv as HeatLevel];
+        col = pal[Math.max(0, Math.min(pal.length - 1, Math.floor(lum * pal.length)))]!;
+        area[lv as HeatLevel] += Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1])) / 2;
+      } else {
+        col = lum >= 0.5 ? mix(base, '#ffffff', (lum - 0.5) * 0.75) : mix(base, '#000000', (0.5 - lum) * 0.9);
+      }
+      ctx.fillStyle = col; ctx.strokeStyle = col;
+      ctx.beginPath(); ctx.moveTo(...a); ctx.lineTo(...b); ctx.lineTo(...c); ctx.closePath();
+      ctx.fill(); ctx.stroke();
+    });
+    ctx.restore();
+  }
+  return { hits, area };
 }

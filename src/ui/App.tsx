@@ -27,7 +27,7 @@ function initialTheme(): Theme {
 export function App() {
   const [theme, setTheme] = useState<Theme>(initialTheme);
   const [view, setView] = useState<ViewMode>('2d');
-  const { showBones, sketchMode, rolling } = useViewOptions();
+  const { showBones, sketchMode, rolling, view: axis } = useViewOptions();
   /** body element lit up on the sketch and in the left column (hovered in either) */
   const [hotTile, setHotTile] = useState<string | null>(null);
   /** a body element clicked on the sketch: the left column opens it */
@@ -73,7 +73,7 @@ export function App() {
           <div className="stage">
           {notice && <SupportNotice key={notice.key} notice={notice} previousPlan={prevPlan.current} dismiss={dismiss} />}
           {rolling && <div className="roll-overlay" role="status"><div className="roll-card"><span className="roll-dice">🎲</span>Losuję nowego stwora…</div></div>}
-          <div className="hud-tag">{view === '2d' ? 'WIDOK Z BOKU · kliknij część ciała, aby ją zmienić' : '3D STUDIO · obracaj myszą, kółko = zbliżenie'}</div>
+          <div className="hud-tag">{view === '2d' ? `WIDOK ${axis === 'front' ? 'Z PRZODU' : axis === 'top' ? 'Z GÓRY' : 'Z BOKU'} · kliknij część ciała, aby ją zmienić` : '3D STUDIO · obracaj myszą, kółko = zbliżenie'}</div>
           {view === '2d' ? (
             <Canvas2D showBones={showBones} mode={sketchMode} report={report} hotTile={hotTile} onHoverTile={setHotTile}
               onPickTile={(tile) => setPick({ tile, n: Date.now() })} />

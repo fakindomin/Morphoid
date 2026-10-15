@@ -477,7 +477,12 @@ button.status-bake:hover { color: var(--cyan); }
 .sketch-legend { flex: none; display: flex; gap: 10px; font-variant-numeric: tabular-nums; color: var(--muted); }
 .sketch-legend > span { display: inline-flex; align-items: center; gap: 4px; }
 .sketch-legend b { font-weight: 600; }
-@container (max-width: 560px) { .sketch-legend { display: none; } }
+.sketch-info { flex-wrap: wrap; }
+@container (max-width: 560px) { .sketch-legend { flex-basis: 100%; flex-wrap: wrap; gap: 4px 10px; } }
+/* Bok / Przód / Góra over the sketch */
+.view-axes { position: absolute; top: 12px; right: 14px; z-index: 2; }
+.sketch[data-view="top"] .sketch-back { opacity: .35; transition: opacity .4s; }
+.sketch .sketch-back { transition: opacity .4s; }
 .seg-mini { display: inline-flex; padding: 3px; gap: 2px; border-radius: 10px; background: var(--bg-card); border: 1px solid var(--border); }
 .seg-mini button { border: 0; background: transparent; color: var(--muted); font-family: inherit; font-size: 12px; font-weight: 600; line-height: 1; padding: 8px 10px; border-radius: 7px; cursor: pointer; }
 .seg-mini button.on { background: var(--text); color: var(--bg-card); }

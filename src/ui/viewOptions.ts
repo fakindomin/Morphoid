@@ -7,8 +7,9 @@ import { storage } from './studio';
  * "centre the view" request in 3D. The controls live in the right column, the views read them from here.
  */
 import type { SketchMode } from './sketch';
+import type { ViewId } from '../core/art/views';
 
-export type { SketchMode };
+export type { SketchMode, ViewId };
 export interface ViewOptions {
   sketchMode: SketchMode;
   showBones: boolean;
@@ -17,6 +18,8 @@ export interface ViewOptions {
   recenter: number;
   /** a new creature is being drawn ("Losowo", "Mutuj"): the dice spin until its new shape is on screen */
   rolling: boolean;
+  /** the 2D sketch seen from the side, the front or above (it turns smoothly between them) */
+  view: ViewId;
 }
 
 const SKETCH_KEY = 'morphoid.sketchMode', GREY_KEY = 'morphoid.grey';
@@ -26,6 +29,7 @@ let state: ViewOptions = {
   grey: storage.get(GREY_KEY) === '1',
   recenter: 0,
   rolling: false,
+  view: 'side',
 };
 const listeners = new Set<() => void>();
 const set = (patch: Partial<ViewOptions>): void => { state = { ...state, ...patch }; listeners.forEach((l) => l()); };
@@ -36,6 +40,7 @@ export const viewOptions = {
   setSketchMode(m: SketchMode): void { storage.set(SKETCH_KEY, m); set({ sketchMode: m }); },
   setShowBones(on: boolean): void { set({ showBones: on }); },
   setGrey(on: boolean): void { storage.set(GREY_KEY, on ? '1' : '0'); set({ grey: on }); },
+  setView(v: ViewId): void { set({ view: v }); },
   recenter(): void { set({ recenter: state.recenter + 1 }); },
   /**
    * Draw a new creature with a short, visible roll: the dice spin first, then the creature changes, and the roll ends
