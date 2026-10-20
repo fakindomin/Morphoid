@@ -6,7 +6,7 @@
  * Geometry is in rig mm, +X forward, +Y up; ToPx mirrors X (faces left).
  */
 import type { MorphotypeGenome } from '../genome';
-import { dimensions as D, type NodeId, type Rig } from '../rig';
+import { dimensions as D, type NodeId, type Nudge, type Rig } from '../rig';
 import { PRINT_RULES } from '../print/rules';
 import { ellipse, Path, polygon, taper, tube, type ToPx, type XY } from './path';
 import type { Pose } from './pose';
@@ -56,7 +56,7 @@ export type Shapes = Record<SlotId, string>;
 const p = (pose: Pose, id: NodeId): XY => pose.pos[id];
 
 /** The creature's arms (gene X), or null when it has none or its body plan carries none. */
-export function armSpecOf(g: MorphotypeGenome, torso: XY, bodyL: number, bodyG: number, tilt: number, legW: number, plan: number): ArmSpec | null {
+export function armSpecOf(g: MorphotypeGenome, torso: XY, bodyL: number, bodyG: number, tilt: number, legW: number, plan: number, poseOverride?: number): ArmSpec | null {
   const h = g.hands;
   if (!h || !h.type || !D.hasArms(plan)) return null;
   // a humanoid's arms hang from the top corners of its upright chest, and are long (an ape's reach the knees)
@@ -65,27 +65,30 @@ export function armSpecOf(g: MorphotypeGenome, torso: XY, bodyL: number, bodyG: 
   // the left arm takes the pose gene, the right one its own (0 = the same)
   // a fish and an octopus have one pose for now: in front (an octopus raises them, clear of its arms on the bed)
   const one = D.oneArmPose(plan), fixed = plan === D.PLAN.octopus ? 1 : 0;
-  const pose = one ? fixed : h.dir!, poseR = one ? fixed : h.dir2 ? h.dir2 - 1 : pose;
+  const pose = poseOverride ?? (one ? fixed : h.dir!), poseR = poseOverride ?? (one ? fixed : h.dir2 ? h.dir2 - 1 : pose);
   return { shoulder: armShoulder(torso, bodyL, bodyG, tilt, human ? D.HUMANOID.shoulder : undefined), len: D.ARM_LEN[h.length!]! * (human ? D.HUMANOID.arm : 1), legW: legW * D.factorAt(D.HAND_THICK, h.thick), hand: h.type, pose, poseR, human };
 }
 
 /** Insect legs per slot: the hind pair in legB, the front and middle pairs in legF (see insectLimb). */
-export function insectHips(hipB: XY, shF: XY, pairs = 3): { legB: { hip: XY; dir: number }[]; legF: { hip: XY; dir: number }[] } {
-  const at = (t: number): XY => [hipB[0] + (shF[0] - hipB[0]) * t, hipB[1] + (shF[1] - hipB[1]) * t];
+export function insectHips(hipB: XY, shF: XY, pairs = 3, reach = 1): { legB: { hip: XY; dir: number }[]; legF: { hip: XY; dir: number }[] } {
+  // (`reach` < 1: the legs stop short of the shoulders, where a mantis holds its arms)
+  const at = (t: number): XY => [hipB[0] + (shF[0] - hipB[0]) * t * reach, hipB[1] + (shF[1] - hipB[1]) * t * reach];
   if (pairs <= 1) return { legB: [{ hip: at(0.5), dir: 0 }], legF: [] };
   // the hind pair reaches back, the front pair forward, the ones between fan out in between (front first in legF)
-  const legF = Array.from({ length: pairs - 1 }, (_, k) => { const t = (pairs - 1 - k) / (pairs - 1); return { hip: at(t), dir: 2 * t - 1 }; });
+  const legF = Array.from({ length: pairs - 1 }, (_, k) => { const t = (pairs - 1 - k) / (pairs - 1); return { hip: at(t), dir: 2 * t * reach - 1 }; });
   return { legB: [{ hip: hipB, dir: -1 }], legF };
 }
+const NO_NUDGE: Nudge = { turn: {}, scale: {}, shift: {}, armOut: 0, legsBack: 0, spinesOff: [] };
+
 /** Round tail (wolf, fluffy) as a 3D chain along the rig's tail curve; null for the flat kinds. */
-export function roundTail(g: MorphotypeGenome, bodyG: number, base: XY, mid: XY, tip: XY, anatomical = false): Limb | null {
+export function roundTail(g: MorphotypeGenome, bodyG: number, base: XY, mid: XY, tip: XY, anatomical = false, nudge = 0): Limb | null {
   const type = g.tail!.type!;
   if (type !== 1 && type !== 2) return null;
   const ctrl: XY = [2 * mid[0] - (base[0] + tip[0]) / 2, 2 * mid[1] - (base[1] + tip[1]) / 2];
   const w0 = Math.max(4, bodyG * (anatomical ? 0.3 : 0.46)); // an animal's tail is slim at the root
   const width = type === 1 ? (t: number) => Math.max(1.8, w0 * (1 - t * 0.9))
     : (t: number) => Math.max(1.8, w0 * (1 - t) + bodyG * 0.62 * Math.sin(Math.PI * Math.min(0.98, t * 0.95 + 0.04))); // round, so slimmer than the old flat outline
-  return tailLimb(base, ctrl, tip, width, DIR_TURN.tail[g.tail!.dir ?? 0] ?? 0);
+  return tailLimb(base, ctrl, tip, width, (DIR_TURN.tail[g.tail!.dir ?? 0] ?? 0) + nudge);
 }
 export const insectLegW = (legW: number): number => Math.max(3.2, legW * 0.6);
 export const insectRise = (bodyG: number): number => Math.max(5, bodyG * 0.45);
@@ -230,18 +233,19 @@ const EYE_R = [1.7, 2.4, 3.2, 1.6, 2.6];
 export const STALK_W = 2.4;
 const ANT_W = 1.8;
 export const eyeStalkRoot = (head: XY, hs: { rx: number; ry: number }): XY => [head[0] + hs.rx * 0.2, head[1] + hs.ry - 1.5];
+const turnAbout = ([x, y]: XY, [cx, cy]: XY, a: number, k = 1): XY => [cx + k * ((x - cx) * Math.cos(a) - (y - cy) * Math.sin(a)), cy + k * ((x - cx) * Math.sin(a) + (y - cy) * Math.cos(a))];
 export const eyeOnStalk = (head: XY, hs: { rx: number; ry: number }): XY => { const [x, y] = eyeStalkRoot(head, hs); return [x + 2.6, y + 7]; };
 
 /** Stand: plate thickness (mm) and how far it reaches beyond the feet. */
 export const STAND_MM = 4;
 export const STAND_MARGIN_MM = 6;
 /** x range of the stand: every foot on the bed, toe to heel, plus the margin. */
-export function standSpan(pose: Pose, n: Pose['n']): [number, number] {
+export function standSpan(pose: Pose, n: Pose['n'], legsBack = 0): [number, number] {
   if (D.onBelly(n.plan, n.legPairs)) { // lies on its flat belly
     const tx = pose.pos.torso[0], half = (n.bodyL / 2 + 2.5) * 0.85;
     return [tx - half - STAND_MARGIN_MM, tx + half + STAND_MARGIN_MM];
   }
-  const tops = legTops(n.legPairs, D.isBiped(n.plan), pose.pos.hipB, pose.pos.shoulderF, { human: n.plan === D.PLAN.humanoid, girth: n.bodyG, soleL: n.soleL });
+  const tops = legTops(n.legPairs, D.isBiped(n.plan), pose.pos.hipB, [pose.pos.shoulderF[0] - legsBack, pose.pos.shoulderF[1]], { human: n.plan === D.PLAN.humanoid, girth: n.bodyG, soleL: n.soleL, legW: n.legW });
   const feet = tops.length ? tops.map((t) => t.footX) : (D.isBiped(n.plan) ? ['footBL'] : ['footBL', 'footFL']).map((id) => pose.pos[id as NodeId][0]);
   return [Math.min(...feet) - n.soleL * 0.3 - STAND_MARGIN_MM, Math.max(...feet) + n.soleL * 0.7 + 3.4 + STAND_MARGIN_MM];
 }
@@ -404,6 +408,8 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
   const out = {} as SlotPaths;
   for (const [id] of SLOTS) out[id] = new Path();
   const put = (id: SlotId, path: Path): void => { out[id] = path; };
+  // turns that keep elements from growing into each other (art/settle.ts)
+  const nu = rig.nudge ?? NO_NUDGE;
 
   const n = pose.n;
   const torso = p(pose, 'torso');
@@ -421,7 +427,7 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
   // ---- stand (gene Q): a separate plate under the feet, seen from the side ---------------
   const standType = g.stand?.type ?? 0;
   if (standType > 0) {
-    const [x0, x1] = standSpan(pose, n);
+    const [x0, x1] = standSpan(pose, n, nu.legsBack);
     const sp = new Path();
     if (standType === 2) { // stone: an uneven top edge
       sp.M(x0, -STAND_MM).L(x1, -STAND_MM).L(x1 + 0.6, -STAND_MM * 0.45).L(x1 - 1.5, 0).L((x0 + x1) / 2 + 3, 0.4).L(x0 + 2, 0).L(x0 - 0.6, -STAND_MM * 0.5).Z();
@@ -435,6 +441,8 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
 
   // ---- legs (far pair is darker and peeks out behind) -------------------------
   const hipB = p(pose, 'hipB'), shF = p(pose, 'shoulderF'), fB = p(pose, 'footBL'), fF = p(pose, 'footFL');
+  const shL: XY = [shF[0] - nu.legsBack, shF[1]];
+  const insectReach = D.insectReach(rig.dims.armsPair, n.legPairs); // the front legs' top, stepped back where a hand needs the room (settle.ts)
   const muscular = n.build === 2;
   // muscular build: a thigh / shoulder bulge at the top of each leg (inside the torso's lower half, never overhanging)
   // jointed legs: the drawing is the side view of the 3D leg (see limb.ts), so sketch and solid are one shape
@@ -443,7 +451,7 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
   void fB; void fF;
   // every leg of a slot (more pairs: the front slot holds all pairs but the hind one), the far ones shifted back
   const limbs = (slot: 'legB' | 'legF', dx: number, near = false): Path => {
-    const ls = legTops(n.legPairs, biped, hipB, shF, { human, girth: n.bodyG, soleL: n.soleL }).filter((t) => t.slot === slot)
+    const ls = legTops(n.legPairs, biped, hipB, shL, { human, girth: n.bodyG, soleL: n.soleL, legW: n.legW }).filter((t) => t.slot === slot)
       .map((t) => legLimb(legSpecOf(slot, biped, [t.top[0] + dx, t.top[1]], [t.footX + dx, 0], legW, foot, n.soleL, muscular, human), 0));
     const l = mergeLimbs(ls);
     if (near && l.tips?.length) claws.append(limbOutline({ cones: l.tips, domes: [] }));
@@ -466,10 +474,10 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
       return { ...l, cones: l.cones.map((c) => ({ ...c, a: sh(c.a), b: sh(c.b) })), domes: l.domes.map((d) => ({ ...d, c: sh(d.c) })) };
     };
     const insect2D = (pair: 'legB' | 'legF', dx: number): Path =>
-      limbOutline(splay(insectLimb(insectHips([hipB[0] + dx, hipB[1]], [shF[0] + dx, shF[1]], n.legPairs)[pair], lw, rise, n.bodyW, 1), dx ? -INSECT_SPLAY : INSECT_SPLAY));
+      limbOutline(splay(insectLimb(insectHips([hipB[0] + dx, hipB[1]], [shL[0] + dx, shL[1]], n.legPairs, insectReach)[pair], lw, rise, n.bodyW, 1), dx ? -INSECT_SPLAY : INSECT_SPLAY));
     const [nb, fb] = far((dx) => insect2D('legB', dx));
     const [nf, ff] = far((dx) => insect2D('legF', dx));
-    const hips = insectHips(hipB, shF, n.legPairs), each = [...hips.legB, ...hips.legF.slice().reverse()]; // hind, middle, front
+    const hips = insectHips(hipB, shL, n.legPairs, insectReach), each = [...hips.legB, ...hips.legF.slice().reverse()]; // hind, middle, front
     each.forEach((h, i) => put(`legOver${i}` as SlotId, limbOutline(splay(insectLimb([h], lw, rise, n.bodyW, 1), INSECT_SPLAY))));
     put('legB', nb); put('legBFar', fb); put('legF', nf); put('legFFar', ff);
   } else if (n.plan === D.PLAN.caterpillar) {
@@ -479,7 +487,7 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
   }
   // fish: no legs, unless it was given some (jointed legs above)
   // arms with hands out of the upper chest (the near one in front of the body, the far one behind it)
-  const arm = armSpecOf(g, torso, n.bodyL, n.bodyG, n.tilt, legW, n.plan);
+  const arm = armSpecOf(g, torso, n.bodyL, n.bodyG, n.tilt, legW, n.plan, nu.armPose);
   if (arm) {
     const near = armLimb(arm, 0);
     put('hands', limbOutline(near));
@@ -599,12 +607,12 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
         const rot = (q: XY): XY => { const dx = (q[0] - tailBase[0]) * k, dy = (q[1] - tailBase[1]) * k; return [tailBase[0] + dx * Math.cos(-ang) - dy * Math.sin(-ang), tailBase[1] + dx * Math.sin(-ang) + dy * Math.cos(-ang)]; };
         tp.append(taper(tailBase, rot(ctrl), rot(tailTip), (t) => Math.max(1.8, 2.4 + n.bodyG * 0.22 * Math.sin(Math.PI * Math.min(0.92, t))), 14, true));
       }
-      put('tail', tp.rotated(tailBase[0], tailBase[1], DIR_TURN.tail[g.tail!.dir ?? 0] ?? 0));
+      put('tail', tp.rotated(tailBase[0], tailBase[1], (DIR_TURN.tail[g.tail!.dir ?? 0] ?? 0) + (nu.turn.tail ?? 0)));
     } else if (tailType === 3) { // fan: a flat fan, widest at the tip
       const width = (t: number): number => Math.max(1.8, w0 * (1 - t) + n.bodyG * 1.1 * t * t);
       // (one-sided: widths are the FULL thickness measured upwards from the spine)
-      put('tail', taper(tailBase, ctrl, tailTip, width, 14, true).rotated(tailBase[0], tailBase[1], DIR_TURN.tail[g.tail!.dir ?? 0] ?? 0)); // lower edge = spine (>= 45 deg)
-    } else put('tail', limbOutline(roundTail(g, n.bodyG, tailBase, tailMid, tailTip, rig.dims.anatomical && n.plan === D.PLAN.quadruped)!)); // wolf, fluffy: round in 3D
+      put('tail', taper(tailBase, ctrl, tailTip, width, 14, true).rotated(tailBase[0], tailBase[1], (DIR_TURN.tail[g.tail!.dir ?? 0] ?? 0) + (nu.turn.tail ?? 0))); // lower edge = spine (>= 45 deg)
+    } else put('tail', limbOutline(roundTail(g, n.bodyG, tailBase, tailMid, tailTip, rig.dims.anatomical && n.plan === D.PLAN.quadruped, nu.turn.tail)!)); // wolf, fluffy: round in 3D
   }
 
   // ---- neck ---------------------------------------------------------------------
@@ -704,22 +712,26 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
 
 
   // ---- ears (behind the head so their base is hidden) -----------------------------
-  const er = p(pose, 'earRoot');
+  const slide = (r: XY, mm = 0): XY => (mm ? turnAbout(r, head, mm / Math.max(1, Math.hypot(r[0] - head[0], r[1] - head[1]))) : r);
+  const er0 = p(pose, 'earRoot');
+  // an ear that would grow into a horn or an antenna sits further back round the skull (settle.ts): its root slides
+  // along the skull by its shift (mm), at the same depth in it
+  const er = slide(er0, nu.shift.ear);
   if (n.earS > 0.3 && g.ears!.type === EAR_FLOPPY) {
     // a hanging ear: a long leaf from the crown down past the eye, its tip swinging back (the direction digit tilts it)
-    const e = n.earS, turn = [0, 0.25, -0.18][g.ears!.dir ?? 0] ?? 0;
+    const e = n.earS, turn = ([0, 0.25, -0.18][g.ears!.dir ?? 0] ?? 0) + (nu.turn.ear ?? 0);
     const leaf = new Path().M(er[0] + 2.2, er[1] + 1.2).Q(er[0] + e * 0.42, er[1] - e * 0.55, er[0] + e * 0.05, er[1] - e * 1.05)
       .Q(er[0] - e * 0.3, er[1] - e * 1.12, er[0] - e * 0.28, er[1] - e * 0.6).Q(er[0] - e * 0.22, er[1] + 0.6, er[0] - 1.2, er[1] + 1.6).Z();
-    put('earFlop', leaf.rotated(er[0], er[1], turn));
+    put('earFlop', leaf.scaled(er[0], er[1], nu.scale.ear ?? 1).rotated(er[0], er[1], turn));
   } else if (n.earS > 0.3) {
     const ep = earPaths(g.ears!.type!, n.earS, er[0], er[1]);
-    const turn = DIR_TURN.ears[g.ears!.dir ?? 0] ?? 0; // turned about the ear's root
-    put('ear', ep.outer.rotated(er[0], er[1], turn));
-    put('earIn', ep.inner.rotated(er[0], er[1], turn));
+    const turn = (DIR_TURN.ears[g.ears!.dir ?? 0] ?? 0) + (nu.turn.ear ?? 0); // turned about the ear's root
+    put('ear', ep.outer.scaled(er[0], er[1], nu.scale.ear ?? 1).rotated(er[0], er[1], turn));
+    put('earIn', ep.inner.scaled(er[0], er[1], nu.scale.ear ?? 1).rotated(er[0], er[1], turn));
   }
 
   // ---- horns: every segment leans <= 45 deg from vertical, tips >= TIP wide -----------
-  const hr = p(pose, 'hornRoot');
+  const hr = slide(p(pose, 'hornRoot'), nu.shift.horns); // (slid back round the skull, clear of eyes on stalks: settle.ts)
   const hornType = g.horns!.type!;
   if (n.hornS > 0.3 && hornType > 0) {
     const s = n.hornS, [x, y] = hr;
@@ -734,7 +746,7 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
       horns.append(taper([x - 0.2 * s, y + 0.55 * s], [x + 0.05 * s, y + 0.8 * s], [x + 0.2 * s, y + 1.15 * s], (t) => Math.max(TIP, 2.8 * (1 - t)), 5));
       horns.append(taper([x - 0.3 * s, y + 0.8 * s], [x - 0.45 * s, y + 0.95 * s], [x - 0.65 * s, y + 1.3 * s], (t) => Math.max(TIP, 2.6 * (1 - t)), 5));
     }
-    put('horns', horns.rotated(x, y, DIR_TURN.horns[g.horns!.dir ?? 0] ?? 0));
+    put('horns', horns.scaled(x, y, nu.scale.horns ?? 1).rotated(x, y, (DIR_TURN.horns[g.horns!.dir ?? 0] ?? 0) + (nu.turn.horns ?? 0)));
   }
 
   // ---- antennae (gene K): a pair of thin stalks leaning forward <= 25 deg, a ball or a feathery leaf on top ----------
@@ -745,16 +757,18 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
     const ant = taper(a0, [a0[0] + L * 0.1, a0[1] + L * 0.6], a1, () => ANT_W, 10);
     if (antType === 1) ant.append(ellipse(a1[0], a1[1] + 0.6, 2.2, 2.2));
     else ant.append(taper([a0[0] + L * 0.18, a0[1] + L * 0.45], [a0[0] + L * 0.3, a0[1] + L * 0.75], [a1[0] + 0.3, a1[1] + 1.5], (t) => Math.max(TIP, 4.2 * Math.sin(Math.PI * Math.min(0.9, t * 0.9 + 0.1))), 10));
-    put('antennae', ant.rotated(a0[0], a0[1], DIR_TURN.antennae[g.antennae!.dir ?? 0] ?? 0));
+    put('antennae', ant.scaled(a0[0], a0[1], nu.scale.antennae ?? 1).rotated(a0[0], a0[1], (DIR_TURN.antennae[g.antennae!.dir ?? 0] ?? 0) + (nu.turn.antennae ?? 0)));
   }
 
   const crestType = g.crest!.type!;
+  // a spike left out because it would grow into a neighbour (a tail, a fin)
+  const spineOff = (x: number, half: number): boolean => nu.spinesOff.some((o) => Math.abs(o - x) < half);
   if (n.crestS > 0.3 && crestType > 0) {
     const c = n.crestS;
     if (crestType === 1) {
       const base: XY = [head[0] - 1, head[1] + hs.ry - 0.8];
       put('tuft', spike(base[0], base[1], -2.5, 1.5, base[0] + 0.5, base[1] + c * 1.2)
-        .append(spike(base[0], base[1], 1, 5, base[0] + 3.8, base[1] + c)));
+        .append(spike(base[0], base[1], 1, 5, base[0] + 3.8, base[1] + c)).scaled(base[0], base[1], nu.scale.tuft ?? 1).rotated(base[0], base[1], nu.turn.tuft ?? 0));
     } else if (crestType === 2) {
       const m = new Path();
       // every spike's base is >= 3.6 mm along the neck; a very short neck (a fish) gets one spike reaching past it
@@ -773,6 +787,7 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
       const x0 = neckBase[0], x1 = tailBase[0];
       for (let i = 0; i < 3; i++) {
         const x = x0 + ((x1 - x0) * (i + 0.5)) / 3, y = trunkTop(x) - 1;
+        if (spineOff(x, 3.6)) continue;
         const h = c * (1.15 - Math.abs(i - 1) * 0.25);
         s.append(polygon([[x - 2, y], [x - 2, y + h * 0.7], [x - TIP / 2, y + h], [x + TIP / 2, y + h], [x + 2, y + h * 0.7], [x + 2, y]]));
         s.append(spike(x - 1.5, trunkTop(x - 1.5) - 1, -1.6, 1.6, x - 1.5 - h * 0.3, trunkTop(x - 1.5) - 1 + h * 0.55));
@@ -787,12 +802,13 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
         const b0: XY = [base[0] + dx, base[1]], h = c * 1.3 * k;
         pl.append(taper(b0, [b0[0] - h * lean * 0.3, b0[1] + h * 0.6], [b0[0] - h * lean, b0[1] + h], (t) => Math.max(TIP, 2.6 * (1 - t * 0.6)), 10));
       }
-      put('tuft', pl);
+      put('tuft', pl.scaled(base[0], base[1], nu.scale.tuft ?? 1).rotated(base[0], base[1], nu.turn.tuft ?? 0));
     } else {
       const s = new Path();
       const x0 = neckBase[0], x1 = tailBase[0];
       for (let i = 0; i < 6; i++) {
         const x = x0 + ((x1 - x0) * (i + 0.5)) / 6;
+        if (spineOff(x, 2.4)) continue;
         const y = trunkTop(x) - 0.8;
         s.append(spike(x, y, -2.4, 2.4, x - 0.6, y + c));
       }
@@ -825,7 +841,7 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
   const eye: XY = [head[0] + hs.rx * 0.32, head[1] + hs.ry * 0.25];
   const eyes: [XY, number][] = face.eyes === EYES.many
     ? [[eye, er2], [[head[0] - hs.rx * 0.08, head[1] + hs.ry * 0.5], er2 * 0.8], [[head[0] + hs.rx * 0.62, head[1] + hs.ry * 0.02], er2 * 0.75], [[head[0] + hs.rx * 0.05, head[1] + hs.ry * 0.05], er2 * 0.7]]
-    : face.eyes === EYES.stalks ? [[eyeOnStalk(head, hs), er2]] : [[eye, er2]];
+    : face.eyes === EYES.stalks ? [[turnAbout(eyeOnStalk(head, hs), eyeStalkRoot(head, hs), nu.turn.stalks ?? 0, nu.scale.stalks ?? 1), er2]] : [[eye, er2]];
   if (face.eyes === EYES.stalks) put('stalks', tube(eyeStalkRoot(head, hs), eyes[0]![0], STALK_W, STALK_W));
   const ew = new Path(), ei = new Path(), ep = new Path(), eg = new Path();
   const eyeShape = face.eyeShape ?? EYE_SHAPE.round; // eyes on stalks take the chosen shape too

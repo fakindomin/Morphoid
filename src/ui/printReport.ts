@@ -4,7 +4,8 @@ import { solveRig, type Rig } from '../core/rig';
 import { targetPose } from '../core/art/pose';
 import { buildPaths, type SlotPaths } from '../core/art/shapes';
 import { analyzePrint, fitPlan, touchIssues, type PrintPlan, type PrintReport } from '../core/print';
-import { appendageContacts, buildParts3D } from '../core/art/spec3d';
+import { buildParts3D } from '../core/art/spec3d';
+import { touchesOf } from '../core/art/settle';
 import { serialize } from '../core/genome';
 
 /** Rest-pose geometry in mm: exactly what gets printed (no breathing, no mouse). */
@@ -21,7 +22,10 @@ export function reportFor(g: MorphotypeGenome, plan: PrintPlan): PrintReport {
   if (hit) return hit;
   const { rig, paths } = restGeometry(g);
   const base = analyzePrint(paths, rig, plan);
-  const contacts = appendageContacts(buildParts3D(paths, g, rig));
+  // what settling (art/settle.ts) could not move apart: one entry per pair of kinds (the sides are mirrors)
+  const seen = new Set<string>();
+  const contacts = touchesOf(buildParts3D(paths, g, rig)).filter((t) => t.depth < 0).map((t) => ({ a: t.a, b: t.b, at: [t.at[0], t.at[1]] as [number, number] }))
+    .filter((t) => { const k = [t.a, t.b].map((x) => x.replace(/Far$|Near$/, '')).sort().join(); return !seen.has(k) && !!seen.add(k); });
   const touch = touchIssues(contacts);
   const rep: PrintReport = touch.length
     ? { ...base, issues: [...base.issues, ...touch], touches: contacts, level: base.level === 'green' || base.level === 'blue' ? 'yellow' : base.level }

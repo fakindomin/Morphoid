@@ -76,6 +76,14 @@ export class Path {
     return p;
   }
 
+  /** Copy scaled by `k` about (cx, cy). */
+  scaled(cx: number, cy: number, k: number): Path {
+    if (k === 1) return this;
+    const p = new Path();
+    p.c = this.c.map(([op, ...n]) => [op, ...n.map((v, i) => (i % 2 === 0 ? cx : cy) + (v - (i % 2 === 0 ? cx : cy)) * k)] as Cmd);
+    return p;
+  }
+
   /** Copy shifted by (dx, dy) mm. */
   translated(dx: number, dy: number): Path {
     const p = new Path();

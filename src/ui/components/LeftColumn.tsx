@@ -174,7 +174,7 @@ function statusOf(tile: TileDef, g: Genome): string {
   const f = blockDef(first.block).fields.find((x) => x.name === first.field)!;
   const sized = tile.fields.filter((tf) => isSize(tf) && !isOff(tf, g));
   if (f.kind !== 'enum') return cap(sized.slice(0, 2).map((tf) => wordOf(tf, g)).join(', ')); // the neck: "Długa, gruba"
-  const plan = g.plan!.type!, legs = D.legCountOf(plan, g.legs!.count);
+  const plan = g.plan!.type!, legs0 = D.legCountOf(plan, g.legs!.count), legs = legs0 - (D.handsTakeFrontLegs(plan, g.hands?.type, legs0 / 2) ? 2 : 0);
   const shape = first.control === 'legCount' ? (plan === D.PLAN.octopus ? 'Macki' : plan === D.PLAN.caterpillar && !legs ? 'Nóżki'
     : legs === 0 ? 'Brak' : `${legs} ${legs < 5 ? 'nogi' : 'nóg'}`)
     : f.options[g[first.block]![first.field]!]!.label;

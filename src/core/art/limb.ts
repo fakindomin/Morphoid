@@ -290,12 +290,16 @@ function hull(pts: XY[]): XY[] {
  * apart so no two soles of a side touch (touching feet would close a loop through the body). The rear pair is the hind
  * legs (slot legB), every other pair a front pair (legF).
  */
-export function legTops(pairs: number, upright: boolean, hipB: XY, shF: XY, stand: { human: boolean; girth: number; soleL: number }): { slot: 'legB' | 'legF'; top: XY; footX: number }[] {
+export function legTops(pairs: number, upright: boolean, hipB: XY, shF: XY, stand: { human: boolean; girth: number; soleL: number; legW: number }): { slot: 'legB' | 'legF'; top: XY; footX: number }[] {
   if (pairs <= 0) return [];
   if (pairs === 1) { const top: XY = upright ? hipB : [(hipB[0] + shF[0]) / 2, (hipB[1] + shF[1]) / 2]; return [{ slot: 'legB', top, footX: top[0] }]; }
+  // (an upright creature's tops sit at least a leg's width and a gap apart, round their middle, so its legs do not
+  // touch where they leave the trunk)
+  const [ax, ay, bx, by] = upright && stand.human ? [hipB[0] - stand.girth * 0.25, hipB[1], hipB[0] + stand.girth * 0.25, hipB[1]] : [hipB[0], hipB[1], shF[0], shF[1]];
+  const len = Math.hypot(bx - ax, by - ay) || 1, need = upright ? (stand.legW * 1.2 + 1) * (pairs - 1) : 0, k = Math.max(1, need / len);
   const tops = Array.from({ length: pairs }, (_, i): XY => {
-    const t = i / (pairs - 1);
-    return upright && stand.human ? [hipB[0] + (t - 0.5) * stand.girth * 0.5, hipB[1]] : [hipB[0] + (shF[0] - hipB[0]) * t, hipB[1] + (shF[1] - hipB[1]) * t];
+    const t = (i / (pairs - 1) - 0.5) * k + 0.5;
+    return [ax + (bx - ax) * t, ay + (by - ay) * t];
   });
   const mid = tops.reduce((a, t) => a + t[0], 0) / pairs;
   const step = Math.max(Math.abs(tops[1]![0] - tops[0]![0]), stand.soleL + 5.8); // heel to toe (and claws) plus a gap

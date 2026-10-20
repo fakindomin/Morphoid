@@ -19,6 +19,7 @@ import { blendGroup, edgesOf, sdPolys, slabDist, type Edge } from '../bake/field
 import { neckLimb, sculptOf, trunkLimb } from './anatomy';
 import { hostsOf, mountAt, skinZ, slabSd, type Host } from './mounts';
 import { cutPlanes, langOf, speakLanguage, type Cut } from './form';
+import './settle'; // registers the settling of touching elements with solveRig
 
 export type ColorKey = 'c1' | 'c1dark' | 'c2' | 'c2soft' | 'c3' | 'ink' | 'white';
 
@@ -202,15 +203,18 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
   if (D.jointedLegs(plan, rig.dims.legPairs)) for (const p of out) {
     if (p.slot !== 'legB' && p.slot !== 'legF') continue;
     const slot = p.slot, n = rig.nodes;
-    p.limb = mergeLimbs(legTops(rig.dims.legPairs, biped, [n.hipB.x, n.hipB.y], [n.shoulderF.x, n.shoulderF.y], { human, girth: rig.dims.bodyGirth, soleL: rig.dims.soleLength }).filter((t) => t.slot === slot)
+    p.limb = mergeLimbs(legTops(rig.dims.legPairs, biped, [n.hipB.x, n.hipB.y], [n.shoulderF.x - (rig.nudge?.legsBack ?? 0), n.shoulderF.y], { human, girth: rig.dims.bodyGirth, soleL: rig.dims.soleLength, legW: rig.dims.legWidth }).filter((t) => t.slot === slot)
       .map((t) => legLimb(legSpecOf(slot, biped, t.top, [t.footX, 0], rig.dims.legWidth, g.legs!.foot!, rig.dims.soleLength, rig.dims.build === 2, human), p.z)));
   }
   // arms with hands: real 3D chains out of the upper chest, one per side
-  { const n = rig.nodes, a0 = armSpecOf(g, [n.torso.x, n.torso.y], rig.dims.bodyLength, rig.dims.bodyGirth, rig.dims.tilt, rig.dims.legWidth, plan);
+  { const n = rig.nodes, a0 = armSpecOf(g, [n.torso.x, n.torso.y], rig.dims.bodyLength, rig.dims.bodyGirth, rig.dims.tilt, rig.dims.legWidth, plan, rig.nudge?.armPose);
     // the shoulder stays where it sits on legs of the middle thickness (thicker legs only push the hand out)
     const arm = a0 && { ...a0, shoulderZ: armZ(rig.dims.bodyWidth, rig.dims.legWidth / D.factorAt(D.LEG_THICK, g.legs!.thick)).out * 0.7 };
     // the left arm (+z) takes the pose gene, the right one its own (or the same)
-    for (const p of out) if (p.slot === 'hands' && arm) p.limb = armLimb(p.side < 0 ? { ...arm, pose: arm.poseR } : arm, p.z); }
+    for (const p of out) if (p.slot === 'hands' && arm) {
+      p.z += Math.sign(p.z) * (rig.nudge?.armOut ?? 0); // hands splayed out where they would grow into a leg or an ear (settle.ts)
+      p.limb = armLimb(p.side < 0 ? { ...arm, pose: arm.poseR } : arm, p.z);
+    } }
   // claws, hooves and talons: one darker part per side holding the tips of that side's legs and hand
   for (const c of out) if (c.slot === 'claws') {
     const tips = out.filter((p) => TIP_SLOTS.has(p.slot) && p.side === c.side && p.limb?.tips).flatMap((p) => p.limb!.tips!);
@@ -223,11 +227,11 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
   // insects: six jointed legs reaching out sideways; caterpillars: stubby prolegs out of the flanks
   if (plan === D.PLAN.insect) for (const p of out) {
     if (p.slot !== 'legB' && p.slot !== 'legF') continue;
-    const n = rig.nodes, hips = insectHips([n.hipB.x, n.hipB.y], [n.shoulderF.x, n.shoulderF.y], rig.dims.legPairs);
+    const n = rig.nodes, hips = insectHips([n.hipB.x, n.hipB.y], [n.shoulderF.x - (rig.nudge?.legsBack ?? 0), n.shoulderF.y], rig.dims.legPairs, D.insectReach(rig.dims.armsPair, rig.dims.legPairs));
     p.limb = insectLimb(hips[p.slot], insectLegW(rig.dims.legWidth), insectRise(rig.dims.bodyGirth), rig.dims.bodyWidth, p.z);
   }
   if (plan !== D.PLAN.fish) for (const p of out) if (p.slot === 'tail') { // wolf and fluffy tails are round
-    const n = rig.nodes, tl = roundTail(g, rig.dims.bodyGirth, [n.tailBase.x, n.tailBase.y], [n.tailMid.x, n.tailMid.y], [n.tailTip.x, n.tailTip.y], rig.dims.anatomical && plan === D.PLAN.quadruped);
+    const n = rig.nodes, tl = roundTail(g, rig.dims.bodyGirth, [n.tailBase.x, n.tailBase.y], [n.tailMid.x, n.tailMid.y], [n.tailTip.x, n.tailTip.y], rig.dims.anatomical && plan === D.PLAN.quadruped, rig.nudge?.turn.tail);
     if (tl) p.limb = tl;
   }
   if (plan === D.PLAN.caterpillar) for (const p of out) if (p.slot === 'legF') p.limb = prolegLimb(prolegXs(rig.nodes.torso.x, rig.dims.bodyLength, rig.dims.legPairs), p.z);

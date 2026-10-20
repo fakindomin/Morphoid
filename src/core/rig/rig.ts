@@ -67,11 +67,29 @@ export interface Rig {
     legPairs: number;
     /** the smallest flat contact a foot needs (mm^2): less when more feet share the weight */
     minSole: number;
+    /** an insect's front pair of legs became its arms (see dimensions handsTakeFrontLegs) */
+    armsPair: boolean;
   };
   bounds: { min: [number, number, number]; max: [number, number, number] };
   /** Rule violations; empty for a printable pose. */
   issues: string[];
+  /** small turns and shifts that keep elements from growing into each other (see art/settle.ts); none = as designed */
+  nudge?: Nudge;
 }
+
+/** Element turns (rad, about their roots) and sizes (x k, about their roots), how far the hands splay out (mm), a pose
+ * both arms take instead of their own (raised clear of the legs), how far the front legs step back (mm) and spikes left
+ * out (their x). */
+export type NudgeKey = 'ear' | 'horns' | 'antennae' | 'tuft' | 'tail' | 'stalks';
+export interface Nudge {
+  turn: Partial<Record<NudgeKey, number>>; scale: Partial<Record<NudgeKey, number>>;
+  /** how far (mm) an ear's or a horn's root slides back round the skull */
+  shift: Partial<Record<'ear' | 'horns', number>>;
+  armOut: number; armPose?: number; legsBack: number; spinesOff: number[];
+}
+
+/** Set by art/settle.ts: runs once per rig, the first time its nudges are read (the art layer measures the 3D model). */
+export const settleHook: { fn: ((genome: MorphotypeGenome, rig: Rig) => Nudge | undefined) | null } = { fn: null };
 
 const NECK_ANGLE = 1.15; // rad above horizontal (steep: the head sits over the chest, not in front of it)
 // The tail leaves the rump backwards and UP, curling steeper towards the tip, so
@@ -109,6 +127,13 @@ export function solveRig(genome: MorphotypeGenome): Rig {
   const rig = build(genome, code);
   if (cache.size > 512) cache.clear();
   cache.set(code, rig);
+  // settling is measured on the 3D model, so only when someone draws or builds it (rigs read for their sizes alone
+  // never pay for it); while it runs, the rig reads as not nudged
+  let nudge: Nudge | undefined, settled = false;
+  Object.defineProperty(rig, 'nudge', {
+    get: () => { if (!settled) { settled = true; nudge = settleHook.fn?.(genome, rig); } return nudge; },
+    set: (v: Nudge | undefined) => { settled = true; nudge = v; },
+  });
   return rig;
 }
 
@@ -116,7 +141,8 @@ function build(g: MorphotypeGenome, code: string): Rig {
   const build = g.build?.type ?? 0, B = D.BUILD[build]!;
   const plan = g.plan?.type ?? 0, biped = D.isBiped(plan), human = plan === D.PLAN.humanoid, insect = plan === D.PLAN.insect;
   // pairs of legs (leg count gene): a fish given legs stands on them like a quadruped
-  const pairs = D.legPairsOf(plan, g.legs!.count), belly = D.onBelly(plan, pairs);
+  const pairs0 = D.legPairsOf(plan, g.legs!.count), pairs = pairs0 - (D.handsTakeFrontLegs(plan, g.hands?.type, pairs0) ? 1 : 0);
+  const belly = D.onBelly(plan, pairs);
   // jointed legs on more than two pairs: a little slimmer, spread over more of the trunk
   const crowd = pairs > 2 && !insect && plan !== D.PLAN.caterpillar;
   const fish = plan === D.PLAN.fish, octopus = plan === D.PLAN.octopus;
@@ -146,7 +172,10 @@ function build(g: MorphotypeGenome, code: string): Rig {
   const legK = D.factorAt(D.LEG_THICK, g.legs!.thick);
   const legW0 = anat ? Math.max(A.legWMin, B.legW(G0) * A.legW) : B.legW(G0);
   // ... and never so thick that the pair of legs outgrows the body
-  const legW = D.snap(Math.max(3.6, (legK > 1 ? Math.min(legW0 * legK, Math.max(legW0, W * 0.7)) : legW0 * legK) * (crowd ? 0.82 : 1)));
+  const legX = Math.max(5, L * (insect ? 0.27 : crowd ? 0.36 : 0.3));
+  // many legs in a row: each stays slim enough to clear its neighbours (knees and hocks included)
+  const crowdW = crowd ? (2 * legX / (pairs - 1)) * 0.42 : Infinity;
+  const legW = D.snap(Math.max(3.6, Math.min(crowdW, (legK > 1 ? Math.min(legW0 * legK, Math.max(legW0, W * 0.7)) : legW0 * legK) * (crowd ? 0.82 : 1))));
   const headSize = D.factorAt(D.HEAD_SIZE, g.head!.size);
   const headR0 = D.headRadius(G0, plan) * (human ? H.head : 1);
   // a bigger head (size slider) still never becomes a second ball as big as the body (form rule "big, medium, small")
@@ -162,7 +191,6 @@ function build(g: MorphotypeGenome, code: string): Rig {
   // an animal's paw is round, not a long slipper (about as long as the slim leg is wide); no sole is below the minimum area
   // more feet share the weight: each may be smaller (the bed contact of all of them together stays the same)
   const minSole = D.MIN_SOLE_AREA_MM2 * (crowd ? 2 / pairs : 1);
-  const legX = Math.max(5, L * (insect ? 0.27 : crowd ? 0.36 : 0.3));
   const gap = crowd ? (2 * legX) / (pairs - 1) : Infinity; // between neighbouring feet
   const soleMax = (mm: number): number => Math.min(mm, Math.max(up(minSole / legW), gap - 2.4));
   const sole = { length: Math.max(up(minSole / legW), anatQ && g.legs!.foot! !== D.FOOT_HAND ? soleMax(Math.min(D.snap(soleL), up(legW * 1.7))) : soleMax(D.snap(soleL))), width: legW };
@@ -230,7 +258,7 @@ function build(g: MorphotypeGenome, code: string): Rig {
     code, nodes, order,
     dims: {
       bodyLength: L, bodyGirth: G, bodyWidth: W, legLength: legLen, neckLength: neckLen,
-      tailLength: tailLen, legWidth: legW, headR, headSize, neckK: D.factorAt(D.NECK_THICK, g.head!.neckThick), soleLength: sole.length, soleWidth: sole.width, build, plan, tilt, anatomical: anat, legPairs: pairs, minSole,
+      tailLength: tailLen, legWidth: legW, headR, headSize, neckK: D.factorAt(D.NECK_THICK, g.head!.neckThick), soleLength: sole.length, soleWidth: sole.width, build, plan, tilt, anatomical: anat, legPairs: pairs, minSole, armsPair: pairs !== pairs0,
     },
     bounds, issues: [],
   };

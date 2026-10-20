@@ -143,6 +143,10 @@ export function legPairsOf(plan: number, countOpt: number | undefined): number {
   if (c) return c / 2;
   return plan === PLAN.quadruped ? 2 : isBiped(plan) ? 1 : plan === PLAN.insect ? 3 : plan === PLAN.caterpillar ? -1 : 0;
 }
+/** An insect with hands holds them where its front pair of legs would be (a mantis): that pair is its arms. */
+export const handsTakeFrontLegs = (plan: number, hands: number | undefined, pairs: number): boolean => plan === PLAN.insect && !!hands && pairs > 1;
+/** How far along the trunk an insect's legs reach: short of the shoulders when its front pair became arms. */
+export const insectReach = (armsPair: boolean, pairs: number): number => (armsPair ? pairs / (pairs + 1) : 1);
 /** How many legs a creature shows (for the panel): a caterpillar's own prolegs count as 0 here. */
 export const legCountOf = (plan: number, countOpt: number | undefined): number => Math.max(0, legPairsOf(plan, countOpt)) * 2;
 /** Plans whose legs are jointed chains (a quadruped's, a bird's, an ape's, a fish's given legs). */
