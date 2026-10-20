@@ -76,11 +76,11 @@ export class Path {
     return p;
   }
 
-  /** Copy scaled by `k` about (cx, cy). */
-  scaled(cx: number, cy: number, k: number): Path {
-    if (k === 1) return this;
+  /** Copy scaled by `k` about (cx, cy) (by `ky` up and down, when given). */
+  scaled(cx: number, cy: number, k: number, ky = k): Path {
+    if (k === 1 && ky === 1) return this;
     const p = new Path();
-    p.c = this.c.map(([op, ...n]) => [op, ...n.map((v, i) => (i % 2 === 0 ? cx : cy) + (v - (i % 2 === 0 ? cx : cy)) * k)] as Cmd);
+    p.c = this.c.map(([op, ...n]) => [op, ...n.map((v, i) => (i % 2 === 0 ? cx + (v - cx) * k : cy + (v - cy) * ky))] as Cmd);
     return p;
   }
 

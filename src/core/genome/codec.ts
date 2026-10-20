@@ -221,7 +221,7 @@ export function describeGene(genome: MorphotypeGenome, gd: GeneDef): string {
 }
 
 /** Genes that grew a size digit at their end: how many digits they had before. */
-const LEGACY_DIGITS: Record<string, number> = { L: 1, N: 1, H: 0, O: 2, V: 1, D: 0, X: 2 };
+const LEGACY_DIGITS: Record<string, number> = { L: 1, N: 1, H: 0, O: 2, V: 1, D: 0, X: 2, W: 1 };
 
 const GENE_RE = /^([A-Z])([0-9A-F]{2})(?:\.([0-9A-F]*))?$/;
 

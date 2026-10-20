@@ -71,6 +71,7 @@ export const TILE_GROUPS: TileGroup[] = [
     { id: 'wings', title: 'Skrzydła', fields: [
       { block: 'wings', field: 'type', label: 'Typ skrzydeł' },
       { block: 'wings', field: 'scale', label: 'Rozpiętość' },
+      { block: 'wings', field: 'spread', label: 'Rozłożenie skrzydeł' },
     ] },
     { id: 'legs', title: 'Nogi i stopy', fields: [
       { block: 'legs', field: 'count', label: 'Liczba nóg', control: 'legCount' },

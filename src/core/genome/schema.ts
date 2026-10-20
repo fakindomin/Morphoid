@@ -102,6 +102,7 @@ export const BLOCKS: readonly BlockDef[] = [
   { id: 'wings', letter: 'W', label: 'Skrzydła', noneMeansEmpty: true, fields: [
     e('type', [['none', 'Brak'], ['feather', 'Pierzaste'], ['bat', 'Nietoperze']]),
     s('scale', 'Wielkość'),
+    e('spread', [['up', 'Do góry'], ['half', 'Rozłożone'], ['wide', 'Szeroko rozłożone']], 0, 'Rozłożenie'),
   ] },
   { id: 'tail', letter: 'T', label: 'Ogon', noneMeansEmpty: true, fields: [
     e('type', [['none', 'Brak'], ['wolf', 'Wilczy'], ['fluffy', 'Puszysty'], ['fan', 'Wachlarz'], ['feathers', 'Pióra ptaka']], 1),
@@ -202,7 +203,7 @@ export const GENES: readonly GeneDef[] = [
   gene('S', 'Pysk', 'snout', 'type', 'reach'),
   gene('E', 'Uszy', 'ears', 'type', 'scale', 'dir'),
   gene('R', 'Rogi', 'horns', 'type', 'span', 'dir'),
-  gene('W', 'Skrzydła', 'wings', 'type', 'scale'),
+  gene('W', 'Skrzydła', 'wings', 'type', 'scale', 'spread'),
   gene('T', 'Ogon', 'tail', 'type', 'length', 'dir'),
   gene('U', 'Końcówka ogona', null),
   gene('C', 'Grzywa / czub / kolce', 'crest', 'type', 'scale'),

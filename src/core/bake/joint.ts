@@ -162,7 +162,7 @@ function contacts(part: Grid3, hosts: Grid3[]): Patch[] {
   });
   const body = new Int32Array(n).fill(-1);
   const patchTags = hosts.map(() => new Int32Array(n).fill(-1));
-  const out: Patch[] = [];
+  const out: Patch[] = [], buried: Patch[] = [];
   const minNodes = MIN_CONTACT_MM3 / h ** 3;
   let bodyId = 0, patchId = 0;
   const makePatch = (nodes: number[], near: number, host: number, own: number): void => {
@@ -190,6 +190,11 @@ function contacts(part: Grid3, hosts: Grid3[]): Patch[] {
       if (body[idx] === own) { ax += dx; ay += dy; az += dz; m++; }
     }
     if (m) out.push({ c, n: norm([ax, ay, az]), nAll: norm([bx, by, bz]), nodes, overlap, near, host });
+    else { // all of it hugs the host: its axis points out of the host's surface (used only when nothing else is found)
+      const H = hosts[host]!, q = (dx: number, dy: number, dz: number): number => sample(H, c[0] + dx, c[1] + dy, c[2] + dz);
+      const gr = norm([q(h, 0, 0) - q(-h, 0, 0), q(0, h, 0) - q(0, -h, 0), q(0, 0, h) - q(0, 0, -h)]);
+      if (gr.every(Number.isFinite) && Math.hypot(...gr) > 0.5) buried.push({ c, n: gr, nAll: gr, nodes, overlap, near, host });
+    }
   };
   for (let s = 0; s < n; s++) {
     if (data[s]! >= 0 || body[s]! >= 0) continue;
@@ -213,7 +218,8 @@ function contacts(part: Grid3, hosts: Grid3[]): Patch[] {
       makePatch(nodes2.length >= minNodes ? nodes2 : nodes2.concat(Array(Math.ceil(minNodes - nodes2.length)).fill(minAt)), near, minHost, own);
     }
   }
-  return out;
+  // a part that lies all along its host (a tiny ear sunk into the skull) still gets joints: never none at all
+  return out.length ? out : buried;
 }
 
 /** Number of separate solid bodies in a grid (6-connected nodes inside). */

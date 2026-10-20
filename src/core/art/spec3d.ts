@@ -11,7 +11,7 @@ import { dimensions as D, type Rig } from '../rig';
 import { groupOfSlot, type PartGroup } from '../print/plan';
 import { COAT_LIMB, type Coat } from './coat';
 import { reliefSpec, rootOf, type Relief } from './relief';
-import { armSpecOf, EYES, eyelids, LIP_R, WHISKER_TURN, insectHips, insectLegW, insectRise, prolegXs, roundTail, STALK_W, wingRibs, STAND_MARGIN_MM, STAND_MM, WHISKER_FAN, WHISKER_PAD, WHISKER_W, whiskerLength, type SlotId, type SlotPaths } from './shapes';
+import { armSpecOf, EYES, eyelids, LIP_R, WHISKER_TURN, insectHips, insectLegW, insectRise, prolegXs, roundTail, STALK_W, wingRibs, STAND_MARGIN_MM, STAND_MM, wingSpread, WHISKER_FAN, WHISKER_PAD, WHISKER_W, whiskerLength, type SlotId, type SlotPaths } from './shapes';
 import type { XY } from './path';
 import { typeSize } from './pose';
 import { armLimb, armZ, insectLimb, legLimb, legSpecOf, legTops, mergeLimbs, octopusLimb, prolegLimb, type Cone, type Dome, type Limb } from './limb';
@@ -70,6 +70,11 @@ export interface Part3D {
   cuts?: Cut[];
   /** coat texture (fur, scales, armour): a shallow relief sunk into the surface, see coat.ts */
   coat?: Coat;
+  /**
+   * the slab leans by `a` rad about the line along X through (y, z) (a spread wing: + turns up into +z); its outline,
+   * z and thickness are as if it stood upright, `ribs` are already leant (world mm). See untilt in field.ts.
+   */
+  tilt?: { a: number; y: number; z: number };
 }
 
 interface Ctx { W: number; G: number; legW: number; legZ: number; headW: number; snoutW: number; neckT: number }
@@ -248,6 +253,17 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
     const zAt = (r: number): number => side * (zo - 0.25 * r);
     const n = rig.nodes.wingRoot;
     p.ribs = { cones: wingRibs(g.wings!.type!, [n.x, n.y], wingS).map((r) => ({ a: [r.a[0], r.a[1], zAt(r.ra)], b: [r.b[0], r.b[1], zAt(r.rb)], ra: r.ra, rb: r.rb })), domes: [] };
+    // a spread wing: the drawing shows it shortened (seen from the side); the solid stands it up to its full height
+    // and leans it out about its root, hinged on the inner face
+    const spread = wingSpread(g);
+    if (spread > 0) {
+      const k = 1 / Math.cos(spread);
+      p.polys = p.polys.map((poly) => poly.map(([x, y]): XY => [x, n.y + (y - n.y) * k]));
+      p.tilt = { a: side * spread, y: n.y, z: p.z - side * p.thickness / 2 };
+      const { a, y: ty, z: tz } = p.tilt, c = Math.cos(a), sn = Math.sin(a);
+      const lean = (q: [number, number, number]): [number, number, number] => [q[0], ty + (q[1] - ty) * c - (q[2] - tz) * sn, tz + (q[1] - ty) * sn + (q[2] - tz) * c];
+      for (const cone of p.ribs.cones) { cone.a = lean(cone.a); cone.b = lean(cone.b); }
+    }
   }
   if (plan === D.PLAN.quadruped || biped) for (const p of out) if (p.slot === 'torso') p.widths = torsoWidths(p, rig);
   // the body pattern is felt as well as seen: a shallow relief on the torso

@@ -7,7 +7,7 @@
  */
 import type { XY } from '../art/path';
 import type { ColorKey, Part3D } from '../art/spec3d';
-import { edgesOf, partBox, sdPolys, slabDist, toLocal, type Edge } from './field';
+import { edgesOf, partBox, sdPolys, slabDist, toLocal, untilt, type Edge } from './field';
 import type { Mesh } from './surfacenets';
 import { limbSd } from '../art/limb';
 
@@ -38,7 +38,7 @@ const within = (s: Shape, x: number, y: number, z: number): boolean =>
 function partSd(s: Shape, x: number, y: number, z: number): number {
   const { part } = s;
   if (part.limb) return limbSd(part.limb, x, y, z);
-  const [u, v, w] = toLocal(part, x, y, z);
+  const [u, v, w] = toLocal(part, ...untilt(part, x, y, z));
   const d = slabDist(part, sdPolys(s.edges, part.polys, u, v), w - part.z, u, v);
   return part.ribs ? Math.min(d, limbSd(part.ribs, x, y, z)) : d;
 }

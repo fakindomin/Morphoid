@@ -207,7 +207,11 @@ export function buildModel(genome: MorphotypeGenome, plan: PrintPlan, report: Pr
       const mesh = new THREE.Mesh(geo, material);
       // a top-view part is drawn in (x, z) and extruded along y: +90 deg about X maps (u, v, w) to (u, -w, v), and the
       // slab is symmetric in w
-      if (part.limb) { /* already in world mm */ } else if (part.plane === 'xz') { mesh.rotation.x = Math.PI / 2; mesh.position.y = part.z; } else mesh.position.z = part.z;
+      if (part.limb) { /* already in world mm */ } else if (part.plane === 'xz') { mesh.rotation.x = Math.PI / 2; mesh.position.y = part.z; } else if (part.tilt) {
+        // a spread wing leans about its root line (see Part3D.tilt)
+        const { a, y, z } = part.tilt;
+        geo.translate(0, -y, part.z - z); geo.rotateX(a); geo.translate(0, y, z);
+      } else mesh.position.z = part.z;
       holder.add(mesh);
     }
     if (part.ribs) for (const geo of limbGeometry(part.ribs)) { geometries.push(geo); holder.add(new THREE.Mesh(geo, material)); }

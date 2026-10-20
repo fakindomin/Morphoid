@@ -7,7 +7,7 @@ import {
 describe('Morphotyp codec (DNA v2)', () => {
   it('writes the default creature as the spec example, every gene always present, fixed length', () => {
     const code = serialize(defaultGenome());
-    expect(code.split("#")[0]).toBe("MPH2:B01.33:L01.331:N01.33:H01.3:S02.3:E01.31:R00.00:W00.0:T01.31:U00:C00.0:O02.113:M01:Z00:V00.00:F01:D00.0:A00:G00:P00:J01:Y01:Q00:K00.00:X00.0000:I00.888888888");
+    expect(code.split("#")[0]).toBe("MPH2:B01.33:L01.331:N01.33:H01.3:S02.3:E01.31:R00.00:W00.00:T01.31:U00:C00.0:O02.113:M01:Z00:V00.00:F01:D00.0:A00:G00:P00:J01:Y01:Q00:K00.00:X00.0000:I00.888888888");
     expect(code).toMatch(/#[0-9A-F]{2}$/);
     const rnd = mulberry32(3);
     for (let i = 0; i < 50; i++) expect(serialize(randomGenome(rnd))).toHaveLength(code.length);

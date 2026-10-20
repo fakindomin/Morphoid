@@ -80,7 +80,7 @@ export const PRESETS: readonly Preset[] = [
   } },
   { id: 'dragon', name: 'Smok', genes: {
     body: { shape: 3, length: 4, girth: 3 }, build: { type: 2 }, legs: { foot: 1, length: 2 }, head: { skull: 1, neckLength: 3 },
-    snout: { type: 1, reach: 4 }, ears: { type: 0 }, horns: { type: 1, span: 3, dir: 2 }, wings: { type: 2, scale: 4 },
+    snout: { type: 1, reach: 4 }, ears: { type: 0 }, horns: { type: 1, span: 3, dir: 2 }, wings: { type: 2, scale: 4, spread: 1 },
     crest: { type: 3, scale: 3 }, tail: { type: 1, length: 5, dir: 1 }, face: { teeth: 1, expression: 2, eyeShape: 4 },
     coat: { texture: 2 }, palette: { index: 11 },
   } },

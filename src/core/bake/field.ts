@@ -68,6 +68,14 @@ export function sdPolys(edges: Edge[], polys: XY[][], x: number, y: number): num
 export const toLocal = (p: Part3D, x: number, y: number, z: number): [number, number, number] =>
   p.plane === 'xz' ? [x, z, y] : [x, y, z];
 
+/** A world point in the frame of a part as it would stand upright (see Part3D.tilt). */
+export function untilt(p: Part3D, x: number, y: number, z: number): [number, number, number] {
+  const t = p.tilt;
+  if (!t) return [x, y, z];
+  const c = Math.cos(t.a), s = Math.sin(t.a), dy = y - t.y, dz = z - t.z;
+  return [x, t.y + dy * c + dz * s, t.z - dy * s + dz * c];
+}
+
 /** World bounding box of a part's slab (without bevel growth: the slab never leaves its outline and thickness). */
 export function partBox(p: Part3D): { lo: [number, number, number]; hi: [number, number, number] } {
   if (p.limb) return limbBox(p.limb);
@@ -81,6 +89,12 @@ function slabBox(p: Part3D): { lo: [number, number, number]; hi: [number, number
   let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
   for (const poly of p.polys) for (const [u, v] of poly) { u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v); }
   const w0 = p.z - p.thickness / 2, w1 = p.z + p.thickness / 2;
+  if (p.tilt) { // the upright box's corners, leant
+    const { a, y, z } = p.tilt, c = Math.cos(a), s = Math.sin(a);
+    const ys: number[] = [], zs: number[] = [];
+    for (const v of [v0, v1]) for (const w of [w0, w1]) { ys.push(y + (v - y) * c - (w - z) * s); zs.push(z + (v - y) * s + (w - z) * c); }
+    return { lo: [u0, Math.min(...ys), Math.min(...zs)], hi: [u1, Math.max(...ys), Math.max(...zs)] };
+  }
   return p.plane === 'xz' ? { lo: [u0, w0, v0], hi: [u1, w1, v1] } : { lo: [u0, v0, w0], hi: [u1, v1, w1] };
 }
 
@@ -249,9 +263,11 @@ export function addPart(g: Grid3, part: Part3D, k: number): void {
   const [w0, w1, wo] = top ? [j0, j1, g.oy] : [k0, k1, g.oz];
   const w2 = i1 - i0 + 1;
   const far = k + 2 * h; // beyond this distance the field value is irrelevant (only its sign, which stays positive)
-  const d2 = new Float32Array(w2 * (v1 - v0 + 1));
-  for (let v = v0; v <= v1; v++) for (let i = i0; i <= i1; i++) d2[(v - v0) * w2 + (i - i0)] = sdPolys(edges, part.polys, g.ox + i * h, vo + v * h);
-  closeOutline(d2, w2, v1 - v0 + 1, h, SLIT_CLOSE_MM);
+  const d2 = new Float32Array(part.tilt ? 0 : w2 * (v1 - v0 + 1)); // (a leaning slab has no plane of its own)
+  if (!part.tilt) {
+    for (let v = v0; v <= v1; v++) for (let i = i0; i <= i1; i++) d2[(v - v0) * w2 + (i - i0)] = sdPolys(edges, part.polys, g.ox + i * h, vo + v * h);
+    closeOutline(d2, w2, v1 - v0 + 1, h, SLIT_CLOSE_MM);
+  }
   const cuts = top ? undefined : part.cuts;
   const slab = (sd: number, wz: number, x: number, y: number): number => {
     if (cuts) return slabDist(part, sd, wz, x, y);
@@ -262,6 +278,17 @@ export function addPart(g: Grid3, part: Part3D, k: number): void {
     return Math.min(Math.max(wx, wy), 0) + Math.sqrt(px * px + py * py) - r;
   };
   const coat = top ? undefined : part.coat, relief = top ? undefined : part.relief;
+  if (part.tilt) { // a leaning slab: every grid point is taken back into the upright slab's frame
+    for (let kk = k0; kk <= k1; kk++) for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      const [x, y, z] = untilt(part, g.ox + i * h, g.oy + j * h, g.oz + kk * h);
+      const sd = sdPolys(edges, part.polys, x, y);
+      if (sd > far) continue;
+      let d3 = slab(sd, z - part.z, x, y);
+      if (relief && Math.abs(d3) < 1.2) d3 += reliefDepth(relief, x, y);
+      unite(g, (kk * ny + j) * nx + i, d3, k, grp);
+    }
+    return;
+  }
   const patE = !top && part.pattern?.length ? edgesOf(part.pattern) : null;
   const vMax = v1 - v0;
   for (let w = w0; w <= w1; w++) {

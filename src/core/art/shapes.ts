@@ -127,6 +127,10 @@ export function wingRibs(type: number, root: XY, s: number): WingRib[] {
   return out;
 }
 
+/** How far (rad) the wings lean out sideways from upright (gene W: up, spread, wide). */
+const WING_SPREAD = [0, 0.6, 1.05];
+export const wingSpread = (g: MorphotypeGenome): number => WING_SPREAD[g.wings?.spread ?? 0] ?? 0;
+
 /** Bat-wing finger tips (t1, t2) and the scallop notch (n1) as fractions of the wing size. */
 export const BAT = { t1: [-0.4, 0.55] as [number, number], n1: [-0.2, 0.45] as [number, number], t2: [-0.8, 0.8] as [number, number] };
 
@@ -826,12 +830,14 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
       ? polygon([A, [x + BAT.t1[0] * s, y + BAT.t1[1] * s], [x + BAT.n1[0] * s, y + BAT.n1[1] * s], [x + BAT.t2[0] * s, y + BAT.t2[1] * s],
         [x - 0.3 * s, y + 1.05 * s], [x + 0.05 * s, y + 0.95 * s]])
       : polygon([A, [x - 0.62 * s, y + 0.78 * s], [x - 0.35 * s, y + 1.05 * s], [x + 0.05 * s, y + 0.95 * s]]);
-    put('wingNear', w);
-    put('wingFar', w.translated(-3.5, 2.5));
+    // a spread wing leans out sideways from its root (gene W): seen from the side it looks that much shorter
+    const k = Math.cos(wingSpread(g));
+    put('wingNear', w.scaled(x, y, 1, k));
+    put('wingFar', w.scaled(x, y, 1, k).translated(-3.5, 2.5));
     // bones (bat) or feather shafts: raised ridges on the outer face, drawn as lines along their crests
     const ribs = new Path();
     for (const r of wingRibs(wingType, wingRoot, s)) ribs.append(tube(r.a, r.b, 0.9, 0.7));
-    put('wingRibs', ribs);
+    put('wingRibs', ribs.scaled(x, y, 1, k));
   }
 
   // ---- face -------------------------------------------------------------------------
