@@ -85,7 +85,10 @@ export interface Nudge {
   turn: Partial<Record<NudgeKey, number>>; scale: Partial<Record<NudgeKey, number>>;
   /** how far (mm) an ear's or a horn's root slides back round the skull */
   shift: Partial<Record<'ear' | 'horns', number>>;
-  armOut: number; armPose?: number; legsBack: number; spinesOff: number[];
+  /** how far (mm) a pair on the head moves sideways, out from the middle (negative: in towards it) */
+  side?: Partial<Record<'ear' | 'horns' | 'antennae' | 'stalks', number>>;
+  /** legsBack: how far (mm) the front legs' tops step back (negative: forward); hipsFwd: the hind legs' step forward */
+  armOut: number; armPose?: number; legsBack: number; hipsFwd?: number; spinesOff: number[];
 }
 
 /** Set by art/settle.ts: runs once per rig, the first time its nudges are read (the art layer measures the 3D model). */

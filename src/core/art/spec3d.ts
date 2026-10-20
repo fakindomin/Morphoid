@@ -168,6 +168,9 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
       else if (p.slot === 'neck') { p.limb = neckLimb([n.neckBase.x, n.neckBase.y], [n.head.x, n.head.y], d.bodyGirth, d.headR, sculptOf(g).neck * d.neckK); p.thickness = d.bodyGirth * 0.7 * d.neckK; }
     }
   }
+  // a pair on the head that grew into another pair stands a little further out or in (settle.ts)
+  const sideOf = (slot: SlotId): number => rig.nudge?.side?.[(slot === 'earIn' ? 'ear' : slot === 'eye' && g.face!.eyes === EYES.stalks ? 'stalks' : slot) as 'ear'] ?? 0;
+  for (const p of out) if (p.side && sideOf(p.slot)) p.z += p.side * sideOf(p.slot);
   const head = out.find((p) => p.slot === 'head');
   if (head) for (const p of out) if (p.slot === 'ear') p.polys = seatOn(p, head);
   // a hanging ear lies against the side of the head: its root sinks into the skin, the leaf hangs just off the cheek
@@ -188,7 +191,7 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
   // teeth and tongue stay crisp shapes in the open mouth (tight blend, see bake)
   for (const p of out) if (p.slot === 'teeth' || p.slot === 'tongue') p.inset = true;
   if (g.face!.eyes === EYES.stalks) for (const p of out) { // eyes on stalks: a ball on top of each stalk, the pupil on its outer side
-    const zs = ctx.headW * 0.25 * p.side;
+    const zs = (ctx.headW * 0.25 + sideOf('eye')) * p.side;
     if (p.slot === 'eye') p.z = zs;
   }
   eyeballs(out, g.face!.eyes === EYES.stalks, g.face!.eyes === EYES.stalks ? EYE_OUT[0] : EYE_OUT[g.face!.eyeSet ?? 0] ?? EYE_OUT[0],
@@ -203,7 +206,7 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
   if (D.jointedLegs(plan, rig.dims.legPairs)) for (const p of out) {
     if (p.slot !== 'legB' && p.slot !== 'legF') continue;
     const slot = p.slot, n = rig.nodes;
-    p.limb = mergeLimbs(legTops(rig.dims.legPairs, biped, [n.hipB.x, n.hipB.y], [n.shoulderF.x - (rig.nudge?.legsBack ?? 0), n.shoulderF.y], { human, girth: rig.dims.bodyGirth, soleL: rig.dims.soleLength, legW: rig.dims.legWidth }).filter((t) => t.slot === slot)
+    p.limb = mergeLimbs(legTops(rig.dims.legPairs, biped, [n.hipB.x + (rig.nudge?.hipsFwd ?? 0), n.hipB.y], [n.shoulderF.x - (rig.nudge?.legsBack ?? 0), n.shoulderF.y], { human, girth: rig.dims.bodyGirth, soleL: rig.dims.soleLength, legW: rig.dims.legWidth }).filter((t) => t.slot === slot)
       .map((t) => legLimb(legSpecOf(slot, biped, t.top, [t.footX, 0], rig.dims.legWidth, g.legs!.foot!, rig.dims.soleLength, rig.dims.build === 2, human), p.z)));
   }
   // arms with hands: real 3D chains out of the upper chest, one per side

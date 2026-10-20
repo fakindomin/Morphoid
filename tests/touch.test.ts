@@ -37,7 +37,7 @@ describe('settling: elements stay apart', () => {
     const rnd = mulberry32(77);
     let bad = 0;
     for (let i = 0; i < 60; i++) if (overlaps(randomGenome(rnd)).length) bad++;
-    // before settling about 70% of random creatures had a pair grown together; what is left gets a TOUCH warning
-    expect(bad / 60).toBeLessThan(0.3);
+    // before settling about 70% of random creatures had a pair grown together, now about 6%; what is left gets a TOUCH warning
+    expect(bad / 60).toBeLessThan(0.15);
   });
 });

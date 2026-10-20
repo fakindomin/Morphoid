@@ -240,12 +240,12 @@ export const eyeOnStalk = (head: XY, hs: { rx: number; ry: number }): XY => { co
 export const STAND_MM = 4;
 export const STAND_MARGIN_MM = 6;
 /** x range of the stand: every foot on the bed, toe to heel, plus the margin. */
-export function standSpan(pose: Pose, n: Pose['n'], legsBack = 0): [number, number] {
+export function standSpan(pose: Pose, n: Pose['n'], legsBack = 0, hipsFwd = 0): [number, number] {
   if (D.onBelly(n.plan, n.legPairs)) { // lies on its flat belly
     const tx = pose.pos.torso[0], half = (n.bodyL / 2 + 2.5) * 0.85;
     return [tx - half - STAND_MARGIN_MM, tx + half + STAND_MARGIN_MM];
   }
-  const tops = legTops(n.legPairs, D.isBiped(n.plan), pose.pos.hipB, [pose.pos.shoulderF[0] - legsBack, pose.pos.shoulderF[1]], { human: n.plan === D.PLAN.humanoid, girth: n.bodyG, soleL: n.soleL, legW: n.legW });
+  const tops = legTops(n.legPairs, D.isBiped(n.plan), [pose.pos.hipB[0] + hipsFwd, pose.pos.hipB[1]], [pose.pos.shoulderF[0] - legsBack, pose.pos.shoulderF[1]], { human: n.plan === D.PLAN.humanoid, girth: n.bodyG, soleL: n.soleL, legW: n.legW });
   const feet = tops.length ? tops.map((t) => t.footX) : (D.isBiped(n.plan) ? ['footBL'] : ['footBL', 'footFL']).map((id) => pose.pos[id as NodeId][0]);
   return [Math.min(...feet) - n.soleL * 0.3 - STAND_MARGIN_MM, Math.max(...feet) + n.soleL * 0.7 + 3.4 + STAND_MARGIN_MM];
 }
@@ -427,7 +427,7 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
   // ---- stand (gene Q): a separate plate under the feet, seen from the side ---------------
   const standType = g.stand?.type ?? 0;
   if (standType > 0) {
-    const [x0, x1] = standSpan(pose, n, nu.legsBack);
+    const [x0, x1] = standSpan(pose, n, nu.legsBack, nu.hipsFwd);
     const sp = new Path();
     if (standType === 2) { // stone: an uneven top edge
       sp.M(x0, -STAND_MM).L(x1, -STAND_MM).L(x1 + 0.6, -STAND_MM * 0.45).L(x1 - 1.5, 0).L((x0 + x1) / 2 + 3, 0.4).L(x0 + 2, 0).L(x0 - 0.6, -STAND_MM * 0.5).Z();
@@ -441,7 +441,7 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
 
   // ---- legs (far pair is darker and peeks out behind) -------------------------
   const hipB = p(pose, 'hipB'), shF = p(pose, 'shoulderF'), fB = p(pose, 'footBL'), fF = p(pose, 'footFL');
-  const shL: XY = [shF[0] - nu.legsBack, shF[1]];
+  const shL: XY = [shF[0] - nu.legsBack, shF[1]], hipL: XY = [hipB[0] + (nu.hipsFwd ?? 0), hipB[1]]; // (settle.ts)
   const insectReach = D.insectReach(rig.dims.armsPair, n.legPairs); // the front legs' top, stepped back where a hand needs the room (settle.ts)
   const muscular = n.build === 2;
   // muscular build: a thigh / shoulder bulge at the top of each leg (inside the torso's lower half, never overhanging)
@@ -451,7 +451,7 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
   void fB; void fF;
   // every leg of a slot (more pairs: the front slot holds all pairs but the hind one), the far ones shifted back
   const limbs = (slot: 'legB' | 'legF', dx: number, near = false): Path => {
-    const ls = legTops(n.legPairs, biped, hipB, shL, { human, girth: n.bodyG, soleL: n.soleL, legW: n.legW }).filter((t) => t.slot === slot)
+    const ls = legTops(n.legPairs, biped, hipL, shL, { human, girth: n.bodyG, soleL: n.soleL, legW: n.legW }).filter((t) => t.slot === slot)
       .map((t) => legLimb(legSpecOf(slot, biped, [t.top[0] + dx, t.top[1]], [t.footX + dx, 0], legW, foot, n.soleL, muscular, human), 0));
     const l = mergeLimbs(ls);
     if (near && l.tips?.length) claws.append(limbOutline({ cones: l.tips, domes: [] }));
@@ -787,8 +787,8 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
       const x0 = neckBase[0], x1 = tailBase[0];
       for (let i = 0; i < 3; i++) {
         const x = x0 + ((x1 - x0) * (i + 0.5)) / 3, y = trunkTop(x) - 1;
-        if (spineOff(x, 3.6)) continue;
         const h = c * (1.15 - Math.abs(i - 1) * 0.25);
+        if (spineOff(x, 3.6 + h * 0.3)) continue; // (the side prisms lean out that far)
         s.append(polygon([[x - 2, y], [x - 2, y + h * 0.7], [x - TIP / 2, y + h], [x + TIP / 2, y + h], [x + 2, y + h * 0.7], [x + 2, y]]));
         s.append(spike(x - 1.5, trunkTop(x - 1.5) - 1, -1.6, 1.6, x - 1.5 - h * 0.3, trunkTop(x - 1.5) - 1 + h * 0.55));
         s.append(spike(x + 1.5, trunkTop(x + 1.5) - 1, -1.6, 1.6, x + 1.5 + h * 0.3 - TIP, trunkTop(x + 1.5) - 1 + h * 0.5));
