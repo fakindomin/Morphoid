@@ -127,11 +127,34 @@ export const isBiped = (plan: number): boolean => plan === PLAN.biped || plan ==
  * (shoulder to wrist, mm); the plans that have no chest to carry them (fish, octopus) show none.
  */
 export const ARM_LEN: readonly number[] = [14, 17, 20, 23, 27, 31];
-export const hasArms = (plan: number): boolean => plan !== PLAN.fish && plan !== PLAN.octopus;
+/** Every body plan can carry arms (a fish and an octopus since block 2, 2026-10-20). */
+export const hasArms = (_plan: number): boolean => true;
+/** A fish's and an octopus's arms have one pose for now: held in front. */
+export const oneArmPose = (plan: number): boolean => plan === PLAN.fish || plan === PLAN.octopus;
+
+/**
+ * Pairs of legs on the bed (leg count gene, 0 = the plan's own): a quadruped 2, a biped and a humanoid 1, an insect 3,
+ * a caterpillar its prolegs (-1: as many as its length fits), a fish none, an octopus none (its arms are not legs).
+ */
+export const LEG_COUNTS = [0, 2, 4, 6, 8] as const;
+export function legPairsOf(plan: number, countOpt: number | undefined): number {
+  if (plan === PLAN.octopus) return 0;
+  const c = LEG_COUNTS[countOpt ?? 0] ?? 0;
+  if (c) return c / 2;
+  return plan === PLAN.quadruped ? 2 : isBiped(plan) ? 1 : plan === PLAN.insect ? 3 : plan === PLAN.caterpillar ? -1 : 0;
+}
+/** How many legs a creature shows (for the panel): a caterpillar's own prolegs count as 0 here. */
+export const legCountOf = (plan: number, countOpt: number | undefined): number => Math.max(0, legPairsOf(plan, countOpt)) * 2;
+/** Plans whose legs are jointed chains (a quadruped's, a bird's, an ape's, a fish's given legs). */
+export const jointedLegs = (plan: number, legPairs: number): boolean =>
+  legPairs > 0 && (plan === PLAN.quadruped || isBiped(plan) || plan === PLAN.fish);
+/** Legs the plan has by itself (the "Jak plan ciała" option). */
+export const planLegs = (plan: number): number => legCountOf(plan, 0);
 
 /** Body plans by index (gene Y). Belly plans lie on the bed: the torso's flat underside is their sole. */
 export const PLAN = { quadruped: 0, biped: 1, caterpillar: 2, insect: 3, fish: 4, octopus: 5, humanoid: 6 } as const;
-export const onBelly = (plan: number): boolean => plan === PLAN.caterpillar || plan === PLAN.fish;
+/** A fish lies on its belly unless it was given legs. */
+export const onBelly = (plan: number, legPairs = 0): boolean => plan === PLAN.caterpillar || (plan === PLAN.fish && legPairs <= 0);
 /**
  * Octopus: eight arms lying flat on the bed around a hub under the mantle (the torso, standing on the hub). Arms are
  * top-view plates ARM_MM thick; their length comes from the legs' length gene.

@@ -283,6 +283,30 @@ function hull(pts: XY[]): XY[] {
   return [...lower.slice(0, -1), ...upper.slice(0, -1)];
 }
 
+/**
+ * Where every pair of jointed legs leaves the trunk (side view) and where its foot stands, rear first: one pair stands
+ * under the middle of a level trunk (under the hips of an upright one), more pairs spread evenly from the hips to the
+ * shoulders. An upright creature's extra pairs leave a short trunk (a humanoid's all at the hips) and splay their feet
+ * apart so no two soles of a side touch (touching feet would close a loop through the body). The rear pair is the hind
+ * legs (slot legB), every other pair a front pair (legF).
+ */
+export function legTops(pairs: number, upright: boolean, hipB: XY, shF: XY, stand: { human: boolean; girth: number; soleL: number }): { slot: 'legB' | 'legF'; top: XY; footX: number }[] {
+  if (pairs <= 0) return [];
+  if (pairs === 1) { const top: XY = upright ? hipB : [(hipB[0] + shF[0]) / 2, (hipB[1] + shF[1]) / 2]; return [{ slot: 'legB', top, footX: top[0] }]; }
+  const tops = Array.from({ length: pairs }, (_, i): XY => {
+    const t = i / (pairs - 1);
+    return upright && stand.human ? [hipB[0] + (t - 0.5) * stand.girth * 0.5, hipB[1]] : [hipB[0] + (shF[0] - hipB[0]) * t, hipB[1] + (shF[1] - hipB[1]) * t];
+  });
+  const mid = tops.reduce((a, t) => a + t[0], 0) / pairs;
+  const step = Math.max(Math.abs(tops[1]![0] - tops[0]![0]), stand.soleL + 5.8); // heel to toe (and claws) plus a gap
+  return tops.map((top, i) => ({ slot: i === 0 ? 'legB' : 'legF', top, footX: upright ? mid + (i - (pairs - 1) / 2) * step : top[0] }));
+}
+
+/** Several limbs as one (tips kept). */
+export const mergeLimbs = (limbs: Limb[]): Limb => ({
+  cones: limbs.flatMap((l) => l.cones), domes: limbs.flatMap((l) => l.domes), tips: limbs.flatMap((l) => l.tips ?? []),
+});
+
 /** The leg of a slot: hind legs bend like a dog's, a biped's like a bird's, front legs stay nearly straight. */
 export function legSpecOf(slot: 'legB' | 'legF', biped: boolean, top: XY, foot: XY, legW: number, footType: number, soleL: number, muscular: boolean, humanoid = false): LegSpec {
   // a humanoid's legs are nearly straight, knees forward, like a front leg
@@ -302,6 +326,8 @@ export interface ArmSpec {
   len: number; legW: number; hand: number; pose: number;
   /** an upright humanoid's arm (its own poses) */
   human?: boolean;
+  /** the right arm's pose (the left one's is `pose`) */
+  poseR: number;
   /** how far out (mm) the shoulder may sit at most: it stays in the chest when thick legs push the hand out */
   shoulderZ?: number;
 }

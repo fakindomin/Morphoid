@@ -6,8 +6,12 @@ export interface TileField {
   planned?: boolean;
   /** the options in this order (by index) instead of the gene's */
   order?: number[];
-  /** 'mouth': a closed / open switch over the teeth gene (an open Pysk always shows teeth) */
-  control?: 'mouth';
+  /**
+   * 'mouth': a closed / open switch over the teeth gene (an open Pysk always shows teeth); 'legCount': how many legs,
+   * shown as the real number (the plan's own when the gene says so); 'rightArm': the right arm's pose, shown as the
+   * pose it really has (the left one's when the gene says "the same")
+   */
+  control?: 'mouth' | 'legCount' | 'rightArm';
 }
 export interface TileDef { id: string; title: string; fields: TileField[]; palette?: boolean }
 export interface TileGroup { title: string; tiles: TileDef[] }
@@ -69,6 +73,7 @@ export const TILE_GROUPS: TileGroup[] = [
       { block: 'wings', field: 'scale', label: 'Rozpiętość' },
     ] },
     { id: 'legs', title: 'Nogi i stopy', fields: [
+      { block: 'legs', field: 'count', label: 'Liczba nóg', control: 'legCount' },
       { block: 'legs', field: 'foot', label: 'Kształt stóp (płaska baza Y=0)' },
       { block: 'legs', field: 'length', label: 'Wysokość nóg' },
       { block: 'legs', field: 'thick', label: 'Grubość nóg' },
@@ -77,7 +82,8 @@ export const TILE_GROUPS: TileGroup[] = [
       { block: 'hands', field: 'type', label: 'Dłonie' },
       { block: 'hands', field: 'length', label: 'Długość rąk' },
       { block: 'hands', field: 'thick', label: 'Grubość rąk' },
-      { block: 'hands', field: 'dir', label: 'Ułożenie rąk' },
+      { block: 'hands', field: 'dir', label: 'Lewa ręka' },
+      { block: 'hands', field: 'dir2', label: 'Prawa ręka', control: 'rightArm' },
     ] },
     { id: 'tail', title: 'Ogon', fields: [
       { block: 'tail', field: 'type', label: 'Kształt ogona' },
@@ -114,7 +120,7 @@ export const SLOT_TILE: Partial<Record<string, string>> = {
   neck: 'neck', neckDecor: 'neck',
   torso: 'body', pattern: 'body', finD: 'body', finP: 'body', arms: 'body',
   wingNear: 'wings', wingFar: 'wings', wingRibs: 'wings',
-  legB: 'legs', legF: 'legs', legBFar: 'legs', legFFar: 'legs', claws: 'legs', toes: 'legs', legOver0: 'legs', legOver1: 'legs', legOver2: 'legs',
+  legB: 'legs', legF: 'legs', legBFar: 'legs', legFFar: 'legs', claws: 'legs', toes: 'legs', legOver0: 'legs', legOver1: 'legs', legOver2: 'legs', legOver3: 'legs',
   hands: 'hands', handsFar: 'hands',
   tail: 'tail',
   collar: 'body', saddle: 'body',

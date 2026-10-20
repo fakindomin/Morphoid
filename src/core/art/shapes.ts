@@ -14,7 +14,7 @@ import { coatPath } from './coat';
 import { neckLimb, sideOutline, trunkDepths, trunkLimb } from './anatomy';
 import { reliefPath, reliefSpec, rootOf } from './relief';
 import { edgesOf, sdPolys } from '../bake/field';
-import { armLimb, armShoulder, insectLimb, legLimb, legSpecOf, limbOutline, octopusLimb, prolegLimb, tailLimb, type ArmSpec, type Limb } from './limb';
+import { armLimb, armShoulder, insectLimb, legLimb, legSpecOf, legTops, limbOutline, mergeLimbs, octopusLimb, prolegLimb, tailLimb, type ArmSpec, type Limb } from './limb';
 
 /** skin/skinFar = body colour (c1); accent = c2; white/ink/glint = details; clip = not drawn. */
 export type SlotKind =
@@ -43,7 +43,7 @@ export const SLOTS = [
   ['glint', 'glint'], ['lids', 'lid'], ['brow', 'groove'], ['wingRibs', 'groove'], ['bones', 'bone'],
   // an insect's near legs once more, one slot per leg (hind, middle, front), each drawn over the body with its own
   // outline so the six legs read apart (drawing only: the legs themselves are legB / legF)
-  ['legOver0', 'skin'], ['legOver1', 'skin'], ['legOver2', 'skin'],
+  ['legOver0', 'skin'], ['legOver1', 'skin'], ['legOver2', 'skin'], ['legOver3', 'skin'],
   // the near arm with its hand, drawn over the body with its own outline (the far one peeks out behind it)
   ['hands', 'skin'],
   // a dog's hanging ear lies over the side of the head: drawn on top of it with its own outline
@@ -62,13 +62,20 @@ export function armSpecOf(g: MorphotypeGenome, torso: XY, bodyL: number, bodyG: 
   // a humanoid's arms hang from the top corners of its upright chest, and are long (an ape's reach the knees)
   const human = plan === D.PLAN.humanoid;
   // hand thickness slider: the arm and the hand grow thicker together
-  return { shoulder: armShoulder(torso, bodyL, bodyG, tilt, human ? D.HUMANOID.shoulder : undefined), len: D.ARM_LEN[h.length!]! * (human ? D.HUMANOID.arm : 1), legW: legW * D.factorAt(D.HAND_THICK, h.thick), hand: h.type, pose: h.dir!, human };
+  // the left arm takes the pose gene, the right one its own (0 = the same)
+  // a fish and an octopus have one pose for now: in front (an octopus raises them, clear of its arms on the bed)
+  const one = D.oneArmPose(plan), fixed = plan === D.PLAN.octopus ? 1 : 0;
+  const pose = one ? fixed : h.dir!, poseR = one ? fixed : h.dir2 ? h.dir2 - 1 : pose;
+  return { shoulder: armShoulder(torso, bodyL, bodyG, tilt, human ? D.HUMANOID.shoulder : undefined), len: D.ARM_LEN[h.length!]! * (human ? D.HUMANOID.arm : 1), legW: legW * D.factorAt(D.HAND_THICK, h.thick), hand: h.type, pose, poseR, human };
 }
 
 /** Insect legs per slot: the hind pair in legB, the front and middle pairs in legF (see insectLimb). */
-export function insectHips(hipB: XY, shF: XY): { legB: { hip: XY; dir: number }[]; legF: { hip: XY; dir: number }[] } {
-  const mid: XY = [(hipB[0] + shF[0]) / 2, (hipB[1] + shF[1]) / 2];
-  return { legB: [{ hip: hipB, dir: -1 }], legF: [{ hip: shF, dir: 1 }, { hip: mid, dir: 0 }] };
+export function insectHips(hipB: XY, shF: XY, pairs = 3): { legB: { hip: XY; dir: number }[]; legF: { hip: XY; dir: number }[] } {
+  const at = (t: number): XY => [hipB[0] + (shF[0] - hipB[0]) * t, hipB[1] + (shF[1] - hipB[1]) * t];
+  if (pairs <= 1) return { legB: [{ hip: at(0.5), dir: 0 }], legF: [] };
+  // the hind pair reaches back, the front pair forward, the ones between fan out in between (front first in legF)
+  const legF = Array.from({ length: pairs - 1 }, (_, k) => { const t = (pairs - 1 - k) / (pairs - 1); return { hip: at(t), dir: 2 * t - 1 }; });
+  return { legB: [{ hip: hipB, dir: -1 }], legF };
 }
 /** Round tail (wolf, fluffy) as a 3D chain along the rig's tail curve; null for the flat kinds. */
 export function roundTail(g: MorphotypeGenome, bodyG: number, base: XY, mid: XY, tip: XY, anatomical = false): Limb | null {
@@ -83,8 +90,9 @@ export function roundTail(g: MorphotypeGenome, bodyG: number, base: XY, mid: XY,
 export const insectLegW = (legW: number): number => Math.max(3.2, legW * 0.6);
 export const insectRise = (bodyG: number): number => Math.max(5, bodyG * 0.45);
 /** x of every caterpillar proleg along the flat belly. */
-export function prolegXs(torsoX: number, bodyL: number): number[] {
-  const cnt = Math.max(3, Math.round(bodyL / 10));
+export function prolegXs(torsoX: number, bodyL: number, pairs = -1): number[] {
+  if (pairs === 1) return [torsoX];
+  const cnt = pairs > 0 ? pairs : Math.max(3, Math.round(bodyL / 10));
   return Array.from({ length: cnt }, (_, i) => torsoX - bodyL * 0.4 + (bodyL * 0.8 * i) / (cnt - 1));
 }
 
@@ -229,11 +237,12 @@ export const STAND_MM = 4;
 export const STAND_MARGIN_MM = 6;
 /** x range of the stand: every foot on the bed, toe to heel, plus the margin. */
 export function standSpan(pose: Pose, n: Pose['n']): [number, number] {
-  if (D.onBelly(n.plan)) { // lies on its flat belly
+  if (D.onBelly(n.plan, n.legPairs)) { // lies on its flat belly
     const tx = pose.pos.torso[0], half = (n.bodyL / 2 + 2.5) * 0.85;
     return [tx - half - STAND_MARGIN_MM, tx + half + STAND_MARGIN_MM];
   }
-  const feet = (D.isBiped(n.plan) ? ['footBL'] : ['footBL', 'footFL']).map((id) => pose.pos[id as NodeId][0]);
+  const tops = legTops(n.legPairs, D.isBiped(n.plan), pose.pos.hipB, pose.pos.shoulderF, { human: n.plan === D.PLAN.humanoid, girth: n.bodyG, soleL: n.soleL });
+  const feet = tops.length ? tops.map((t) => t.footX) : (D.isBiped(n.plan) ? ['footBL'] : ['footBL', 'footFL']).map((id) => pose.pos[id as NodeId][0]);
   return [Math.min(...feet) - n.soleL * 0.3 - STAND_MARGIN_MM, Math.max(...feet) + n.soleL * 0.7 + 3.4 + STAND_MARGIN_MM];
 }
 
@@ -431,21 +440,23 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
   // jointed legs: the drawing is the side view of the 3D leg (see limb.ts), so sketch and solid are one shape
   const biped = D.isBiped(n.plan), human = n.plan === D.PLAN.humanoid;
   const claws = new Path();
-  const limb = (slot: 'legB' | 'legF', top: XY, f: XY, near = false): Path => {
-    const l = legLimb(legSpecOf(slot, biped, top, f, legW, foot, n.soleL, muscular, human), 0);
+  void fB; void fF;
+  // every leg of a slot (more pairs: the front slot holds all pairs but the hind one), the far ones shifted back
+  const limbs = (slot: 'legB' | 'legF', dx: number, near = false): Path => {
+    const ls = legTops(n.legPairs, biped, hipB, shF, { human, girth: n.bodyG, soleL: n.soleL }).filter((t) => t.slot === slot)
+      .map((t) => legLimb(legSpecOf(slot, biped, [t.top[0] + dx, t.top[1]], [t.footX + dx, 0], legW, foot, n.soleL, muscular, human), 0));
+    const l = mergeLimbs(ls);
     if (near && l.tips?.length) claws.append(limbOutline({ cones: l.tips, domes: [] }));
     return limbOutline(l);
   };
   const far = (path: (dx: number) => Path): [Path, Path] => [path(0), path(3.2)];
-  if (n.plan === D.PLAN.quadruped || biped) {
-    put('legB', limb('legB', hipB, fB, true));
-    put('legBFar', limb('legB', [hipB[0] + 3.2, hipB[1]], [fB[0] + 3.2, fB[1]]));
-    if (!biped) { // a biped has no front legs
-      put('legF', limb('legF', shF, fF, true));
-      put('legFFar', limb('legF', [shF[0] + 3.2, shF[1]], [fF[0] + 3.2, fF[1]]));
-    }
+  if (D.jointedLegs(n.plan, n.legPairs)) {
+    put('legB', limbs('legB', 0, true));
+    put('legBFar', limbs('legB', 3.2));
+    put('legF', limbs('legF', 0, true)); // a biped's front slot stays empty unless it was given more legs
+    put('legFFar', limbs('legF', 3.2));
     put('claws', claws);
-  } else if (n.plan === D.PLAN.insect) {
+  } else if (n.plan === D.PLAN.insect && n.legPairs > 0) {
     // six jointed legs: the thigh rises outwards to a knee above the flank, the shin drops steeply to a round foot
     // they reach out sideways, so a pure side view stacks thigh and shin into one column: the drawing looks at them a
     // little from the front (x shifted by how far out a point is), the near legs splaying forward, the far ones back
@@ -455,24 +466,24 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
       return { ...l, cones: l.cones.map((c) => ({ ...c, a: sh(c.a), b: sh(c.b) })), domes: l.domes.map((d) => ({ ...d, c: sh(d.c) })) };
     };
     const insect2D = (pair: 'legB' | 'legF', dx: number): Path =>
-      limbOutline(splay(insectLimb(insectHips([hipB[0] + dx, hipB[1]], [shF[0] + dx, shF[1]])[pair], lw, rise, n.bodyW, 1), dx ? -INSECT_SPLAY : INSECT_SPLAY));
+      limbOutline(splay(insectLimb(insectHips([hipB[0] + dx, hipB[1]], [shF[0] + dx, shF[1]], n.legPairs)[pair], lw, rise, n.bodyW, 1), dx ? -INSECT_SPLAY : INSECT_SPLAY));
     const [nb, fb] = far((dx) => insect2D('legB', dx));
     const [nf, ff] = far((dx) => insect2D('legF', dx));
-    const hips = insectHips(hipB, shF), each = [...hips.legB, ...hips.legF.slice().reverse()]; // hind, middle, front
+    const hips = insectHips(hipB, shF, n.legPairs), each = [...hips.legB, ...hips.legF.slice().reverse()]; // hind, middle, front
     each.forEach((h, i) => put(`legOver${i}` as SlotId, limbOutline(splay(insectLimb([h], lw, rise, n.bodyW, 1), INSECT_SPLAY))));
     put('legB', nb); put('legBFar', fb); put('legF', nf); put('legFFar', ff);
   } else if (n.plan === D.PLAN.caterpillar) {
     // stubby prolegs along the flat belly, peeking out of the flanks (drawn over the torso)
-    const [nf, ff] = far((dx) => limbOutline(prolegLimb(prolegXs(torso[0] + dx, n.bodyL), 1)));
+    const [nf, ff] = far((dx) => limbOutline(prolegLimb(prolegXs(torso[0] + dx, n.bodyL, n.legPairs), 1)));
     put('legF', nf); put('legFFar', ff);
   }
-  // fish: no legs
+  // fish: no legs, unless it was given some (jointed legs above)
   // arms with hands out of the upper chest (the near one in front of the body, the far one behind it)
   const arm = armSpecOf(g, torso, n.bodyL, n.bodyG, n.tilt, legW, n.plan);
   if (arm) {
     const near = armLimb(arm, 0);
     put('hands', limbOutline(near));
-    put('handsFar', limbOutline(armLimb({ ...arm, shoulder: [arm.shoulder[0] + 3.2, arm.shoulder[1]] }, 0)));
+    put('handsFar', limbOutline(armLimb({ ...arm, pose: arm.poseR, shoulder: [arm.shoulder[0] + 3.2, arm.shoulder[1]] }, 0)));
     if (near.tips?.length) out.claws.append(limbOutline({ cones: near.tips, domes: [] }));
   }
   if (n.plan === D.PLAN.octopus) {
@@ -485,7 +496,7 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
   // one outline: an ellipse swelling at the shoulders (front, up) and the haunch (back, up), dipping at the waist
   const bump = (a: number, at: number, h: number, wd: number): number => h * Math.exp(-(((Math.atan2(Math.sin(a - at), Math.cos(a - at))) / wd) ** 2));
   const trunkPts: XY[] = [];
-  const belly = D.onBelly(n.plan);
+  const belly = D.onBelly(n.plan, n.legPairs);
   // rule "prosta kontra łuk": every legged, non-round trunk gets a straight back and a curved belly
   const shaped = (n.plan === D.PLAN.quadruped || D.isBiped(n.plan)) && n.build !== 3;
   const athletic = g.body!.shape === BODY_ATHLETIC;
@@ -572,8 +583,10 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
   }
   if (n.plan === D.PLAN.fish && tailType > 0 && n.tailLen > 0.5) {
     const [x0, y0] = tailBase, len = n.tailLen;
+    // a fish on legs carries its tail fin in the air, as low as its belly
+    const low = n.legPairs > 0 ? Math.max(0, y0 - n.bodyG * 0.4) : 0;
     put('tail', polygon([[x0 + 3, y0 + 2], [x0 - len * 0.95, y0 + len * 0.75], [x0 - len * 0.95 + TIP, y0 + len * 0.75],
-      [x0 - len * 0.55, y0 + len * 0.2], [x0 - len, 0], [x0 + 3, 0]]));
+      [x0 - len * 0.55, y0 + len * 0.2], [x0 - len, low], [x0 + 3, low]]));
   } else if (tailType > 0 && n.tailLen > 0.5) {
     // ---- tail: leaves the rump backwards and up (>= 45 deg), tip is never thinner than TIP ----
     const ctrl: XY = [2 * tailMid[0] - (tailBase[0] + tailTip[0]) / 2, 2 * tailMid[1] - (tailBase[1] + tailTip[1]) / 2];

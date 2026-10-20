@@ -75,6 +75,8 @@ export const BLOCKS: readonly BlockDef[] = [
     e('foot', [['paw', 'Łapa'], ['claws', 'Pazury'], ['hoof', 'Kopyto'], ['catpaw', 'Kocia łapka'], ['bearpaw', 'Niedźwiedzia łapa'], ['webbed', 'Płetwiasta'], ['cloven', 'Racica'], ['hand', 'Dłoń małpy']]),
     s('length', 'Wysokość'),
     s('thick', 'Grubość'),
+    // how many legs (block 2, 2026-10-20): 0 = as many as the body plan has (4, 2, 6, a fish none)
+    e('count', [['plan', 'Jak plan ciała'], ['two', '2'], ['four', '4'], ['six', '6'], ['eight', '8']], 0, 'Liczba nóg'),
   ] },
   { id: 'head', letter: 'H', label: 'Głowa i szyja', fields: [
     e('skull', [['round', 'Okrągła'], ['wedge', 'Klin'], ['flat', 'Płaska']]),
@@ -153,6 +155,8 @@ export const BLOCKS: readonly BlockDef[] = [
     s('length', 'Długość'),
     s('thick', 'Grubość'),
     e('dir', [['hold', 'Przed sobą'], ['raise', 'Uniesione'], ['down', 'Opuszczone']], 0, 'Ułożenie'),
+    // the right arm's own pose (block 2): 0 = the same as the left one (`dir`)
+    e('dir2', [['same', 'Jak lewa'], ['hold', 'Przed sobą'], ['raise', 'Uniesiona'], ['down', 'Opuszczona']], 0, 'Prawa ręka'),
   ] },
   { id: 'sculpt', letter: 'I', label: 'Deformacja', fields: [
     fine('length', 'Długość tułowia', { block: 'body', field: 'length' }),
@@ -192,7 +196,7 @@ const gene = (letter: string, label: string, block: BlockId | null, field = 'typ
 });
 export const GENES: readonly GeneDef[] = [
   gene('B', 'Tułów', 'body', 'shape', 'length', 'girth'),
-  gene('L', 'Nogi', 'legs', 'foot', 'length', 'thick'),
+  gene('L', 'Nogi', 'legs', 'foot', 'length', 'thick', 'count'),
   gene('N', 'Szyja', 'head', 'neck', 'neckLength', 'neckThick'),
   gene('H', 'Czaszka', 'head', 'skull', 'size'),
   gene('S', 'Pysk', 'snout', 'type', 'reach'),
@@ -215,7 +219,7 @@ export const GENES: readonly GeneDef[] = [
   gene('Y', 'Plan ciała', 'plan', 'type'),
   gene('Q', 'Podstawka', 'stand', 'type'),
   gene('K', 'Czułki', 'antennae', 'type', 'length', 'dir'),
-  gene('X', 'Ręce', 'hands', 'type', 'length', 'dir', 'thick'),
+  gene('X', 'Ręce', 'hands', 'type', 'length', 'dir', 'thick', 'dir2'),
   // deformation sliders (3D view): one hex digit per slider, 8 = unchanged; no variant (always 00)
   { letter: 'I', label: 'Deformacja', variant: null, sizes: ['length', 'girth', 'width', 'chest', 'waist', 'haunch', 'shoulder', 'neckLength', 'neckThick'].map((field) => ({ block: 'sculpt' as BlockId, field })) },
 ];

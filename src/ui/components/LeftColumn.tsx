@@ -1,4 +1,4 @@
-import { PRESETS, blockDef, presetGenome, serialize, type EnumField } from '../../core';
+import { PRESETS, blockDef, dimensions as D, presetGenome, serialize, type EnumField, type Op } from '../../core';
 import { PALETTES } from '../../core/palette';
 import { useEffect, useRef, useState } from 'react';
 import { studio, useStudioState } from '../studio';
@@ -42,8 +42,19 @@ function isOff(tf: TileField, g: Genome): boolean {
     if (tf.field === 'whiskerSize') return face.whiskers === 0;
   }
   if (tf.block === 'coat' && tf.field === 'patternSize') return g.coat!.pattern === 0;
+  const plan = g.plan!.type!;
+  if (tf.block === 'legs') {
+    // an octopus stands on its arms: only their length is left to choose; a fish without legs has no feet either
+    if (plan === D.PLAN.octopus) return tf.field !== 'length';
+    if (tf.field !== 'count' && D.legPairsOf(plan, g.legs!.count) === 0) return true;
+  }
+  if (tf.block === 'hands' && (tf.field === 'dir' || tf.field === 'dir2') && D.oneArmPose(plan)) return true;
   return false;
 }
+
+/** A control's label: an octopus's leg length is the length of its arms. */
+const labelOf = (tf: TileField, g: Genome): string =>
+  tf.block === 'legs' && tf.field === 'length' && g.plan!.type === D.PLAN.octopus ? 'Długość macek' : tf.label;
 
 function FieldControl({ tf }: { tf: TileField }) {
   const { genome } = useStudioState();
@@ -53,7 +64,24 @@ function FieldControl({ tf }: { tf: TileField }) {
   const off = isOff(tf, genome);
 
   let control: JSX.Element;
-  if (tf.control === 'mouth') {
+  const plan = genome.plan!.type!;
+  if (tf.control === 'legCount') {
+    // the real number of legs; picking the plan's own number writes "as the plan" (one creature, one code)
+    // (a caterpillar's own prolegs: as many as its length fits, -1 here)
+    const cat = plan === D.PLAN.caterpillar, own = cat ? -1 : D.planLegs(plan), shown = cat && !value ? -1 : D.legCountOf(plan, value);
+    const counts = plan === D.PLAN.fish ? [0, 2, 4, 6, 8] : cat ? [-1, 2, 4, 6, 8] : [2, 4, 6, 8];
+    control = (
+      <Segmented disabled={off} value={shown} items={counts.map((c) => ({ label: c > 0 ? String(c) : c ? 'Wszystkie' : 'Brak', value: c }))}
+        onChange={(c) => studio.applyOps([{ kind: 'set', block: 'legs', field: 'count', value: c === own ? 0 : D.LEG_COUNTS.indexOf(c as never) }])} />
+    );
+  } else if (tf.control === 'rightArm') {
+    // the right arm's real pose; picking the left arm's pose writes "the same"
+    const left = genome.hands!.dir!, f = blockDef('hands').fields.find((x) => x.name === 'dir') as EnumField;
+    control = (
+      <Segmented disabled={off} value={value ? value - 1 : left} items={f.options.map((o, i) => ({ label: o.label, value: i }))}
+        onChange={(v) => studio.applyOps([{ kind: 'set', block: 'hands', field: 'dir2', value: v === left ? 0 : v + 1 }])} />
+    );
+  } else if (tf.control === 'mouth') {
     // closed or open: an open Pysk shows its teeth (fangs at first), a closed one has none
     control = (
       <Segmented value={value > 0 ? 1 : 0} items={[{ label: 'Zamknięty', value: 0 }, { label: 'Otwarty', value: 1 }]}
@@ -64,7 +92,7 @@ function FieldControl({ tf }: { tf: TileField }) {
     const level = sz.steps.indexOf(levelStep(sz, value));
     return (
       <label className={`field size-field${off ? ' off' : ''}`}>
-        <span className="control-label">{tf.label}<b>{off ? '' : sz.words[level]}</b></span>
+        <span className="control-label">{labelOf(tf, genome)}<b>{off ? '' : sz.words[level]}</b></span>
         <input type="range" className={`size-slider levels-${sz.steps.length}`} min={0} max={sz.steps.length - 1} step={1} value={level}
           disabled={off} aria-label={tf.label} aria-valuetext={sz.words[level]}
           onChange={(e) => studio.applyOps([{ kind: 'set', block: tf.block, field: tf.field, value: sz.steps[Number(e.target.value)]! }])} />
@@ -79,12 +107,17 @@ function FieldControl({ tf }: { tf: TileField }) {
       <Segmented disabled={off} value={value}
         items={order.flatMap((i) => (skip(i) || (f.options[i]!.retired && i !== value) ? [] : [{ label: f.options[i]!.label, value: i }]))}
         // leaving "Brak" gives the part its middle sizes (see setField)
-        onChange={(v) => studio.applyOps([{ kind: 'set', block: tf.block, field: tf.field, value: v }])} />
+        onChange={(v) => {
+          const ops: Op[] = [{ kind: 'set', block: tf.block, field: tf.field, value: v }];
+          // a new body plan starts with its own number of legs
+          if (tf.block === 'plan') ops.push({ kind: 'set', block: 'legs', field: 'count', value: 0 });
+          studio.applyOps(ops);
+        }} />
     );
   }
   return (
     <div className={off ? 'field off' : 'field'}>
-      <div className="control-label">{tf.label}</div>
+      <div className="control-label">{labelOf(tf, genome)}</div>
       {control}
     </div>
   );
@@ -141,7 +174,10 @@ function statusOf(tile: TileDef, g: Genome): string {
   const f = blockDef(first.block).fields.find((x) => x.name === first.field)!;
   const sized = tile.fields.filter((tf) => isSize(tf) && !isOff(tf, g));
   if (f.kind !== 'enum') return cap(sized.slice(0, 2).map((tf) => wordOf(tf, g)).join(', ')); // the neck: "Długa, gruba"
-  const shape = f.options[g[first.block]![first.field]!]!.label;
+  const plan = g.plan!.type!, legs = D.legCountOf(plan, g.legs!.count);
+  const shape = first.control === 'legCount' ? (plan === D.PLAN.octopus ? 'Macki' : plan === D.PLAN.caterpillar && !legs ? 'Nóżki'
+    : legs === 0 ? 'Brak' : `${legs} ${legs < 5 ? 'nogi' : 'nóg'}`)
+    : f.options[g[first.block]![first.field]!]!.label;
   const word = sized[0] ? wordOf(sized[0], g) : null;
   // the size, unless the shape already says it ("Krótki, krótki")
   return word && word !== shape.toLowerCase() ? `${shape}, ${word}` : shape;

@@ -63,6 +63,10 @@ export interface Rig {
     tilt: number;
     /** trunk and neck built from anatomical masses (see dimensions ANATOMY) */
     anatomical: boolean;
+    /** pairs of legs on the bed (leg count gene; -1 = a caterpillar's own prolegs, 0 = none) */
+    legPairs: number;
+    /** the smallest flat contact a foot needs (mm^2): less when more feet share the weight */
+    minSole: number;
   };
   bounds: { min: [number, number, number]; max: [number, number, number] };
   /** Rule violations; empty for a printable pose. */
@@ -110,7 +114,11 @@ export function solveRig(genome: MorphotypeGenome): Rig {
 
 function build(g: MorphotypeGenome, code: string): Rig {
   const build = g.build?.type ?? 0, B = D.BUILD[build]!;
-  const plan = g.plan?.type ?? 0, biped = D.isBiped(plan), human = plan === D.PLAN.humanoid, belly = D.onBelly(plan), insect = plan === D.PLAN.insect;
+  const plan = g.plan?.type ?? 0, biped = D.isBiped(plan), human = plan === D.PLAN.humanoid, insect = plan === D.PLAN.insect;
+  // pairs of legs (leg count gene): a fish given legs stands on them like a quadruped
+  const pairs = D.legPairsOf(plan, g.legs!.count), belly = D.onBelly(plan, pairs);
+  // jointed legs on more than two pairs: a little slimmer, spread over more of the trunk
+  const crowd = pairs > 2 && !insect && plan !== D.PLAN.caterpillar;
   const fish = plan === D.PLAN.fish, octopus = plan === D.PLAN.octopus;
   const anat = D.isAnatomical(plan, g.body!.shape!), A = D.ANATOMY;
   // a two-legged animal gets the anatomical trunk and slim legs, but keeps its upright stance, neck and tail
@@ -138,7 +146,7 @@ function build(g: MorphotypeGenome, code: string): Rig {
   const legK = D.factorAt(D.LEG_THICK, g.legs!.thick);
   const legW0 = anat ? Math.max(A.legWMin, B.legW(G0) * A.legW) : B.legW(G0);
   // ... and never so thick that the pair of legs outgrows the body
-  const legW = D.snap(Math.max(3.6, legK > 1 ? Math.min(legW0 * legK, Math.max(legW0, W * 0.7)) : legW0 * legK));
+  const legW = D.snap(Math.max(3.6, (legK > 1 ? Math.min(legW0 * legK, Math.max(legW0, W * 0.7)) : legW0 * legK) * (crowd ? 0.82 : 1)));
   const headSize = D.factorAt(D.HEAD_SIZE, g.head!.size);
   const headR0 = D.headRadius(G0, plan) * (human ? H.head : 1);
   // a bigger head (size slider) still never becomes a second ball as big as the body (form rule "big, medium, small")
@@ -152,10 +160,14 @@ function build(g: MorphotypeGenome, code: string): Rig {
   const up = (mm: number): number => Math.ceil(mm / D.NOZZLE_MM - 1e-9) * D.NOZZLE_MM;
   const soleL = D.FOOT_SOLE[g.legs!.foot!]!.length * B.sole * (human ? H.sole : biped ? D.BIPED.sole : 1);
   // an animal's paw is round, not a long slipper (about as long as the slim leg is wide); no sole is below the minimum area
-  const sole = { length: Math.max(up(D.MIN_SOLE_AREA_MM2 / legW), anatQ && g.legs!.foot! !== D.FOOT_HAND ? Math.min(D.snap(soleL), up(legW * 1.7)) : D.snap(soleL)), width: legW };
+  // more feet share the weight: each may be smaller (the bed contact of all of them together stays the same)
+  const minSole = D.MIN_SOLE_AREA_MM2 * (crowd ? 2 / pairs : 1);
+  const legX = Math.max(5, L * (insect ? 0.27 : crowd ? 0.36 : 0.3));
+  const gap = crowd ? (2 * legX) / (pairs - 1) : Infinity; // between neighbouring feet
+  const soleMax = (mm: number): number => Math.min(mm, Math.max(up(minSole / legW), gap - 2.4));
+  const sole = { length: Math.max(up(minSole / legW), anatQ && g.legs!.foot! !== D.FOOT_HAND ? soleMax(Math.min(D.snap(soleL), up(legW * 1.7))) : soleMax(D.snap(soleL))), width: legW };
   // caterpillar prolegs peek out of the flanks
   const legZ = W * (plan === D.PLAN.caterpillar ? 0.45 : 0.32);
-  const legX = Math.max(5, L * (insect ? 0.27 : 0.3));
   // a raised chest lifts the shoulders: the front legs grow by as much, so all four feet stay on the bed
   const legLenF = biped ? legLen : legLen + 2 * legX * Math.sin(tilt);
 
@@ -218,7 +230,7 @@ function build(g: MorphotypeGenome, code: string): Rig {
     code, nodes, order,
     dims: {
       bodyLength: L, bodyGirth: G, bodyWidth: W, legLength: legLen, neckLength: neckLen,
-      tailLength: tailLen, legWidth: legW, headR, headSize, neckK: D.factorAt(D.NECK_THICK, g.head!.neckThick), soleLength: sole.length, soleWidth: sole.width, build, plan, tilt, anatomical: anat,
+      tailLength: tailLen, legWidth: legW, headR, headSize, neckK: D.factorAt(D.NECK_THICK, g.head!.neckThick), soleLength: sole.length, soleWidth: sole.width, build, plan, tilt, anatomical: anat, legPairs: pairs, minSole,
     },
     bounds, issues: [],
   };
@@ -264,7 +276,7 @@ export function validateRig(rig: Rig): string[] {
   for (const id of rig.order) {
     if (rig.nodes[id].y < -EPS) issues.push(`BELOW_BED:${id}`);
   }
-  if (rig.dims.soleLength * rig.dims.soleWidth < D.MIN_SOLE_AREA_MM2) issues.push('SOLE_TOO_SMALL');
+  if (rig.dims.soleLength * rig.dims.soleWidth < rig.dims.minSole - 1e-6) issues.push('SOLE_TOO_SMALL');
   return issues;
 }
 

@@ -7,7 +7,7 @@ import type { BlockId } from './schema';
 type V1Field = [name: string, bits: number, range: number];
 const V1: readonly [BlockId, V1Field[]][] = [
   ['body', [['shape', 2, 3], ['length', 3, 6], ['girth', 3, 6]]],
-  ['legs', [['count', 1, 2], ['foot', 2, 3], ['length', 3, 6]]],
+  ['legs', [['oldCount', 1, 2], ['foot', 2, 3], ['length', 3, 6]]],
   ['head', [['skull', 3, 3], ['neck', 2, 3], ['neckLength', 3, 6]]],
   ['snout', [['type', 2, 3], ['reach', 3, 6]]],
   ['ears', [['type', 3, 4], ['scale', 3, 6]]],

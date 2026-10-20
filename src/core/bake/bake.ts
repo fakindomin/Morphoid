@@ -197,7 +197,7 @@ export function bake(
     const grid = makeGrid(ps, h, margin(id));
     fuseParts(grid, ps, BLEND_MM, INSET_BLEND_MM, CARVE_BLEND_MM); // body masses soft, appendages tight, then insets and cuts
     // flat cuts so a piece has a real footprint on the bed
-    if (id === 'head') clipBelow(grid, rig.nodes.neckBase.y);
+    if (id === 'head') clipBelow(grid, Math.min(rig.nodes.neckBase.y, ...ps.filter((p) => p.slot === 'snout').map((p) => partBox(p).lo[1]))); // never through a low muzzle
     // wings print lying on their inner face: the ribs' smooth blend must not bulge through it
     if (id === 'wings') { const w = ps.filter((p) => p.ribs); if (w.length) clipMid(grid, Math.min(...w.map((p) => Math.abs(p.z) - p.thickness / 2))); }
     if (id === 'body' && legsSeparate) {

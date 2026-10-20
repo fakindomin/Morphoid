@@ -14,7 +14,7 @@ import { reliefSpec, rootOf, type Relief } from './relief';
 import { armSpecOf, EYES, eyelids, LIP_R, WHISKER_TURN, insectHips, insectLegW, insectRise, prolegXs, roundTail, STALK_W, wingRibs, STAND_MARGIN_MM, STAND_MM, WHISKER_FAN, WHISKER_PAD, WHISKER_W, whiskerLength, type SlotId, type SlotPaths } from './shapes';
 import type { XY } from './path';
 import { typeSize } from './pose';
-import { armLimb, armZ, insectLimb, legLimb, legSpecOf, octopusLimb, prolegLimb, type Cone, type Dome, type Limb } from './limb';
+import { armLimb, armZ, insectLimb, legLimb, legSpecOf, legTops, mergeLimbs, octopusLimb, prolegLimb, type Cone, type Dome, type Limb } from './limb';
 import { blendGroup, edgesOf, sdPolys, slabDist, type Edge } from '../bake/field';
 import { neckLimb, sculptOf, trunkLimb } from './anatomy';
 import { hostsOf, mountAt, skinZ, slabSd, type Host } from './mounts';
@@ -80,7 +80,7 @@ const centre = (): number => 0;
 
 /** `null` = deliberately not a 3D solid (render-only shading, or the mirror image of another slot). */
 export const SPEC_3D: Record<SlotId, Spec | null> = {
-  shadow: null, torsoClip: null, belly: null, legOver0: null, legOver1: null, legOver2: null, glint: null, bones: null, blush: null, toes: null, // render-only
+  shadow: null, torsoClip: null, belly: null, legOver0: null, legOver1: null, legOver2: null, legOver3: null, glint: null, bones: null, blush: null, toes: null, // render-only
   relief: null, // grooves sunk into the accessories (Part3D.relief), see relief.ts
   wingRibs: null, // drawn crests of the wing ribs; the ribs themselves are `ribs` on the wing, see buildParts3D
   legBFar: null, legFFar: null, wingFar: null, handsFar: null,                          // mirror images, generated from the near slot
@@ -198,16 +198,19 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
   lipsAndNostrils(out, paths, ctx);
   // jointed legs of four- and two-legged creatures are real 3D chains (insects and caterpillars keep their slabs)
   const plan = rig.dims.plan, biped = D.isBiped(plan), human = plan === D.PLAN.humanoid;
-  if (plan === D.PLAN.quadruped || biped) for (const p of out) {
+  // (a slot holds every pair of its kind: the hind pair in legB, all the others in legF)
+  if (D.jointedLegs(plan, rig.dims.legPairs)) for (const p of out) {
     if (p.slot !== 'legB' && p.slot !== 'legF') continue;
-    const [top, foot] = p.slot === 'legB' ? [rig.nodes.hipB, rig.nodes.footBL] : [rig.nodes.shoulderF, rig.nodes.footFL];
-    p.limb = legLimb(legSpecOf(p.slot, biped, [top.x, top.y], [foot.x, foot.y], rig.dims.legWidth, g.legs!.foot!, rig.dims.soleLength, rig.dims.build === 2, human), p.z);
+    const slot = p.slot, n = rig.nodes;
+    p.limb = mergeLimbs(legTops(rig.dims.legPairs, biped, [n.hipB.x, n.hipB.y], [n.shoulderF.x, n.shoulderF.y], { human, girth: rig.dims.bodyGirth, soleL: rig.dims.soleLength }).filter((t) => t.slot === slot)
+      .map((t) => legLimb(legSpecOf(slot, biped, t.top, [t.footX, 0], rig.dims.legWidth, g.legs!.foot!, rig.dims.soleLength, rig.dims.build === 2, human), p.z)));
   }
   // arms with hands: real 3D chains out of the upper chest, one per side
   { const n = rig.nodes, a0 = armSpecOf(g, [n.torso.x, n.torso.y], rig.dims.bodyLength, rig.dims.bodyGirth, rig.dims.tilt, rig.dims.legWidth, plan);
     // the shoulder stays where it sits on legs of the middle thickness (thicker legs only push the hand out)
     const arm = a0 && { ...a0, shoulderZ: armZ(rig.dims.bodyWidth, rig.dims.legWidth / D.factorAt(D.LEG_THICK, g.legs!.thick)).out * 0.7 };
-    for (const p of out) if (p.slot === 'hands' && arm) p.limb = armLimb(arm, p.z); }
+    // the left arm (+z) takes the pose gene, the right one its own (or the same)
+    for (const p of out) if (p.slot === 'hands' && arm) p.limb = armLimb(p.side < 0 ? { ...arm, pose: arm.poseR } : arm, p.z); }
   // claws, hooves and talons: one darker part per side holding the tips of that side's legs and hand
   for (const c of out) if (c.slot === 'claws') {
     const tips = out.filter((p) => TIP_SLOTS.has(p.slot) && p.side === c.side && p.limb?.tips).flatMap((p) => p.limb!.tips!);
@@ -220,14 +223,14 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
   // insects: six jointed legs reaching out sideways; caterpillars: stubby prolegs out of the flanks
   if (plan === D.PLAN.insect) for (const p of out) {
     if (p.slot !== 'legB' && p.slot !== 'legF') continue;
-    const n = rig.nodes, hips = insectHips([n.hipB.x, n.hipB.y], [n.shoulderF.x, n.shoulderF.y]);
+    const n = rig.nodes, hips = insectHips([n.hipB.x, n.hipB.y], [n.shoulderF.x, n.shoulderF.y], rig.dims.legPairs);
     p.limb = insectLimb(hips[p.slot], insectLegW(rig.dims.legWidth), insectRise(rig.dims.bodyGirth), rig.dims.bodyWidth, p.z);
   }
   if (plan !== D.PLAN.fish) for (const p of out) if (p.slot === 'tail') { // wolf and fluffy tails are round
     const n = rig.nodes, tl = roundTail(g, rig.dims.bodyGirth, [n.tailBase.x, n.tailBase.y], [n.tailMid.x, n.tailMid.y], [n.tailTip.x, n.tailTip.y], rig.dims.anatomical && plan === D.PLAN.quadruped);
     if (tl) p.limb = tl;
   }
-  if (plan === D.PLAN.caterpillar) for (const p of out) if (p.slot === 'legF') p.limb = prolegLimb(prolegXs(rig.nodes.torso.x, rig.dims.bodyLength), p.z);
+  if (plan === D.PLAN.caterpillar) for (const p of out) if (p.slot === 'legF') p.limb = prolegLimb(prolegXs(rig.nodes.torso.x, rig.dims.bodyLength, rig.dims.legPairs), p.z);
   // the stand last of the body: it reaches under every foot, claw and tentacle that rests on the bed
   for (const p of out) if (p.slot === 'stand') standTop(p, g, rig, out);
   separateAppendages(out); // appendages of different kinds never grow into each other

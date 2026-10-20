@@ -205,16 +205,19 @@ export function analyzePrint(paths: SlotPaths, rig: Rig, plan: PrintPlan): Print
     if (!s) { s = { id, label, kind, orientation, slots: [], ...(clipY !== undefined ? { clipY } : {}) }; specs.set(id, s); }
     return s;
   };
+  // the head stands on its cut at the neck, but never cut through a muzzle that hangs lower (a fish's long snout)
+  const snoutYs = paths.snout && !paths.snout.empty ? paths.snout.flatten(8).flat().map((p) => p[1]) : [];
+  const headClip = Math.min(rig.nodes.neckBase.y, ...snoutYs);
   const allSlots: SlotId[] = [...PRINT_SOLID_SLOTS, 'whiskers'];
   for (const slot of allSlots) {
     if (!paths[slot] || paths[slot].empty) continue;
     const gdef: GroupDef | undefined = groupOfSlot(slot);
-    if (gdef && sep(gdef.id)) { spec(gdef.id, gdef.label, 'part', gdef.orientation, gdef.id === 'head' ? rig.nodes.neckBase.y : undefined).slots.push(slot); continue; }
+    if (gdef && sep(gdef.id)) { spec(gdef.id, gdef.label, 'part', gdef.orientation, gdef.id === 'head' ? headClip : undefined).slots.push(slot); continue; }
     // fused group whose host is a separate part rides along with the host
     const hostId = hostOf(slot, gdef);
     if (hostId && sep(hostId)) {
       const host = GROUPS.find((x) => x.id === hostId)!;
-      spec(host.id, host.label, 'part', host.orientation, host.id === 'head' ? rig.nodes.neckBase.y : undefined).slots.push(slot);
+      spec(host.id, host.label, 'part', host.orientation, host.id === 'head' ? headClip : undefined).slots.push(slot);
       continue;
     }
     spec('body', 'Korpus', 'body', 'upright').slots.push(slot);
@@ -224,7 +227,7 @@ export function analyzePrint(paths: SlotPaths, rig: Rig, plan: PrintPlan): Print
 
   // ---- feet ---------------------------------------------------------------------------
   const legsFused = !sep('legs');
-  if (legsFused && rig.dims.soleLength * rig.dims.soleWidth < R.minSoleArea) {
+  if (legsFused && rig.dims.soleLength * rig.dims.soleWidth < Math.min(R.minSoleArea, rig.dims.minSole) - 1e-6) { // more feet share the load: each may be smaller
     issues.push({ code: 'SOLE', severity: 'error', piece: 'body', part: 'stopy', slot: null, fix: null, at: [0, 0], size: 0, message: 'Stopy: zbyt mała płaska podeszwa' });
   }
   // ---- will it stand? ------------------------------------------------------------------

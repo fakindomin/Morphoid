@@ -18,7 +18,7 @@ describe('2D artwork', () => {
         expect(shapes[id], `${rig.code}:${id}`).not.toMatch(/NaN|Infinity/);
       }
       expect(shapes.torso.length).toBeGreaterThan(10);
-      if (rig.dims.plan === 0) expect(shapes.legF.length).toBeGreaterThan(10); // bipeds have no front legs
+      if (rig.dims.plan === 0 && rig.dims.legPairs >= 2) expect(shapes.legF.length).toBeGreaterThan(10); // bipeds and one-pair animals have no front legs
     }
   });
 
