@@ -53,7 +53,7 @@ export function targetPose(
   };
 }
 
-const DISCRETE = new Set<keyof Nums>(['plan', 'build']);
+const DISCRETE = new Set<keyof Nums>(['plan', 'build', 'legPairs']);
 
 /** Ease `cur` towards `tgt` in place. Returns the largest remaining delta (mm). */
 export function easePose(cur: Pose, tgt: Pose, k: number): number {
@@ -65,7 +65,8 @@ export function easePose(cur: Pose, tgt: Pose, k: number): number {
     maxDelta = Math.max(maxDelta, Math.abs(dx), Math.abs(dy));
   }
   for (const key of Object.keys(tgt.n) as (keyof Nums)[]) {
-    // body plan and build are ids, not sizes: a value in between (plan 2.97) matches no plan and draws no legs
+    // body plan and build are ids, not sizes: a value in between (plan 2.97) matches no plan and draws no legs; a count
+    // of leg pairs in between (1.5) has no legs to draw
     if (DISCRETE.has(key)) { cur.n[key] = tgt.n[key]; continue; }
     const d = tgt.n[key] - cur.n[key];
     cur.n[key] += d * k;

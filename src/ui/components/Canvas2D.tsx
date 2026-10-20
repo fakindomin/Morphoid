@@ -109,6 +109,7 @@ export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPick
     resize();
 
     const frame = (now: number): void => {
+      raf = requestAnimationFrame(frame); // first: one frame that throws must not leave the sketch blank for good
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       const { showBones: sb, mode: md, report: rep, hotTile: panelTile } = live.current;
@@ -233,7 +234,6 @@ export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPick
           sizeRef.current.textContent = `${sz.length.toFixed(0)} × ${sz.width.toFixed(0)} × ${sz.height.toFixed(0)} mm`;
         }
       }
-      raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
     return () => { cancelAnimationFrame(raf); ro.disconnect(); };
