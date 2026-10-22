@@ -9,7 +9,7 @@
  * solveRig() is pure and cheap (~25 nodes, no allocation beyond the result),
  * so it is safe to call every frame; results are memoised per genome code.
  */
-import { FINE_ZERO, fineOf, fineOffset, fineScale, serialize, sizeOf, stepAt, swingOf, type MorphotypeGenome } from '../genome';
+import { FINE_ZERO, fineOffset, fineScale, serialize, stepAt, type MorphotypeGenome } from '../genome';
 import * as D from './dimensions';
 
 export type NodeId =
@@ -157,8 +157,6 @@ function build(g: MorphotypeGenome, code: string): Rig {
   const tilt = human ? H.tilt : biped ? D.BIPED.tilt : plan === D.PLAN.quadruped ? D.GESTURE.chestUp : 0;
   // deformation sliders (3D view): a fraction of a step on top of the size genes, finer than the nozzle grid
   const sc = g.sculpt ?? {}, fine = (k: string): number => sc[k] ?? FINE_ZERO;
-  // the legs' length handle: a fraction of a step, finer than the nozzle grid
-  const legF = fineOf(g, 'legs', 'lengthF'), snapL = (mm: number): number => (legF ? D.snap(mm, 0.1) : D.snap(mm));
   const size = (table: readonly number[], step: number, k: string): number => stepAt(table, step, fineOffset(fine(k)));
   const snapF = (mm: number, k: string): number => (fine(k) === FINE_ZERO ? D.snap(mm) : D.snap(mm, 0.1));
   const L = snapF(size(D.BODY_LENGTH, g.body!.length!, 'length') * B.length * (human ? H.length : 1), 'length');
@@ -171,10 +169,10 @@ function build(g: MorphotypeGenome, code: string): Rig {
   const legLen = octopus ? (G / 2 + 1.5) * 0.85 - G * 0.35 + D.OCTOPUS.armMm
     : belly ? (G / 2 + 1.5) * (1 - D.BELLY_FLAT) - G * 0.35
     // silhouette test: a standing creature always shows light under its belly, so its legs read as legs
-    : anatQ ? Math.max(snapL(G0 * stepAt(A.legK, g.legs!.length!, legF) * B.leg), D.snap(D.minLegForGap(G)))
-    : Math.max(snapL(sizeOf(g, D.LEG_LENGTH, 'legs', 'length') * B.leg * (human ? H.leg : biped ? D.BIPED.leg : insect ? 1.15 : 1)), insect ? 0 : D.snap(D.minLegForGap(G)));
-  // leg thickness slider (and its handle): never thinner than a leg that still stands and prints
-  const legK = legThickK(g);
+    : anatQ ? Math.max(D.snap(G0 * A.legK[g.legs!.length!]! * B.leg), D.snap(D.minLegForGap(G)))
+    : Math.max(D.snap(D.LEG_LENGTH[g.legs!.length!]! * B.leg * (human ? H.leg : biped ? D.BIPED.leg : insect ? 1.15 : 1)), insect ? 0 : D.snap(D.minLegForGap(G)));
+  // leg thickness slider: never thinner than a leg that still stands and prints
+  const legK = D.factorAt(D.LEG_THICK, g.legs!.thick);
   const legW0 = anat ? Math.max(A.legWMin, B.legW(G0) * A.legW) : B.legW(G0);
   // ... and never so thick that the pair of legs outgrows the body
   const legX = Math.max(5, L * (insect ? 0.27 : crowd ? 0.36 : 0.3));
@@ -187,12 +185,10 @@ function build(g: MorphotypeGenome, code: string): Rig {
   const headR = D.snap(headSize > 1 ? Math.min(headR0 * headSize, Math.max(headR0, (G + 2.8) / 2)) : headR0 * headSize, 0.1);
   const headK = headR / D.HEAD_RADIUS;
   const neckT = size(D.NECK_LENGTH, g.head!.neckLength!, 'neckLength');
-  // the handles' swings (3D view): the neck and the tail turn about their roots
-  const neckSwing = swingOf(g, 'head', 'neckSwing'), tailSwing = g.tail!.type ? swingOf(g, 'tail') : 0;
   const neckLen = human ? neckT * H.neckK + headR * 0.5 : anatQ ? neckT * A.neckK + headR * A.neckHead
     : neckT * (fish || octopus ? 0.25 : plan === D.PLAN.caterpillar ? 0.5 : 1);
   const neckAngle = human ? H.neckAngle : fish || octopus ? 0 : belly ? 0.5 : anatQ ? A.neckAngle(g.head!.neckLength!) : NECK_ANGLE;
-  const tailLen = g.tail!.type === 0 ? 0 : sizeOf(g, D.TAIL_LENGTH, 'tail', 'length');
+  const tailLen = g.tail!.type === 0 ? 0 : D.TAIL_LENGTH[g.tail!.length!]!;
   const up = (mm: number): number => Math.ceil(mm / D.NOZZLE_MM - 1e-9) * D.NOZZLE_MM;
   const soleL = D.FOOT_SOLE[g.legs!.foot!]!.length * B.sole * (human ? H.sole : biped ? D.BIPED.sole : 1);
   // an animal's paw is round, not a long slipper (about as long as the slim leg is wide); no sole is below the minimum area
@@ -235,9 +231,9 @@ function build(g: MorphotypeGenome, code: string): Rig {
     torso: tilt,
     shoulderF: -tilt,
     hipB: -tilt,
-    neckBase: neckAngle - tilt + neckSwing,
-    head: -neckAngle - neckSwing, // head level again
-    tailBase: (fish ? Math.PI : Math.PI - TAIL_RISE - tilt) + tailSwing, // pointing backwards and up (a fish: straight back)
+    neckBase: neckAngle - tilt,
+    head: -neckAngle, // head level again
+    tailBase: fish ? Math.PI : Math.PI - TAIL_RISE - tilt, // pointing backwards and up (a fish: straight back)
     tailMid: fish ? 0 : -TAIL_CURL, // facing backwards, so a negative turn = steeper
   };
 
@@ -265,18 +261,13 @@ function build(g: MorphotypeGenome, code: string): Rig {
     code, nodes, order,
     dims: {
       bodyLength: L, bodyGirth: G, bodyWidth: W, legLength: legLen, neckLength: neckLen,
-      tailLength: tailLen, legWidth: legW, headR, headSize, neckK: D.factorAt(D.NECK_THICK, g.head!.neckThick) * fineScale(fine('neckThick')), soleLength: sole.length, soleWidth: sole.width, build, plan, tilt, anatomical: anat, legPairs: pairs, minSole, armsPair: pairs !== pairs0,
+      tailLength: tailLen, legWidth: legW, headR, headSize, neckK: D.factorAt(D.NECK_THICK, g.head!.neckThick), soleLength: sole.length, soleWidth: sole.width, build, plan, tilt, anatomical: anat, legPairs: pairs, minSole, armsPair: pairs !== pairs0,
     },
     bounds, issues: [],
   };
   rig.issues = validateRig(rig);
   return rig;
 }
-
-/** The legs' thickness factor: the size slider's step and the handle's fraction of a step. */
-export const legThickK = (g: MorphotypeGenome): number => stepAt(D.LEG_THICK, g.legs!.thick ?? 2, fineOf(g, 'legs', 'thickF'));
-/** The legs' length step with the handle's fraction (an octopus's tentacles follow it). */
-export const legStepF = (g: MorphotypeGenome): number => g.legs!.length! + fineOf(g, 'legs', 'lengthF');
 
 function forwardKinematics(nodes: Record<NodeId, RigNode>, order: readonly NodeId[]): void {
   for (const id of order) {

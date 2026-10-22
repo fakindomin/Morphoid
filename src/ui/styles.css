@@ -524,13 +524,3 @@ button.status-bake:hover { color: var(--cyan); }
 .size-slider::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--cyan); border: 2px solid var(--panel, #fff); }
 .size-slider:disabled { cursor: default; opacity: .45; }
 .size-slider:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; border-radius: 4px; }
-
-/* ---- handles of the 3D view (click an element, pull its length, thickness, swing) ---- */
-.handles-hint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); padding: 6px 12px; border-radius: 999px; background: var(--bg-card); border: 1px solid var(--border); font-size: 11.5px; color: var(--muted); pointer-events: none; white-space: nowrap; max-width: calc(100% - 32px); overflow: hidden; text-overflow: ellipsis; }
-.handles-card { position: absolute; left: 14px; bottom: 34px; width: 240px; max-width: calc(100% - 28px); padding: 10px 12px; border-radius: 12px; background: var(--bg-card); border: 1px solid var(--border); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); display: flex; flex-direction: column; gap: 8px; }
-.handles-head { display: flex; align-items: center; gap: 6px; }
-.handles-head b { flex: 1; font-size: 13px; }
-.handles-card .hint { margin: 0; font-size: 11px; }
-.handle-row.len input[type='range'] { accent-color: #2d7bff; }
-.handle-row.thick input[type='range'] { accent-color: #ff3b4e; }
-.handle-row.swing input[type='range'] { accent-color: #e0a800; }

@@ -4,8 +4,8 @@
  * wrap this in Zustand/React with `subscribe` + `getState` unchanged.
  */
 import {
-  creatureName, defaultGenome, mulberry32, mutate, parse, presetGenome, serialize, setFine, surpriseGenome, withoutSculpt,
-  type BlockId, type MorphotypeGenome, type ParseResult, type Preset,
+  creatureName, defaultGenome, mulberry32, mutate, parse, presetGenome, serialize, setSculpt, surpriseGenome, withoutSculpt,
+  type MorphotypeGenome, type ParseResult, type Preset,
 } from './genome';
 import { applyOp, type Op } from './radial';
 import { solveRig, type Rig } from './rig';
@@ -36,14 +36,6 @@ export function createStudioStore(initial: MorphotypeGenome = defaultGenome()) {
     state = { ...state, genome: next, past: [...state.past, state.genome].slice(-HISTORY_LIMIT), future: [] };
     emit();
     return true;
-  };
-
-  /** Commit a genome; `drag`: a continuation of the same drag, folded into the last history entry (one undo for it). */
-  const edit = (next: MorphotypeGenome, drag = false): void => {
-    if (!drag || !state.past.length) { commit(next); return; }
-    if (serialize(next) === serialize(state.genome)) return;
-    state = { ...state, genome: next, future: [] };
-    emit();
   };
 
   return {
@@ -86,10 +78,13 @@ export function createStudioStore(initial: MorphotypeGenome = defaultGenome()) {
      * Move a deformation slider (gene I). `drag`: a continuation of the same drag, which replaces the last history
      * entry instead of adding one per pixel, so one undo takes the whole drag back.
      */
-    sculpt(name: string, value: number, drag = false): void { edit(setFine(state.genome, 'sculpt', name, value), drag); },
-    /** Move a fine field (a deformation slider, a handle of the 3D view); `drag` as in sculpt. */
-    fine(block: BlockId, name: string, value: number, drag = false): void { edit(setFine(state.genome, block, name, value), drag); },
-    edit,
+    sculpt(name: string, value: number, drag = false): void {
+      const next = setSculpt(state.genome, name, value);
+      if (!drag || !state.past.length) { commit(next); return; }
+      if (serialize(next) === serialize(state.genome)) return;
+      state = { ...state, genome: next, future: [] };
+      emit();
+    },
     /** all deformation sliders back to zero (the size genes they carried into stay) */
     resetSculpt(): void { commit(withoutSculpt(state.genome)); },
 
