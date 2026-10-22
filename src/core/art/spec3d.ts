@@ -6,8 +6,8 @@
  * SDF bake later): a slot without an entry here would be visible in 2D but missing
  * in 3D, which the project forbids - tests/art3d.test.ts enforces the full coverage.
  */
-import type { MorphotypeGenome } from '../genome';
-import { dimensions as D, type Rig } from '../rig';
+import { fineK, swingOf, type MorphotypeGenome } from '../genome';
+import { dimensions as D, legStepF, legThickK, type Rig } from '../rig';
 import { groupOfSlot, type PartGroup } from '../print/plan';
 import { COAT_LIMB, type Coat } from './coat';
 import { reliefSpec, rootOf, type Relief } from './relief';
@@ -165,12 +165,13 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
       out.push({ id: slot, slot, group, polys, z, thickness: t, bevel, color: spec.color, side: 0 });
     }
   }
+  thicken(out, g, rig); // the thickness handles of the 3D view (ears, horns, antennae, wings, a flat tail)
   // an animal's trunk and neck are round solids of anatomical masses (their outlines are the drawing's, see anatomy.ts)
   if (rig.dims.anatomical) {
     const n = rig.nodes, d = rig.dims;
     for (const p of out) {
       if (p.slot === 'torso') { p.limb = trunkLimb({ torso: [n.torso.x, n.torso.y], L: d.bodyLength, G: d.bodyGirth, W: d.bodyWidth, tilt: d.tilt, biped: D.isBiped(d.plan), humanoid: d.plan === D.PLAN.humanoid, sculpt: sculptOf(g) }); p.thickness = d.bodyWidth * 1.1; }
-      else if (p.slot === 'neck') { p.limb = neckLimb([n.neckBase.x, n.neckBase.y], [n.head.x, n.head.y], d.bodyGirth, d.headR, sculptOf(g).neck * d.neckK); p.thickness = d.bodyGirth * 0.7 * d.neckK; }
+      else if (p.slot === 'neck') { p.limb = neckLimb([n.neckBase.x, n.neckBase.y], [n.head.x, n.head.y], d.bodyGirth, d.headR, d.neckK); p.thickness = d.bodyGirth * 0.7 * d.neckK; }
     }
   }
   // a pair on the head that grew into another pair stands a little further out or in (settle.ts)
@@ -217,7 +218,7 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
   // arms with hands: real 3D chains out of the upper chest, one per side
   { const n = rig.nodes, a0 = armSpecOf(g, [n.torso.x, n.torso.y], rig.dims.bodyLength, rig.dims.bodyGirth, rig.dims.tilt, rig.dims.legWidth, plan, rig.nudge?.armPose);
     // the shoulder stays where it sits on legs of the middle thickness (thicker legs only push the hand out)
-    const arm = a0 && { ...a0, shoulderZ: armZ(rig.dims.bodyWidth, rig.dims.legWidth / D.factorAt(D.LEG_THICK, g.legs!.thick)).out * 0.7 };
+    const arm = a0 && { ...a0, shoulderZ: armZ(rig.dims.bodyWidth, rig.dims.legWidth / legThickK(g)).out * 0.7 };
     // the left arm (+z) takes the pose gene, the right one its own (or the same)
     for (const p of out) if (p.slot === 'hands' && arm) {
       p.z += Math.sign(p.z) * (rig.nudge?.armOut ?? 0); // hands splayed out where they would grow into a leg or an ear (settle.ts)
@@ -230,7 +231,7 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
     c.inset = true; // crisp points, not lumps
   }
   for (const p of out) if (p.slot === 'arms') { // octopus tentacles lie on the bed around the hub
-    p.limb = octopusLimb(rig.nodes.torso.x, D.OCTOPUS.armLen(g.legs!.length!), Math.max(6, rig.dims.bodyWidth * D.OCTOPUS.hub), D.OCTOPUS.arms);
+    p.limb = octopusLimb(rig.nodes.torso.x, D.OCTOPUS.armLen(legStepF(g)), Math.max(6, rig.dims.bodyWidth * D.OCTOPUS.hub), D.OCTOPUS.arms);
   }
   // insects: six jointed legs reaching out sideways; caterpillars: stubby prolegs out of the flanks
   if (plan === D.PLAN.insect) for (const p of out) {
@@ -241,8 +242,11 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
   if (plan !== D.PLAN.fish) for (const p of out) if (p.slot === 'tail') { // wolf and fluffy tails are round
     const n = rig.nodes, tl = roundTail(g, rig.dims.bodyGirth, [n.tailBase.x, n.tailBase.y], [n.tailMid.x, n.tailMid.y], [n.tailTip.x, n.tailTip.y], rig.dims.anatomical && plan === D.PLAN.quadruped, rig.nudge?.turn.tail);
     if (tl) p.limb = tl;
+    const k = fineK(g, 'tail', 'thick'); // (its thickness handle)
+    if (tl && k !== 1) for (const c of tl.cones) { c.ra *= k; c.rb *= k; }
   }
   if (plan === D.PLAN.caterpillar) for (const p of out) if (p.slot === 'legF') p.limb = prolegLimb(prolegXs(rig.nodes.torso.x, rig.dims.bodyLength, rig.dims.legPairs), p.z);
+  splayLegs(out, swingOf(g, 'legs')); // the legs' swing handle: the feet stand wider apart (or closer)
   // the stand last of the body: it reaches under every foot, claw and tentacle that rests on the bed
   for (const p of out) if (p.slot === 'stand') standTop(p, g, rig, out);
   separateAppendages(out); // appendages of different kinds never grow into each other
@@ -251,8 +255,11 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
   if (g.wings!.type! > 0 && wingS > 0.5) for (const p of out) if (p.slot === 'wingNear') {
     const zo = Math.abs(p.z) + p.thickness / 2, side = p.side || 1;
     const zAt = (r: number): number => side * (zo - 0.25 * r);
-    const n = rig.nodes.wingRoot;
-    p.ribs = { cones: wingRibs(g.wings!.type!, [n.x, n.y], wingS).map((r) => ({ a: [r.a[0], r.a[1], zAt(r.ra)], b: [r.b[0], r.b[1], zAt(r.rb)], ra: r.ra, rb: r.rb })), domes: [] };
+    const n = rig.nodes.wingRoot, k = fineK(g, 'wings', 'thick'), sw = swingOf(g, 'wings');
+    // (the handles: the wing swung about its root, thicker bones on a thicker membrane)
+    const turn = ([x, y]: XY): XY => [n.x + (x - n.x) * Math.cos(sw) - (y - n.y) * Math.sin(sw), n.y + (x - n.x) * Math.sin(sw) + (y - n.y) * Math.cos(sw)];
+    p.ribs = { cones: wingRibs(g.wings!.type!, [n.x, n.y], wingS).map((r) => ({ ...r, a: turn(r.a), b: turn(r.b), ra: r.ra * k, rb: r.rb * k }))
+      .map((r) => ({ a: [r.a[0], r.a[1], zAt(r.ra)], b: [r.b[0], r.b[1], zAt(r.rb)], ra: r.ra, rb: r.rb })), domes: [] };
     // a spread wing: the drawing shows it shortened (seen from the side); the solid stands it up to its full height
     // and leans it out about its root, hinged on the inner face
     const spread = wingSpread(g);
@@ -294,6 +301,66 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
     else if (LEG_SLOTS.has(p.slot) && p.limb && (plan === D.PLAN.quadruped || biped)) p.coat = coat(COAT_LIMB, 'v');
   }
   return out;
+}
+
+/** Element slots whose thickness handle scales the slab (and where to read it). */
+const THICK_SLOTS: Partial<Record<SlotId, 'ears' | 'horns' | 'antennae' | 'wings' | 'tail'>> = { ear: 'ears', earFlop: 'ears', horns: 'horns', antennae: 'antennae', wingNear: 'wings', tail: 'tail' };
+/** Of those, the round ones: thicker across their length too (seen from the side), not only across Z. */
+const ROUND_SLOTS = new Set<SlotId>(['horns', 'antennae', 'tail']);
+
+/**
+ * The thickness handles (3D view, 2026-10-22): a slab element gets thicker across Z about its middle (its painted inner
+ * ear moves out with the outer face), and a horn, an antenna or a flat tail also across its length, about the line from
+ * its root to its tip (the root: where it grows out of the head, or the tail's base).
+ */
+function thicken(out: Part3D[], g: MorphotypeGenome, rig: Rig): void {
+  for (const p of out) {
+    const block = THICK_SLOTS[p.slot];
+    const k = block ? fineK(g, block, 'thick') : 1;
+    if (k === 1 || p.limb) continue;
+    const t = p.thickness * k;
+    if (p.slot === 'ear') for (const q of out) if (q.slot === 'earIn' && q.side === p.side) q.z += p.side * (t - p.thickness) / 2;
+    p.bevel = Math.min(p.bevel * k, t / 2 - 0.01);
+    if (p.dome) p.dome *= k;
+    p.thickness = t;
+    if (!ROUND_SLOTS.has(p.slot) || p.plane) continue;
+    const pts = p.polys.flat();
+    if (pts.length < 3) continue;
+    const host: XY = p.slot === 'tail' ? [rig.nodes.tailBase.x, rig.nodes.tailBase.y] : [rig.nodes.head.x, rig.nodes.head.y];
+    const d2 = (a: XY, b: XY): number => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2;
+    const root = p.slot === 'tail' ? host : pts.reduce((a, b) => (d2(b, host) < d2(a, host) ? b : a));
+    const tip = pts.reduce((a, b) => (d2(b, root) > d2(a, root) ? b : a)), l = Math.sqrt(d2(tip, root)) || 1;
+    const ux = (tip[0] - root[0]) / l, uy = (tip[1] - root[1]) / l;
+    p.polys = p.polys.map((poly) => poly.map(([x, y]): XY => {
+      const a = (x - root[0]) * ux + (y - root[1]) * uy, b = (-(x - root[0]) * uy + (y - root[1]) * ux) * k;
+      return [root[0] + a * ux - b * uy, root[1] + a * uy + b * ux];
+    }));
+  }
+}
+
+/** How far in (rad) the legs' swing handle may bring the feet together, and the least share of its width a foot keeps out. */
+const SPLAY_IN = -0.25, SPLAY_KEEP = 0.35;
+
+/**
+ * The legs' swing handle: every leg leans out sideways from its top (its feet stay on the bed, sheared out by
+ * tan(a) per mm below the hip), or in towards the middle by a little. Points shared by two cones move once.
+ */
+function splayLegs(out: Part3D[], a: number): void {
+  if (!a) return;
+  const t = Math.tan(Math.max(SPLAY_IN, a)), moved = new Set<number[]>();
+  for (const p of out) {
+    if (!LEG_SLOTS.has(p.slot) || !p.limb || !p.side) continue;
+    const l = p.limb, all = [...l.cones, ...(l.tips ?? [])];
+    const top = Math.max(...all.flatMap((c) => [c.a[1], c.b[1]]));
+    const shear = (q: number[]): void => {
+      if (moved.has(q)) return;
+      moved.add(q);
+      const z = Math.abs(q[2]!);
+      q[2] = p.side * Math.max(z * SPLAY_KEEP, z + Math.max(0, top - q[1]!) * t);
+    };
+    for (const c of all) { shear(c.a as number[]); shear(c.b as number[]); }
+    for (const d of l.domes) shear(d.c as number[]);
+  }
 }
 
 /**

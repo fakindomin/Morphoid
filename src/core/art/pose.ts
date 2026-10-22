@@ -3,8 +3,8 @@
  * (discrete) rig target, so a variant change animates instead of popping,
  * while the target itself stays exactly on Y = 0 (feet are pinned).
  */
-import type { MorphotypeGenome } from '../genome';
-import { dimensions as D, idleOffsets, type NodeId, type Rig } from '../rig';
+import { sizeOf, type MorphotypeGenome } from '../genome';
+import { dimensions as D, idleOffsets, legStepF, type NodeId, type Rig } from '../rig';
 
 export type PosMap = Record<NodeId, [number, number]>;
 
@@ -21,8 +21,9 @@ export interface Nums {
 }
 export interface Pose { pos: PosMap; n: Nums }
 
+/** A part's size (mm) from its size step and the fraction of a step its length handle adds; 0 when it is absent. */
 export const typeSize = (g: MorphotypeGenome, block: 'ears' | 'horns' | 'wings' | 'crest' | 'antennae', table: readonly number[], f: string): number =>
-  g[block]!.type === 0 ? 0 : table[g[block]![f]!]!;
+  g[block]!.type === 0 ? 0 : sizeOf(g, table, block, f);
 
 export function targetPose(
   rig: Rig, g: MorphotypeGenome, t: number, breathing: boolean, mouse: { x: number; y: number },
@@ -44,7 +45,7 @@ export function targetPose(
     pos,
     n: {
       bodyL: rig.dims.bodyLength, bodyG: rig.dims.bodyGirth, bodyW: rig.dims.bodyWidth, legW: rig.dims.legWidth, headR: rig.dims.headR, build: rig.dims.build, plan: rig.dims.plan, tilt: rig.dims.tilt,
-      armLen: D.OCTOPUS.armLen(g.legs!.length!), hub: Math.max(6, rig.dims.bodyWidth * D.OCTOPUS.hub),
+      armLen: D.OCTOPUS.armLen(legStepF(g)), hub: Math.max(6, rig.dims.bodyWidth * D.OCTOPUS.hub),
       // ears and horns keep their size relative to the skull (a bigger head carries bigger ears)
       earS: typeSize(g, 'ears', D.EAR_SIZE, 'scale') * headK, hornS: typeSize(g, 'horns', D.HORN_SPAN, 'span') * headK,
       wingS: typeSize(g, 'wings', D.WING_SPAN, 'scale'), crestS: typeSize(g, 'crest', D.CREST_SIZE, 'scale'), antS: typeSize(g, 'antennae', D.ANTENNA_LEN, 'length'),

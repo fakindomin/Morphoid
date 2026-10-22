@@ -8,6 +8,7 @@ import { solveRig } from '../rig';
 import { targetPose } from '../art/pose';
 import { buildPaths } from '../art/shapes';
 import { buildParts3D, type ColorKey } from '../art/spec3d';
+import { anchorsOf, type Anchor } from '../art/handles';
 import { BLEND_MM, CARVE_BLEND_MM, INSET_BLEND_MM, MIN_SOLID_MM, SMOOTH_MOVE } from './bake';
 import { fuseParts, gridDims, makeGrid } from './field';
 import { flipMesh, validateMesh } from './mesh';
@@ -29,6 +30,8 @@ export interface PreviewSolid {
   indices: Uint32Array;
   /** colour of every triangle */
   colors: ColorKey[];
+  /** where each element (leg, tail, ear...) is, for the handles of the 3D view */
+  anchors: Anchor[];
   ms: number;
 }
 
@@ -47,7 +50,7 @@ export function previewSolid(genome: MorphotypeGenome, h = PREVIEW_VOXEL_MM): Pr
   if (validateMesh(mesh).volume < 0) mesh = flipMesh(mesh);
   mesh = smoothMesh(mesh, SMOOTH_MOVE * h);
   const colorAt = painter(parts.filter((p) => !p.carve), all.filter((p) => p.thickness < MIN_SOLID_MM), paths.pattern.flatten(8));
-  return { ...paintSmooth(mesh.positions, mesh.indices, colorAt, grid), ms: performance.now() - t0 };
+  return { ...paintSmooth(mesh.positions, mesh.indices, colorAt, grid), anchors: anchorsOf(all, rig), ms: performance.now() - t0 };
 }
 
 /** How many times a triangle on a colour border is split in four: the border then steps at a sixteenth of a voxel. */
@@ -58,7 +61,7 @@ const BORDER_SPLITS = 2;
  * a pupil or a mouth line has a clean edge instead of the voxel staircase. New vertices sit on the flat triangle and
  * take interpolated normals, so the shading stays smooth.
  */
-function paintSmooth(P: Float32Array, I: Uint32Array, colorAt: (x: number, y: number, z: number, nz: number) => ColorKey, grid: Grid3): Omit<PreviewSolid, 'ms'> {
+function paintSmooth(P: Float32Array, I: Uint32Array, colorAt: (x: number, y: number, z: number, nz: number) => ColorKey, grid: Grid3): Omit<PreviewSolid, 'ms' | 'anchors'> {
   const nv = P.length / 3;
   const N = new Float32Array(P.length);
   for (let t = 0; t < I.length; t += 3) {

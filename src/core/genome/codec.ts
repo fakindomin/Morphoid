@@ -52,7 +52,7 @@ export function canonicalize(g: MorphotypeGenome): MorphotypeGenome {
       blk[f.name] = Number.isInteger(v) ? Math.max(0, Math.min(fieldRange(f) - 1, v as number)) : 0;
     }
     if (b.noneMeansEmpty && blk[b.fields[0]!.name] === 0) {
-      for (const f of b.fields) blk[f.name] = 0;
+      for (const f of b.fields) blk[f.name] = f.kind === 'fine' ? FINE_ZERO : 0; // (an absent part's handles are untouched)
     }
   }
   // a gene whose part is absent writes its size and direction digits as 0: those fields are 0 too (whiskers off)
@@ -60,7 +60,7 @@ export function canonicalize(g: MorphotypeGenome): MorphotypeGenome {
     if (!gd.variant || gd.variant.block === 'palette') continue;
     const f = blockDef(gd.variant.block).fields.find((x) => x.name === gd.variant!.field)!;
     if (f.kind === 'enum' && f.options[0]?.id === 'none' && out[gd.variant.block]![gd.variant.field] === 0) {
-      for (const sz of gd.sizes) out[sz.block]![sz.field] = 0;
+      for (const sz of gd.sizes) out[sz.block]![sz.field] = field(sz.block, sz.field).kind === 'fine' ? FINE_ZERO : 0;
     }
   }
   // the size sliders of parts that can be absent keep their middle size while the part is away (the code still writes
@@ -97,36 +97,57 @@ function fineText(f: Field, v: number): string {
   return f.coarse ? `${pct >= 0 ? '+' : ''}${pct}% kroku` : `${pct >= 0 ? '+' : ''}${pct}%`;
 }
 
-/** The slider position of a fine field with a coarse step: the step plus its fraction (-0.5 .. 0.44). */
-export function sculptValue(g: MorphotypeGenome, name: string): number {
-  const f = field('sculpt', name);
-  const v = g.sculpt![name]!;
+/** The slider position of a fine field: with a coarse step, the step plus its fraction (-0.5 .. 0.44); else its level. */
+export function fineValue(g: MorphotypeGenome, block: BlockId, name: string): number {
+  const f = field(block, name);
+  const v = g[block]?.[name] ?? FINE_ZERO;
   if (f.kind !== 'fine' || !f.coarse) return v;
   return g[f.coarse.block]![f.coarse.field]! + fineOffset(v);
 }
+export const sculptValue = (g: MorphotypeGenome, name: string): number => fineValue(g, 'sculpt', name);
+
+/** The widest range a fine field with a coarse step covers, in steps. */
+export const FINE_RANGE: readonly [number, number] = [-0.5, STEPS - 1 + (FINE_LEVELS - 1 - FINE_ZERO) / FINE_LEVELS];
 
 /**
- * Set a deformation slider. A slider with a coarse step works across the whole size range: stretched past half a
- * step it carries over into the step (which changes the 2D drawing too) and keeps only the rest as the fine digit.
+ * Set a fine field (a deformation slider, a handle of the 3D view). One with a coarse step works across the whole size
+ * range: stretched past half a step it carries over into the step (which changes the 2D drawing too) and keeps only
+ * the rest as the fine digit.
  */
-export function setSculpt(g: MorphotypeGenome, name: string, value: number): MorphotypeGenome {
-  const f = field('sculpt', name);
+export function setFine(g: MorphotypeGenome, block: BlockId, name: string, value: number): MorphotypeGenome {
+  const f = field(block, name);
   const next = cloneGenome(g);
   if (f.kind === 'fine' && f.coarse) {
-    const s = Math.max(-0.5, Math.min(STEPS - 1 + (FINE_LEVELS - 1 - FINE_ZERO) / FINE_LEVELS, value));
+    const s = Math.max(FINE_RANGE[0], Math.min(FINE_RANGE[1], value));
     const step = Math.max(0, Math.min(STEPS - 1, Math.round(s)));
     next[f.coarse.block]![f.coarse.field] = step;
-    next.sculpt![name] = Math.max(0, Math.min(FINE_LEVELS - 1, Math.round((s - step) * FINE_LEVELS) + FINE_ZERO));
-  } else next.sculpt![name] = Math.max(0, Math.min(FINE_LEVELS - 1, Math.round(value)));
+    next[block]![name] = Math.max(0, Math.min(FINE_LEVELS - 1, Math.round((s - step) * FINE_LEVELS) + FINE_ZERO));
+  } else next[block]![name] = Math.max(0, Math.min(FINE_LEVELS - 1, Math.round(value)));
   return canonicalize(next);
 }
+export const setSculpt = (g: MorphotypeGenome, name: string, value: number): MorphotypeGenome => setFine(g, 'sculpt', name, value);
 
-/** The same creature without its 3D-only deformation (what the 2D sketch draws). */
+/** The same creature without its 3D-only deformation and handles (what the 2D sketch draws). */
 export function withoutSculpt(g: MorphotypeGenome): MorphotypeGenome {
   const next = cloneGenome(g);
-  for (const k of Object.keys(next.sculpt ?? {})) next.sculpt![k] = FINE_ZERO;
+  for (const b of BLOCKS) for (const f of b.fields) if (f.kind === 'fine' && next[b.id]) next[b.id]![f.name] = FINE_ZERO;
   return next;
 }
+
+/** A fine field of a genome as a fraction of a step (coarse) or a scale offset: 0 = untouched. */
+export const fineOf = (g: MorphotypeGenome, block: BlockId, name: string): number => fineOffset(g[block]?.[name] ?? FINE_ZERO);
+/**
+ * A plain fine field as a scale (1 = untouched): a deformation slider 5% per level (0.6 .. 1.35), a thickness handle
+ * 10% compounded per level (about half to twice as thick).
+ */
+export const thickScale = (block: BlockId, v: number): number => (block === 'sculpt' ? fineScale(v) : 1.1 ** (v - FINE_ZERO));
+export const fineK = (g: MorphotypeGenome, block: BlockId, name: string): number => thickScale(block, g[block]?.[name] ?? FINE_ZERO);
+/** Swing of a handle (rad): SWING_RAD per level, about -46 .. +40 degrees. */
+export const SWING_RAD = 0.1;
+export const swingOf = (g: MorphotypeGenome, block: BlockId, name = 'swing'): number => ((g[block]?.[name] ?? FINE_ZERO) - FINE_ZERO) * SWING_RAD;
+/** A size field's table value with the fraction of a step its handle adds (the fine field `<field>F`). */
+export const sizeOf = (g: MorphotypeGenome, table: readonly number[], block: BlockId, size: string): number =>
+  stepAt(table, g[block]![size]!, fineOf(g, block, `${size}F`));
 
 /** Size table value at a step plus a fraction of a step (linear between steps, extended past the ends). */
 export function stepAt(table: readonly number[], step: number, frac: number): number {
@@ -165,7 +186,7 @@ export function geneText(g: MorphotypeGenome, gd: GeneDef): string {
   const absent = id === 0 && gd.variant !== null && zeroBased(gd.variant.block, field(gd.variant.block, gd.variant.field));
   const sizes = gd.sizes.map((sz) => {
     const v = g[sz.block]![sz.field]!;
-    if (field(sz.block, sz.field).kind === 'fine') return v.toString(16).toUpperCase(); // one hex digit, 8 = unchanged
+    if (field(sz.block, sz.field).kind === 'fine') return v.toString(16).toUpperCase(); // one hex digit, 8 = unchanged (also while absent)
     return absent ? '0' : String(v + 1);
   }).join('');
   return gd.letter + hex2(id) + (gd.sizes.length ? '.' + sizes : '');
@@ -212,7 +233,7 @@ export function describeGene(genome: MorphotypeGenome, gd: GeneDef): string {
   const v = genome[block]![name]!;
   const variant = f.kind === 'enum' ? f.options[v]?.label ?? '?' : String(v + 1);
   const absent = variantId(block, name, v) === 0 && zeroBased(block, f);
-  const sizes = absent ? [] : gd.sizes.map((sz) => {
+  const sizes = absent ? [] : gd.sizes.filter((sz) => field(sz.block, sz.field).kind !== 'fine' || genome[sz.block]![sz.field] !== FINE_ZERO).map((sz) => {
     const sf = field(sz.block, sz.field), v2 = genome[sz.block]![sz.field]!;
     return sf.kind === 'step' ? `${sf.label} ${v2 + 1}` : sf.kind === 'fine' ? `${sf.label} ${fineText(sf, v2)}`
       : `${sf.label ?? 'Kierunek'}: ${sf.options[v2]?.label ?? '?'}`;
@@ -221,7 +242,7 @@ export function describeGene(genome: MorphotypeGenome, gd: GeneDef): string {
 }
 
 /** Genes that grew a size digit at their end: how many digits they had before. */
-const LEGACY_DIGITS: Record<string, number> = { L: 1, N: 1, H: 0, O: 2, V: 1, D: 0, X: 2, W: 1 };
+const LEGACY_DIGITS: Record<string, number> = { L: 1, N: 1, H: 0, O: 2, V: 1, D: 0, X: 2, W: 1, E: 2, R: 2, T: 2, K: 2 };
 
 const GENE_RE = /^([A-Z])([0-9A-F]{2})(?:\.([0-9A-F]*))?$/;
 
@@ -251,6 +272,7 @@ function parseV2(body: string, base?: MorphotypeGenome): ParseResult {
       if (field(sz.block, sz.field).kind === 'fine') { // one hex digit
         const ch = digits[i];
         if (ch !== undefined) g[sz.block]![sz.field] = parseInt(ch, 16);
+        else if (i >= (LEGACY_DIGITS[gd.letter] ?? Infinity)) g[sz.block]![sz.field] = FINE_ZERO; // (written before the handles)
         return;
       }
       // a digit the gene did not have yet when the code was written: the look of that time (the default)

@@ -66,6 +66,13 @@ const retire = (f: EnumField, ...ids: string[]): EnumField => ({ ...f, options: 
 const s = (name: string, label: string): StepField => ({ kind: 'step', name, label });
 const fine = (name: string, label: string, coarse?: FineField['coarse']): FineField => ({ kind: 'fine', name, label, ...(coarse ? { coarse } : {}) });
 
+/**
+ * The three handles of an element in the 3D view (2026-10-22): its length as a fraction of a step of its size field
+ * (`<size>F`, carried into the step past half a step), its thickness (a scale) and its swing about its root.
+ */
+const handles = (block: BlockId, size: string): FineField[] =>
+  [fine(`${size}F`, 'Długość', { block, field: size }), fine('thick', 'Grubość'), fine('swing', 'Wychylenie')];
+
 export const BLOCKS: readonly BlockDef[] = [
   { id: 'body', letter: 'B', label: 'Tułów', fields: [
     e('shape', [['barrel', 'Beczka'], ['lean', 'Smukły'], ['bulky', 'Masywny'], ['athletic', 'Zwierzęcy (głęboka klatka)']]),
@@ -77,6 +84,8 @@ export const BLOCKS: readonly BlockDef[] = [
     s('thick', 'Grubość'),
     // how many legs (block 2, 2026-10-20): 0 = as many as the body plan has (4, 2, 6, a fish none)
     e('count', [['plan', 'Jak plan ciała'], ['two', '2'], ['four', '4'], ['six', '6'], ['eight', '8']], 0, 'Liczba nóg'),
+    // handles in the 3D view (2026-10-22): a fraction of a step on top of the sizes, and how far the feet stand apart
+    fine('lengthF', 'Długość', { block: 'legs', field: 'length' }), fine('thickF', 'Grubość', { block: 'legs', field: 'thick' }), fine('swing', 'Rozstaw'),
   ] },
   { id: 'head', letter: 'H', label: 'Głowa i szyja', fields: [
     e('skull', [['round', 'Okrągła'], ['wedge', 'Klin'], ['flat', 'Płaska']]),
@@ -84,6 +93,7 @@ export const BLOCKS: readonly BlockDef[] = [
     s('neckLength', 'Długość szyi'),
     s('size', 'Wielkość głowy'),
     s('neckThick', 'Grubość szyi'),
+    fine('neckSwing', 'Wychylenie szyi'), // (its length and thickness handles move the sculpt digits, gene I)
   ] },
   { id: 'snout', letter: 'S', label: 'Pysk', fields: [
     e('type', [['pug', 'Krótki'], ['wolf', 'Wilczy'], ['beak', 'Dziób'], ['cat', 'Koci'], ['dog', 'Psi'], ['horse', 'Koński'], ['bear', 'Niedźwiedzi'], ['rodent', 'Gryzonia'], ['ape', 'Małpi'], ['macaque', 'Makaka']], 1),
@@ -93,21 +103,25 @@ export const BLOCKS: readonly BlockDef[] = [
     e('type', [['none', 'Brak'], ['wolf', 'Wilcze'], ['bear', 'Misiowe'], ['rabbit', 'Zajęcze'], ['floppy', 'Opadające'], ['cat', 'Kocie'], ['mouse', 'Mysie'], ['horse', 'Końskie']], 1),
     s('scale', 'Skala'),
     e('dir', [['up', 'Do góry'], ['back', 'Do tyłu'], ['forward', 'Do przodu']]),
+    ...handles('ears', 'scale'),
   ] },
   { id: 'horns', letter: 'O', label: 'Rogi / Poroże', noneMeansEmpty: true, fields: [
     e('type', [['none', 'Brak'], ['devil', 'Diabelskie'], ['ram', 'Baranie'], ['spikes', 'Kolce'], ['antlers', 'Poroże']]),
     s('span', 'Rozpiętość'),
     e('dir', [['up', 'Do góry'], ['forward', 'Do przodu'], ['back', 'Do tyłu']]),
+    ...handles('horns', 'span'),
   ] },
   { id: 'wings', letter: 'W', label: 'Skrzydła', noneMeansEmpty: true, fields: [
     e('type', [['none', 'Brak'], ['feather', 'Pierzaste'], ['bat', 'Nietoperze']]),
     s('scale', 'Wielkość'),
     e('spread', [['up', 'Do góry'], ['half', 'Rozłożone'], ['wide', 'Szeroko rozłożone']], 0, 'Rozłożenie'),
+    ...handles('wings', 'scale'),
   ] },
   { id: 'tail', letter: 'T', label: 'Ogon', noneMeansEmpty: true, fields: [
     e('type', [['none', 'Brak'], ['wolf', 'Wilczy'], ['fluffy', 'Puszysty'], ['fan', 'Wachlarz'], ['feathers', 'Pióra ptaka']], 1),
     s('length', 'Długość'),
     e('dir', [['up', 'Naturalnie'], ['back', 'Do tyłu'], ['high', 'W górę']]),
+    ...handles('tail', 'length'),
   ] },
   { id: 'crest', letter: 'C', label: 'Czub / Grzywa / Kolce', noneMeansEmpty: true, fields: [
     e('type', [['none', 'Brak'], ['tuft', 'Czub'], ['mane', 'Grzywa'], ['spines', 'Kolce'], ['crystals', 'Kryształy'], ['plume', 'Pióropusz']]),
@@ -150,6 +164,7 @@ export const BLOCKS: readonly BlockDef[] = [
     e('type', [['none', 'Brak'], ['ball', 'Z kulką'], ['feather', 'Pierzaste']]),
     s('length', 'Długość'),
     e('dir', [['forward', 'Do przodu'], ['up', 'Prosto w górę'], ['back', 'Do tyłu']]),
+    ...handles('antennae', 'length'),
   ] },
   { id: 'hands', letter: 'G', label: 'Ręce', noneMeansEmpty: true, fields: [
     e('type', [['none', 'Brak'], ['grip', 'Chwytne dłonie'], ['talons', 'Szpony'], ['mitts', 'Łapki']]),
@@ -158,6 +173,7 @@ export const BLOCKS: readonly BlockDef[] = [
     e('dir', [['hold', 'Przed sobą'], ['raise', 'Uniesione'], ['down', 'Opuszczone']], 0, 'Ułożenie'),
     // the right arm's own pose (block 2): 0 = the same as the left one (`dir`)
     e('dir2', [['same', 'Jak lewa'], ['hold', 'Przed sobą'], ['raise', 'Uniesiona'], ['down', 'Opuszczona']], 0, 'Prawa ręka'),
+    fine('lengthF', 'Długość', { block: 'hands', field: 'length' }), fine('thickF', 'Grubość', { block: 'hands', field: 'thick' }), fine('swing', 'Wychylenie'),
   ] },
   { id: 'sculpt', letter: 'I', label: 'Deformacja', fields: [
     fine('length', 'Długość tułowia', { block: 'body', field: 'length' }),
@@ -183,6 +199,8 @@ export const BLOCKS: readonly BlockDef[] = [
  * at 01 (00 never appears). The palette is numbered from 00. New genes are only appended (a code without them reads
  * them as 00); new variants are only appended to a field's options. A gene can also grow a digit at its END (the size
  * sliders, 2026-10-15): a code written before it lacks that digit and reads it as the size every creature had then.
+ * The handles of the 3D view (2026-10-22) are three hex digits at the end of an element's gene (8 = untouched, also
+ * while the part is absent): its length as a fraction of a step, its thickness and its swing.
  */
 export interface GeneDef {
   letter: string;
@@ -197,14 +215,14 @@ const gene = (letter: string, label: string, block: BlockId | null, field = 'typ
 });
 export const GENES: readonly GeneDef[] = [
   gene('B', 'Tułów', 'body', 'shape', 'length', 'girth'),
-  gene('L', 'Nogi', 'legs', 'foot', 'length', 'thick', 'count'),
-  gene('N', 'Szyja', 'head', 'neck', 'neckLength', 'neckThick'),
+  gene('L', 'Nogi', 'legs', 'foot', 'length', 'thick', 'count', 'lengthF', 'thickF', 'swing'),
+  gene('N', 'Szyja', 'head', 'neck', 'neckLength', 'neckThick', 'neckSwing'),
   gene('H', 'Czaszka', 'head', 'skull', 'size'),
   gene('S', 'Pysk', 'snout', 'type', 'reach'),
-  gene('E', 'Uszy', 'ears', 'type', 'scale', 'dir'),
-  gene('R', 'Rogi', 'horns', 'type', 'span', 'dir'),
-  gene('W', 'Skrzydła', 'wings', 'type', 'scale', 'spread'),
-  gene('T', 'Ogon', 'tail', 'type', 'length', 'dir'),
+  gene('E', 'Uszy', 'ears', 'type', 'scale', 'dir', 'scaleF', 'thick', 'swing'),
+  gene('R', 'Rogi', 'horns', 'type', 'span', 'dir', 'spanF', 'thick', 'swing'),
+  gene('W', 'Skrzydła', 'wings', 'type', 'scale', 'spread', 'scaleF', 'thick', 'swing'),
+  gene('T', 'Ogon', 'tail', 'type', 'length', 'dir', 'lengthF', 'thick', 'swing'),
   gene('U', 'Końcówka ogona', null),
   gene('C', 'Grzywa / czub / kolce', 'crest', 'type', 'scale'),
   gene('O', 'Oczy', 'face', 'eyes', 'eyeSet', 'eyeShape', 'eyeSize'),
@@ -219,8 +237,8 @@ export const GENES: readonly GeneDef[] = [
   gene('J', 'Budowa', 'build', 'type'),
   gene('Y', 'Plan ciała', 'plan', 'type'),
   gene('Q', 'Podstawka', 'stand', 'type'),
-  gene('K', 'Czułki', 'antennae', 'type', 'length', 'dir'),
-  gene('X', 'Ręce', 'hands', 'type', 'length', 'dir', 'thick', 'dir2'),
+  gene('K', 'Czułki', 'antennae', 'type', 'length', 'dir', 'lengthF', 'thick', 'swing'),
+  gene('X', 'Ręce', 'hands', 'type', 'length', 'dir', 'thick', 'dir2', 'lengthF', 'thickF', 'swing'),
   // deformation sliders (3D view): one hex digit per slider, 8 = unchanged; no variant (always 00)
   { letter: 'I', label: 'Deformacja', variant: null, sizes: ['length', 'girth', 'width', 'chest', 'waist', 'haunch', 'shoulder', 'neckLength', 'neckThick'].map((field) => ({ block: 'sculpt' as BlockId, field })) },
 ];

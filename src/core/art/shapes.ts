@@ -5,7 +5,7 @@
  * changed). Colours come from CSS (--c1/--c2/--c3 = the genome's palette).
  * Geometry is in rig mm, +X forward, +Y up; ToPx mirrors X (faces left).
  */
-import type { MorphotypeGenome } from '../genome';
+import { fineOf, sizeOf, stepAt, swingOf, type MorphotypeGenome } from '../genome';
 import { dimensions as D, type NodeId, type Nudge, type Rig } from '../rig';
 import { PRINT_RULES } from '../print/rules';
 import { ellipse, Path, polygon, taper, tube, type ToPx, type XY } from './path';
@@ -66,7 +66,7 @@ export function armSpecOf(g: MorphotypeGenome, torso: XY, bodyL: number, bodyG: 
   // a fish and an octopus have one pose for now: in front (an octopus raises them, clear of its arms on the bed)
   const one = D.oneArmPose(plan), fixed = plan === D.PLAN.octopus ? 1 : 0;
   const pose = poseOverride ?? (one ? fixed : h.dir!), poseR = poseOverride ?? (one ? fixed : h.dir2 ? h.dir2 - 1 : pose);
-  return { shoulder: armShoulder(torso, bodyL, bodyG, tilt, human ? D.HUMANOID.shoulder : undefined), len: D.ARM_LEN[h.length!]! * (human ? D.HUMANOID.arm : 1), legW: legW * D.factorAt(D.HAND_THICK, h.thick), hand: h.type, pose, poseR, human };
+  return { shoulder: armShoulder(torso, bodyL, bodyG, tilt, human ? D.HUMANOID.shoulder : undefined), len: sizeOf(g, D.ARM_LEN, 'hands', 'length') * (human ? D.HUMANOID.arm : 1), legW: legW * stepAt(D.HAND_THICK, h.thick ?? 2, fineOf(g, 'hands', 'thickF')), hand: h.type, pose, poseR, human, swing: swingOf(g, 'hands') };
 }
 
 /** Insect legs per slot: the hind pair in legB, the front and middle pairs in legF (see insectLimb). */
@@ -598,7 +598,7 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
     // a fish on legs carries its tail fin in the air, as low as its belly
     const low = n.legPairs > 0 ? Math.max(0, y0 - n.bodyG * 0.4) : 0;
     put('tail', polygon([[x0 + 3, y0 + 2], [x0 - len * 0.95, y0 + len * 0.75], [x0 - len * 0.95 + TIP, y0 + len * 0.75],
-      [x0 - len * 0.55, y0 + len * 0.2], [x0 - len, low], [x0 + 3, low]]));
+      [x0 - len * 0.55, y0 + len * 0.2], [x0 - len, low], [x0 + 3, low]]).rotated(x0, y0, swingOf(g, 'tail'))); // (its handle swings it)
   } else if (tailType > 0 && n.tailLen > 0.5) {
     // ---- tail: leaves the rump backwards and up (>= 45 deg), tip is never thinner than TIP ----
     const ctrl: XY = [2 * tailMid[0] - (tailBase[0] + tailTip[0]) / 2, 2 * tailMid[1] - (tailBase[1] + tailTip[1]) / 2];
@@ -723,13 +723,13 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
   const er = slide(er0, nu.shift.ear);
   if (n.earS > 0.3 && g.ears!.type === EAR_FLOPPY) {
     // a hanging ear: a long leaf from the crown down past the eye, its tip swinging back (the direction digit tilts it)
-    const e = n.earS, turn = ([0, 0.25, -0.18][g.ears!.dir ?? 0] ?? 0) + (nu.turn.ear ?? 0);
+    const e = n.earS, turn = ([0, 0.25, -0.18][g.ears!.dir ?? 0] ?? 0) + (nu.turn.ear ?? 0) + swingOf(g, 'ears');
     const leaf = new Path().M(er[0] + 2.2, er[1] + 1.2).Q(er[0] + e * 0.42, er[1] - e * 0.55, er[0] + e * 0.05, er[1] - e * 1.05)
       .Q(er[0] - e * 0.3, er[1] - e * 1.12, er[0] - e * 0.28, er[1] - e * 0.6).Q(er[0] - e * 0.22, er[1] + 0.6, er[0] - 1.2, er[1] + 1.6).Z();
     put('earFlop', leaf.scaled(er[0], er[1], nu.scale.ear ?? 1).rotated(er[0], er[1], turn));
   } else if (n.earS > 0.3) {
     const ep = earPaths(g.ears!.type!, n.earS, er[0], er[1]);
-    const turn = (DIR_TURN.ears[g.ears!.dir ?? 0] ?? 0) + (nu.turn.ear ?? 0); // turned about the ear's root
+    const turn = (DIR_TURN.ears[g.ears!.dir ?? 0] ?? 0) + (nu.turn.ear ?? 0) + swingOf(g, 'ears'); // turned about the ear's root (and by its handle)
     put('ear', ep.outer.scaled(er[0], er[1], nu.scale.ear ?? 1).rotated(er[0], er[1], turn));
     put('earIn', ep.inner.scaled(er[0], er[1], nu.scale.ear ?? 1).rotated(er[0], er[1], turn));
   }
@@ -750,7 +750,7 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
       horns.append(taper([x - 0.2 * s, y + 0.55 * s], [x + 0.05 * s, y + 0.8 * s], [x + 0.2 * s, y + 1.15 * s], (t) => Math.max(TIP, 2.8 * (1 - t)), 5));
       horns.append(taper([x - 0.3 * s, y + 0.8 * s], [x - 0.45 * s, y + 0.95 * s], [x - 0.65 * s, y + 1.3 * s], (t) => Math.max(TIP, 2.6 * (1 - t)), 5));
     }
-    put('horns', horns.scaled(x, y, nu.scale.horns ?? 1).rotated(x, y, (DIR_TURN.horns[g.horns!.dir ?? 0] ?? 0) + (nu.turn.horns ?? 0)));
+    put('horns', horns.scaled(x, y, nu.scale.horns ?? 1).rotated(x, y, (DIR_TURN.horns[g.horns!.dir ?? 0] ?? 0) + (nu.turn.horns ?? 0) + swingOf(g, 'horns')));
   }
 
   // ---- antennae (gene K): a pair of thin stalks leaning forward <= 25 deg, a ball or a feathery leaf on top ----------
@@ -761,7 +761,7 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
     const ant = taper(a0, [a0[0] + L * 0.1, a0[1] + L * 0.6], a1, () => ANT_W, 10);
     if (antType === 1) ant.append(ellipse(a1[0], a1[1] + 0.6, 2.2, 2.2));
     else ant.append(taper([a0[0] + L * 0.18, a0[1] + L * 0.45], [a0[0] + L * 0.3, a0[1] + L * 0.75], [a1[0] + 0.3, a1[1] + 1.5], (t) => Math.max(TIP, 4.2 * Math.sin(Math.PI * Math.min(0.9, t * 0.9 + 0.1))), 10));
-    put('antennae', ant.scaled(a0[0], a0[1], nu.scale.antennae ?? 1).rotated(a0[0], a0[1], (DIR_TURN.antennae[g.antennae!.dir ?? 0] ?? 0) + (nu.turn.antennae ?? 0)));
+    put('antennae', ant.scaled(a0[0], a0[1], nu.scale.antennae ?? 1).rotated(a0[0], a0[1], (DIR_TURN.antennae[g.antennae!.dir ?? 0] ?? 0) + (nu.turn.antennae ?? 0) + swingOf(g, 'antennae')));
   }
 
   const crestType = g.crest!.type!;
@@ -831,13 +831,14 @@ function drawPaths(pose: Pose, g: MorphotypeGenome, rig: Rig, showBones: boolean
         [x - 0.3 * s, y + 1.05 * s], [x + 0.05 * s, y + 0.95 * s]])
       : polygon([A, [x - 0.62 * s, y + 0.78 * s], [x - 0.35 * s, y + 1.05 * s], [x + 0.05 * s, y + 0.95 * s]]);
     // a spread wing leans out sideways from its root (gene W): seen from the side it looks that much shorter
-    const k = Math.cos(wingSpread(g));
-    put('wingNear', w.scaled(x, y, 1, k));
-    put('wingFar', w.scaled(x, y, 1, k).translated(-3.5, 2.5));
+    // (and its handle swings it forward or back about the root)
+    const k = Math.cos(wingSpread(g)), sw = swingOf(g, 'wings');
+    put('wingNear', w.rotated(x, y, sw).scaled(x, y, 1, k));
+    put('wingFar', w.rotated(x, y, sw).scaled(x, y, 1, k).translated(-3.5, 2.5));
     // bones (bat) or feather shafts: raised ridges on the outer face, drawn as lines along their crests
     const ribs = new Path();
     for (const r of wingRibs(wingType, wingRoot, s)) ribs.append(tube(r.a, r.b, 0.9, 0.7));
-    put('wingRibs', ribs.scaled(x, y, 1, k));
+    put('wingRibs', ribs.rotated(x, y, sw).scaled(x, y, 1, k));
   }
 
   // ---- face -------------------------------------------------------------------------

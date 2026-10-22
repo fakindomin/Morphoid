@@ -45,7 +45,7 @@ describe('radial menu / Zero-Travel Undo', () => {
     expect(r.effects).toEqual([{ type: 'commit', ops: expect.any(Array) }]);
     const eff = r.effects[0]!;
     if (eff.type === 'commit') store.applyOps(eff.ops);
-    expect(store.getState().genome.horns).toEqual({ type: 1, span: 4, dir: 0 });
+    expect(store.getState().genome.horns).toEqual({ type: 1, span: 4, dir: 0, spanF: 8, thick: 8, swing: 8 });
     const v = viewMenu(state)!;
     expect(v.slices).toHaveLength(1);
     expect(v.slices[0]!.isBack).toBe(true);

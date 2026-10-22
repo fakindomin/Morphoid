@@ -10,6 +10,9 @@ import { buildModel, type Model } from '../three/model';
 import { buildSolidModel } from '../three/solidModel';
 import { previewStore, usePreview } from '../previewStore';
 import { studio } from '../studio';
+import { elementDef, pickAnchor, pullLength, pullSwing, pullThick, type Anchor } from '../../core/art/handles';
+import { handlesStore } from '../handlesStore';
+import { HandlesPanel } from './HandlesPanel';
 
 interface Props {
   /** 'mini': small turntable, no interaction */
@@ -133,7 +136,8 @@ export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
     };
     // what is on screen: the print bake if one matches, else the preview solid (also a slightly stale one while the
     // next is being built), else the quick outline slabs (first load, and the exploded view of separate pieces)
-    let shown: unknown = null, shownPalette = -1, shownGrey = false;
+    let shown: unknown = null, shownPalette = -1, shownGrey = false, shownSolid = false;
+    let onRebuilt = (): void => undefined; // (the handles follow the solid on screen, see below)
     const rebuild = (): void => {
       const { genome, plan } = studio.getState();
       const b = bakedRef.current, p = previewStore.get();
@@ -143,7 +147,7 @@ export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
       const shapeOf = (code: string | null): string => (code ?? '').split('#')[0]!.replace(/:P[0-9A-F]+/, '');
       const pal = solid && !b && shapeOf(p.code) !== shapeOf(studio.code()) ? p.palette : genome.palette!.index!;
       if (what === shown && pal === shownPalette && greyRef.current === shownGrey && model) return;
-      shown = what; shownPalette = pal; shownGrey = greyRef.current;
+      shown = what; shownPalette = pal; shownGrey = greyRef.current; shownSolid = !!solid;
       const next = b ? buildBakedModel(b, genome.palette!.index!, greyRef.current)
         : solid ? buildSolidModel(solid, pal, greyRef.current)
         : buildModel(genome, plan, reportFor(genome, plan));
@@ -155,8 +159,136 @@ export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
       if (!framed || variant === 'mini') { frame(); framed = true; }
       renderer.shadowMap.needsUpdate = true;
       invalidate();
+      onRebuilt();
     };
     rebuild();
+
+    // ---- handles: click an element of the solid, pull its handles (length, thickness, swing) --------------------
+    const handles = new THREE.Group();
+    handles.renderOrder = 10;
+    scene.add(handles);
+    type Kind = 'len' | 'thick' | 'swing';
+    const HANDLE_COLOR: Record<Kind, number> = { len: 0x2d7bff, thick: 0xff3b4e, swing: 0xffc61a };
+    const ball = new THREE.SphereGeometry(1, 20, 14);
+    const mats = (Object.keys(HANDLE_COLOR) as Kind[]).reduce((m, k) => ({ ...m, [k]: new THREE.MeshBasicMaterial({ color: HANDLE_COLOR[k], depthTest: false, transparent: true, opacity: 0.95 }) }), {} as Record<Kind, THREE.MeshBasicMaterial>);
+    const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true, opacity: 0.35 });
+    /** the anchors of the solid on screen (only while the solid shown is the preview of the current creature's shape) */
+    const anchorsNow = (): Anchor[] => (shownSolid ? previewStore.get().solid?.anchors ?? [] : []);
+    const v3 = (a: readonly number[]): THREE.Vector3 => new THREE.Vector3(a[0], a[1], a[2]);
+    let handleMeshes: { mesh: THREE.Mesh; kind: Kind; dir: THREE.Vector3; at: THREE.Vector3 }[] = [];
+    let current: Anchor | null = null;
+    const clearHandles = (): void => {
+      for (const o of [...handles.children]) { handles.remove(o); if ((o as THREE.Line).isLine) (o as THREE.Line).geometry.dispose(); }
+      handleMeshes = [];
+    };
+    const drawHandles = (): void => {
+      if (handlesStore.get().dragging) return;
+      clearHandles();
+      const sel = handlesStore.get().selected, list = anchorsNow();
+      current = sel ? list.find((x) => x.id === sel.id && x.side === sel.side) ?? list.find((x) => x.id === sel.id) ?? null : null;
+      if (!current) { invalidate(); return; }
+      const root = v3(current.root), tip = v3(current.tip), axis = tip.clone().sub(root), L = axis.length();
+      const r = current.radius, size = Math.max(1.3, Math.min(2.2, L * 0.07));
+      const thickAt = root.clone().addScaledVector(axis, 0.45).addScaledVector(v3(current.thickDir), r + 3);
+      const swingAt = root.clone().addScaledVector(axis, 0.75).addScaledVector(v3(current.swingDir), r + 3);
+      const lenAt = tip.clone().addScaledVector(axis.clone().normalize(), 2.5);
+      const put = (kind: Kind, at: THREE.Vector3, dir: THREE.Vector3): void => {
+        const mesh = new THREE.Mesh(ball, mats[kind]);
+        mesh.scale.setScalar(size); mesh.position.copy(at); mesh.renderOrder = 11;
+        handles.add(mesh);
+        handleMeshes.push({ mesh, kind, dir: dir.clone().normalize(), at: at.clone() });
+      };
+      const line = (pts: THREE.Vector3[]): void => {
+        const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lineMat);
+        l.renderOrder = 10; handles.add(l);
+      };
+      line([root, lenAt]);
+      line([root.clone().addScaledVector(axis, 0.45), thickAt]);
+      line([root.clone().addScaledVector(axis, 0.75), swingAt]);
+      put('len', lenAt, axis); put('thick', thickAt, v3(current.thickDir)); put('swing', swingAt, v3(current.swingDir));
+      invalidate();
+    };
+
+    const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+    const aim = (e: PointerEvent): void => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      ndc.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+      ray.setFromCamera(ndc, camera);
+    };
+    const toScreen = (p: THREE.Vector3): THREE.Vector2 => {
+      const q = p.clone().project(camera), rect = renderer.domElement.getBoundingClientRect();
+      return new THREE.Vector2((q.x + 1) / 2 * rect.width, (1 - q.y) / 2 * rect.height);
+    };
+    /** a pull in progress: which handle, where it started, the creature it started from */
+    let drag: { h: (typeof handleMeshes)[number]; x: number; y: number; perMm: THREE.Vector2; genome: ReturnType<typeof studio.getState>['genome']; a: Anchor; sent: number; first: boolean; last: number | null } | null = null;
+    let down: { x: number; y: number; t: number } | null = null;
+    const SEND_MS = 150;
+    const valueFor = (d: NonNullable<typeof drag>, mm: number): number => {
+      const def = elementDef(d.a.id), L = Math.hypot(d.a.tip[0] - d.a.root[0], d.a.tip[1] - d.a.root[1], d.a.tip[2] - d.a.root[2]);
+      return d.h.kind === 'len' ? pullLength(d.genome, def, L, mm) : d.h.kind === 'thick' ? pullThick(d.genome, def, d.a.radius, mm) : pullSwing(d.genome, def, def.splay ? L : L * 0.75, mm);
+    };
+    const send = (d: NonNullable<typeof drag>, value: number): void => {
+      const def = elementDef(d.a.id), ref = d.h.kind === 'len' ? def.length : d.h.kind === 'thick' ? def.thick : def.swing;
+      studio.fine(ref.block, ref.field, value, !d.first);
+      d.first = false; d.sent = performance.now(); d.last = null;
+    };
+    const onDown = (e: PointerEvent): void => {
+      if (variant !== 'main' || e.button !== 0) return;
+      down = { x: e.clientX, y: e.clientY, t: performance.now() };
+      if (!handleMeshes.length || !current) return;
+      aim(e);
+      const hit = ray.intersectObjects(handleMeshes.map((h) => h.mesh), false)[0];
+      const h = hit && handleMeshes.find((x) => x.mesh === hit.object);
+      if (!h) return;
+      // screen pixels per mm along the handle's direction
+      const p0 = toScreen(h.at), p1 = toScreen(h.at.clone().addScaledVector(h.dir, 10));
+      drag = { h, x: e.clientX, y: e.clientY, perMm: p1.sub(p0).multiplyScalar(0.1), genome: studio.getState().genome, a: current, sent: 0, first: true, last: null };
+      controls.enabled = false;
+      handlesStore.setDragging(true);
+      renderer.domElement.setPointerCapture(e.pointerId);
+      renderer.domElement.style.cursor = 'grabbing';
+      e.stopPropagation();
+    };
+    const onMove = (e: PointerEvent): void => {
+      if (!drag) {
+        if (variant !== 'main' || e.buttons || !handleMeshes.length) return;
+        aim(e);
+        renderer.domElement.style.cursor = ray.intersectObjects(handleMeshes.map((h) => h.mesh), false).length ? 'grab' : '';
+        return;
+      }
+      const d = drag, l2 = d.perMm.lengthSq();
+      if (l2 < 1e-6) return;
+      const mm = ((e.clientX - d.x) * d.perMm.x + (e.clientY - d.y) * d.perMm.y) / l2;
+      d.h.mesh.position.copy(d.h.at).addScaledVector(d.h.dir, mm);
+      invalidate();
+      const value = valueFor(d, mm);
+      if (performance.now() - d.sent > SEND_MS) send(d, value); else d.last = value;
+    };
+    const onUp = (e: PointerEvent): void => {
+      if (drag) {
+        const d = drag;
+        drag = null;
+        if (d.last !== null) send(d, d.last);
+        controls.enabled = variant === 'main';
+        renderer.domElement.style.cursor = '';
+        handlesStore.setDragging(false);
+        drawHandles();
+        return;
+      }
+      // a click (not a drag of the view): pick the element under the pointer
+      const c = down; down = null;
+      if (!c || Math.hypot(e.clientX - c.x, e.clientY - c.y) > 5 || performance.now() - c.t > 500 || !model || !shownSolid) return;
+      aim(e);
+      const hit = ray.intersectObject(model.root, true)[0];
+      const a = hit ? pickAnchor(anchorsNow(), hit.point.x, hit.point.y, hit.point.z) : null;
+      handlesStore.select(a ? { id: a.id, side: a.side } : null);
+    };
+    renderer.domElement.addEventListener('pointerdown', onDown, { capture: true });
+    renderer.domElement.addEventListener('pointermove', onMove);
+    renderer.domElement.addEventListener('pointerup', onUp);
+    const unHandles = [handlesStore.subscribe(drawHandles)];
+    onRebuilt = drawHandles;
+    drawHandles();
 
     let pending = false;
     const later = (): void => {
@@ -185,6 +317,7 @@ export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
     };
 
     return () => {
+      unHandles.forEach((u) => u()); clearHandles(); ball.dispose(); Object.values(mats).forEach((m) => m.dispose()); lineMat.dispose();
       cancelAnimationFrame(raf); window.clearTimeout(spinTimer); document.removeEventListener('visibilitychange', onVisible); unsubs.forEach((u) => u()); ro.disconnect(); controls.dispose();
       model?.dispose(); room.dispose(); pmrem.dispose(); renderer.dispose(); renderer.domElement.remove(); api.current = null;
     };
@@ -200,6 +333,7 @@ export function Viewport3D({ variant, explode = 0, baked = null }: Props) {
   return (
     <div className={`viewport3d ${variant}`} ref={host}>
       {variant === 'main' && preview.busy && preview.quality === 'draft' && !baked && explode < 0.02 && <div className="viewport-busy">Przeliczam bryłę…</div>}
+      {variant === 'main' && !baked && explode < 0.02 && <HandlesPanel anchors={preview.solid?.anchors ?? []} />}
     </div>
   );
 }
