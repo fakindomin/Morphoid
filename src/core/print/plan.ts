@@ -46,14 +46,29 @@ export interface PrinterProfile {
   nozzle: number;
   /** default bridge limit (mm) that prints cleanly without supports on this machine */
   maxBridge: number;
+  /** how many AMS units it takes (4 filaments each); 1 for the A1 series' AMS lite */
+  amsMax: number;
+  /** its multi-colour unit's name */
+  amsName: string;
 }
 
+/** The printers a 3MF can be set up for: each has a Bambu Studio project config (src/core/bake/bambu/<id>.json). */
 export const PRINTERS: Record<string, PrinterProfile> = {
-  p1s: { id: 'p1s', name: 'Bambu Lab P1S', bed: [256, 256, 256], nozzle: 0.4, maxBridge: 12 },
+  p1s: { id: 'p1s', name: 'Bambu Lab P1S', bed: [256, 256, 256], nozzle: 0.4, maxBridge: 12, amsMax: 4, amsName: 'AMS' },
+  p1p: { id: 'p1p', name: 'Bambu Lab P1P', bed: [256, 256, 256], nozzle: 0.4, maxBridge: 12, amsMax: 4, amsName: 'AMS' },
+  x1c: { id: 'x1c', name: 'Bambu Lab X1 Carbon', bed: [256, 256, 256], nozzle: 0.4, maxBridge: 12, amsMax: 4, amsName: 'AMS' },
+  p2s: { id: 'p2s', name: 'Bambu Lab P2S', bed: [256, 256, 256], nozzle: 0.4, maxBridge: 12, amsMax: 4, amsName: 'AMS' },
+  a1: { id: 'a1', name: 'Bambu Lab A1', bed: [256, 256, 256], nozzle: 0.4, maxBridge: 12, amsMax: 1, amsName: 'AMS lite' },
+  a1mini: { id: 'a1mini', name: 'Bambu Lab A1 mini', bed: [180, 180, 180], nozzle: 0.4, maxBridge: 12, amsMax: 1, amsName: 'AMS lite' },
 };
+
+/** Filament slots a printer has with `ams` multi-colour units: 4 per unit, 1 without any. */
+export const filamentSlots = (ams: number): number => (ams > 0 ? ams * 4 : 1);
 
 export interface PrintPlan {
   printer: string;
+  /** AMS units on the printer (0 = none: one filament, the creature prints in its body colour) */
+  ams: number;
   /** user-tunable bridge limit (mm); defaults to the printer's */
   maxBridge: number;
   /**
@@ -67,11 +82,11 @@ export interface PrintPlan {
 
 export const FORCED: readonly PartGroup[] = GROUPS.filter((g) => g.forced).map((g) => g.id);
 
-export function planWhole(printer = 'p1s'): PrintPlan {
-  return { printer, maxBridge: PRINTERS[printer]!.maxBridge, supports: 'allowed', separate: [...FORCED] };
+export function planWhole(printer = 'p1s', ams = 1): PrintPlan {
+  return { printer, ams, maxBridge: PRINTERS[printer]!.maxBridge, supports: 'allowed', separate: [...FORCED] };
 }
-export function planModular(printer = 'p1s'): PrintPlan {
-  return { printer, maxBridge: PRINTERS[printer]!.maxBridge, supports: 'allowed', separate: GROUPS.map((g) => g.id) };
+export function planModular(printer = 'p1s', ams = 1): PrintPlan {
+  return { printer, ams, maxBridge: PRINTERS[printer]!.maxBridge, supports: 'allowed', separate: GROUPS.map((g) => g.id) };
 }
 export function isSeparate(plan: PrintPlan, g: PartGroup): boolean {
   return plan.separate.includes(g) || FORCED.includes(g);

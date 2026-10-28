@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { BakeResult } from '../../core/bake/bake';
-import { FILAMENTS } from '../../core/bake/paint';
+import { printHex } from '../../core/filaments';
 import { PALETTES } from '../../core/palette';
 import type { Model } from './model';
 
@@ -8,7 +8,8 @@ import type { Model } from './model';
 export function buildBakedModel(result: BakeResult, paletteIndex: number, grey = false): Model {
   const root = new THREE.Group();
   const geos: THREE.BufferGeometry[] = [];
-  const mats = [...PALETTES[paletteIndex]!, '#ffffff'].slice(0, FILAMENTS)
+  const palette = PALETTES[paletteIndex] ?? PALETTES[0]!;
+  const mats = result.inks.map((k) => printHex(k, palette))
     .map((color) => new THREE.MeshStandardMaterial({ color: grey ? '#a7abb1' : color, roughness: grey ? 0.62 : 0.5, metalness: 0 }));
   for (const p of result.pieces) {
     const geo = new THREE.BufferGeometry();
@@ -16,7 +17,7 @@ export function buildBakedModel(result: BakeResult, paletteIndex: number, grey =
     // triangles sorted by filament, one draw group per filament
     const nt = p.mesh.indices.length / 3, index = new Uint32Array(p.mesh.indices.length);
     let at = 0;
-    for (let f = 0; f < FILAMENTS; f++) {
+    for (let f = 0; f < mats.length; f++) {
       const start = at;
       for (let t = 0; t < nt; t++) if ((p.paint[t] ?? 0) === f) { index.set(p.mesh.indices.subarray(3 * t, 3 * t + 3), at); at += 3; }
       if (at > start) geo.addGroup(start, at - start, f);

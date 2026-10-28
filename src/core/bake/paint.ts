@@ -1,19 +1,16 @@
 /**
- * Colours for multi-material printing (AMS): every triangle of a baked piece gets one of four filaments,
- * c1 (body), c2 (accents), c3 (details) and white (eye whites, teeth).
+ * Colours for multi-material printing (AMS): every triangle of a baked piece gets one filament colour: the
+ * palette's c1 (body), c2 (accents), c3 (details) and white (eye whites, teeth), or the colour picked for its element.
  *  - On the solid, a triangle takes the colour of the element it is closest to (an eye on the head, a horn).
  *  - Elements too thin to be geometry (pupils, brows, mouth, inner ear) and the body pattern are painted on the
  *    surface where their outline covers it: colour regions, not relief.
  */
 import type { XY } from '../art/path';
-import type { ColorKey, Part3D } from '../art/spec3d';
+import type { Part3D } from '../art/spec3d';
+import { printKey, type Ink } from '../filaments';
 import { edgesOf, partBox, sdPolys, slabDist, toLocal, untilt, type Edge } from './field';
 import type { Mesh } from './surfacenets';
 import { limbSd } from '../art/limb';
-
-/** AMS slot (0-based) of every colour the drawing uses: shades of a palette colour print in that colour. */
-export const FILAMENT_OF: Record<ColorKey, number> = { c1: 0, c1dark: 0, c2: 1, c2soft: 1, c3: 2, ink: 2, white: 3 };
-export const FILAMENTS = 4;
 
 /** Colour regions that belong on one element only (the iris and pupil on the eyeball, never on the eyelid over it). */
 const DECAL_ON: Partial<Record<string, string>> = { iris: 'eye', pupil: 'eye' };
@@ -44,21 +41,26 @@ function partSd(s: Shape, x: number, y: number, z: number): number {
 }
 
 /**
- * Filament (0-based AMS slot) of every triangle of `mesh` (model coordinates).
- * `solids` are the elements this piece is made of, `decals` the thin ones painted on it, `pattern` the body pattern
- * (painted c3 on the torso).
+ * Filament of every triangle of `mesh` (model coordinates), as an index into `inks` (the print colours of the whole
+ * bake, see printKey; new ones are appended). `solids` are the elements this piece is made of, `decals` the thin
+ * ones painted on it, `pattern` the body pattern (painted on the torso in `patternInk`).
  */
-export function paintMesh(mesh: Mesh, solids: Part3D[], decals: Part3D[], pattern: XY[][] = []): Uint8Array {
-  const keys = paintKeys(mesh, solids, decals, pattern), out = new Uint8Array(keys.length);
-  keys.forEach((k, t) => { out[t] = FILAMENT_OF[k]; });
+export function paintMesh(mesh: Mesh, solids: Part3D[], decals: Part3D[], inks: Ink[], pattern: XY[][] = [], patternInk: Ink = 'c3'): Uint8Array {
+  const keys = paintKeys(mesh, solids, decals, pattern, patternInk), out = new Uint8Array(keys.length);
+  keys.forEach((k, t) => {
+    const p = printKey(k);
+    let i = inks.indexOf(p);
+    if (i < 0) i = inks.push(p) - 1;
+    out[t] = i;
+  });
   return out;
 }
 
 /** The drawing's colour (every shade, not just the filament) of every triangle: the 3D preview paints with these. */
-export function paintKeys(mesh: Mesh, solids: Part3D[], decals: Part3D[], pattern: XY[][] = []): ColorKey[] {
+export function paintKeys(mesh: Mesh, solids: Part3D[], decals: Part3D[], pattern: XY[][] = [], patternInk: Ink = 'c3'): Ink[] {
   const P = mesh.positions, I = mesh.indices, nt = I.length / 3;
-  const out: ColorKey[] = new Array(nt);
-  const colorAt = painter(solids, decals, pattern);
+  const out: Ink[] = new Array(nt);
+  const colorAt = painter(solids, decals, pattern, patternInk);
   for (let t = 0; t < nt; t++) {
     const a = 3 * I[3 * t]!, b = 3 * I[3 * t + 1]!, c = 3 * I[3 * t + 2]!;
     const x = (P[a]! + P[b]! + P[c]!) / 3, y = (P[a + 1]! + P[b + 1]! + P[c + 1]!) / 3, z = (P[a + 2]! + P[b + 2]! + P[c + 2]!) / 3;
@@ -75,18 +77,18 @@ export function paintKeys(mesh: Mesh, solids: Part3D[], decals: Part3D[], patter
  * The colour at a surface point (model mm) whose unit normal has z component `nz`: the closest solid element, the
  * pattern on the torso, and the colour regions drawn over them.
  */
-export function painter(solids: Part3D[], decals: Part3D[], pattern: XY[][] = []): (x: number, y: number, z: number, nz: number) => ColorKey {
+export function painter(solids: Part3D[], decals: Part3D[], pattern: XY[][] = [], patternInk: Ink = 'c3'): (x: number, y: number, z: number, nz: number) => Ink {
   const solid = solids.map((p) => shapeOf(p, REACH_MM));
   const decal = decals.map((p) => shapeOf(p, DECAL_Z_MM));
   const patEdges = pattern.length ? edgesOf(pattern) : [];
   return (x, y, z, nz) => {
-    let color: ColorKey = solids[0]?.color ?? 'c1', best = Infinity, near: Part3D | null = null;
+    let color: Ink = solids[0]?.color ?? 'c1', best = Infinity, near: Part3D | null = null;
     for (const s of solid) {
       if (!within(s, x, y, z)) continue;
       const d = partSd(s, x, y, z);
       if (d < best) { best = d; color = s.part.color; near = s.part; }
     }
-    if (near?.slot === 'torso' && patEdges.length && sdPolys(patEdges, pattern, x, y) < 0) color = 'c3';
+    if (near?.slot === 'torso' && patEdges.length && sdPolys(patEdges, pattern, x, y) < 0) color = patternInk;
     // colour regions: the last one drawn wins (a pupil over the eye), only on the face turned to its side
     for (const s of decal) {
       if (!within(s, x, y, z)) continue;

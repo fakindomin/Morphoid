@@ -2,7 +2,8 @@ import { PRESETS, blockDef, dimensions as D, presetGenome, serialize, type EnumF
 import { PALETTES } from '../../core/palette';
 import { useEffect, useRef, useState } from 'react';
 import { studio, useStudioState } from '../studio';
-import { SOCKET_TILE, TILE_GROUPS, type TileDef, type TileField } from '../tiles';
+import { SOCKET_TILE, TILE_COLORS, TILE_GROUPS, type TileDef, type TileField } from '../tiles';
+import { COLOR_TARGETS, FILAMENT_COLORS } from '../../core/filaments';
 
 
 function Segmented({ items, value, onChange, disabled }: {
@@ -170,7 +171,10 @@ const cap = (w: string): string => w.charAt(0).toUpperCase() + w.slice(1);
 /** A closed category's summary: the chosen shape and, when the part is there, how big it is. */
 function statusOf(tile: TileDef, g: Genome): string {
   const first = tile.fields[0];
-  if (!first) return `Triada ${g.palette!.index! + 1}`;
+  if (!first) {
+    const own = COLOR_TARGETS.filter((t) => (g.colors?.[t.id] ?? 0) > 0).length;
+    return `Triada ${g.palette!.index! + 1}${own ? ` + ${own} ${own === 1 ? 'własny' : own < 5 ? 'własne' : 'własnych'}` : ''}`;
+  }
   const f = blockDef(first.block).fields.find((x) => x.name === first.field)!;
   const sized = tile.fields.filter((tf) => isSize(tf) && !isOff(tf, g));
   if (f.kind !== 'enum') return cap(sized.slice(0, 2).map((tf) => wordOf(tf, g)).join(', ')); // the neck: "Długa, gruba"
@@ -183,10 +187,45 @@ function statusOf(tile: TileDef, g: Genome): string {
   return word && word !== shape.toLowerCase() ? `${shape}, ${word}` : shape;
 }
 
+/** The palette colour an element takes when no colour is picked for it. */
+const PALETTE_OF: Record<string, 0 | 1 | 2> = { horns: 1, crest: 1, wings: 1, eyes: 1, pattern: 2 };
+
+/**
+ * An element's own colour: the palette's (the first swatch) or one of the Bambu PLA Basic colours. It goes into the
+ * DNA and into the 3MF as a filament.
+ */
+function ColorControl({ target, label }: { target: string; label: string }) {
+  const { genome } = useStudioState();
+  const value = genome.colors?.[target] ?? 0;
+  const own = (PALETTES[genome.palette!.index!] ?? PALETTES[0]!)[PALETTE_OF[target] ?? 0];
+  const set = (v: number): void => { studio.applyOps([{ kind: 'set', block: 'colors', field: target, value: v }]); };
+  return (
+    <div className="field">
+      <div className="control-label">{label}<b>{value ? FILAMENT_COLORS[value - 1]?.label : 'z palety'}</b></div>
+      <div className="color-grid" role="radiogroup" aria-label={label}>
+        <button type="button" role="radio" aria-checked={!value} className={`color-sw palette-sw${value ? '' : ' active'}`} title="Z palety"
+          style={{ background: own }} onClick={() => set(0)}>P</button>
+        {FILAMENT_COLORS.map((c, i) => (
+          <button key={c.id} type="button" role="radio" aria-checked={value === i + 1} className={`color-sw${value === i + 1 ? ' active' : ''}`}
+            title={c.label} aria-label={c.label} style={{ background: c.hex }} onClick={() => set(i + 1)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function PaletteGrid() {
   const { genome } = useStudioState();
   const cur = genome.palette!.index!;
+  const picked = COLOR_TARGETS.filter((t) => (genome.colors?.[t.id] ?? 0) > 0);
   return (
+    <>
+    {picked.length > 0 && (
+      <p className="hint">
+        Własne kolory: {picked.map((t) => `${t.label.toLowerCase()} (${FILAMENT_COLORS[genome.colors![t.id]! - 1]?.label.toLowerCase()})`).join(', ')}. Reszta bierze kolory z palety.
+        <button type="button" className="link-btn" onClick={() => studio.applyOps(picked.map((t) => ({ kind: 'set', block: 'colors', field: t.id, value: 0 }) as Op))}>Wszystko z palety</button>
+      </p>
+    )}
     <div className="palette-grid">
       {PALETTES.map((tri, i) => (
         <button key={i} type="button" className={`swatch${i === cur ? ' active' : ''}`} title={`Triada ${i + 1}`}
@@ -195,6 +234,7 @@ function PaletteGrid() {
         </button>
       ))}
     </div>
+    </>
   );
 }
 
@@ -273,6 +313,7 @@ export function LeftColumn({ activeSocket, pick, hotTile, onHoverTile }: {
                 {on && (
                   <div className="cat-b">
                     {tile.palette ? <PaletteGrid /> : tile.fields.map((tf) => <FieldControl key={`${tf.block}.${tf.field}.${tf.control ?? ''}`} tf={tf} />)}
+                    {TILE_COLORS[tile.id]?.map((c) => <ColorControl key={c.target} target={c.target} label={c.label} />)}
                   </div>
                 )}
               </section>

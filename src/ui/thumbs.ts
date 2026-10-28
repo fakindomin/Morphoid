@@ -7,6 +7,7 @@ import { applyOp, solveRig, withoutSculpt, type BlockId, type MorphotypeGenome, 
 import { targetPose } from '../core/art/pose';
 import { buildPaths, SLOTS, type SlotId, type SlotKind } from '../core/art/shapes';
 import { PALETTES } from '../core/palette';
+import { pickedColour } from './sketch';
 
 /** For a field: the slots that draw it, and the body around them shown faintly for context. */
 interface Focus { parts: SlotId[]; context: SlotId[] }
@@ -92,7 +93,7 @@ export function makeThumb(g: MorphotypeGenome, ops: Op[], block: BlockId, field:
   for (const [id, kind] of SLOTS) {
     const p = paths[id];
     if (p.empty) continue;
-    const fill = fillOf(kind, pal);
+    const fill = fillOf(kind, pal) && (pickedColour(g2.colors ?? {}, id, kind) ?? fillOf(kind, pal));
     if (!fill) continue;
     const inPart = whole || parts.has(id);
     if (!inPart && !context.has(id)) continue;

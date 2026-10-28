@@ -13,6 +13,7 @@ import { addPart, fuseParts, clipBelow, clipMid, gridDims, makeGrid, partBox } f
 import { flipMesh, validateMesh, type MeshValidation } from './mesh';
 import { JOIN_MARGIN_MM, crop, cutAway, joinPart, newHostSockets, type HostSockets, type Joint } from './joint';
 import { paintMesh } from './paint';
+import { patternInk, printKey, type Ink } from '../filaments';
 import { smoothMesh } from './smooth';
 import { makeManifoldField, surfaceNets, type Grid3, type Mesh } from './surfacenets';
 
@@ -126,7 +127,7 @@ export interface BakedPiece {
   orientation: 'upright' | 'flat';
   /** model coordinates (mm, y up) */
   mesh: Mesh;
-  /** AMS filament (0-based: c1, c2, c3, white) of every triangle, see paint.ts */
+  /** filament of every triangle: an index into BakeResult.inks, see paint.ts */
   paint: Uint8Array;
   validation: MeshValidation;
   ms: number;
@@ -138,7 +139,13 @@ export interface BakedPiece {
   joints: (Joint & { hostId: string })[];
 }
 
-export interface BakeResult { pieces: BakedPiece[]; ms: number; quality: BakeQuality }
+export interface BakeResult {
+  pieces: BakedPiece[];
+  /** the print colours the pieces' paint indexes: palette keys (c1, c2, c3, white) or picked colours (hex); 0 = the body */
+  inks: Ink[];
+  ms: number;
+  quality: BakeQuality;
+}
 
 export interface BakeProgress {
   /** 0..1 over the whole bake, weighted by the size of every piece's grid */
@@ -242,6 +249,8 @@ export function bake(
 
   // 3. meshes
   const pieces: BakedPiece[] = [];
+  // the print colours of every piece; the body's colour is filament 1 (the one a slicer gives an unpainted object)
+  const inks: Ink[] = [printKey(all.find((p) => p.slot === 'torso')?.color ?? 'c1')];
   const rest = 1 - PHASES.field;
   const start = { topology: 0, mesh: PHASES.topology / rest, validate: (PHASES.topology + PHASES.mesh) / rest } as const;
   doneW = 0;
@@ -258,11 +267,11 @@ export function bake(
     const validation = mesh === raw ? rawValidation : validateMesh(mesh);
     // a part swallowed whole by the piece it gave way to (ears inside a big octopus mantle) leaves nothing to print
     if (id !== 'body' && validation.shells === 0) { doneW += weights[n]! * rest; return; }
-    const paint = paintMesh(mesh, byPiece.get(id)!.filter((p) => !p.carve), decalsOf(id), id === 'body' ? paths.pattern.flatten(8) : []);
+    const paint = paintMesh(mesh, byPiece.get(id)!.filter((p) => !p.carve), decalsOf(id), inks, id === 'body' ? paths.pattern.flatten(8) : [], patternInk(genome.colors ?? {}));
     const flat = id !== 'body' && GROUPS.find((x: { id: PartGroup }) => x.id === id)?.orientation === 'flat';
     pieces.push({ id, label: labelOf(id), orientation: flat ? 'flat' : 'upright', mesh, paint, validation, ms: performance.now() - t1, holesClosed, clashesWith: clashes.get(id) ?? [], joints: (joints.get(id) ?? []).map((j) => ({ ...j, hostId: hostsOf(id)[j.host]! })) });
     doneW += weights[n]! * rest;
   });
   onProgress?.({ frac: 1, label: 'Gotowe', piece: '', index: order.length, count: order.length });
-  return { pieces, ms: performance.now() - t0, quality };
+  return { pieces, inks, ms: performance.now() - t0, quality };
 }

@@ -3,6 +3,7 @@ import {
   blockDef, type BlockDef, type BlockId, type Field, type GeneDef,
 } from './schema';
 import { readV1, V1_HEX_LENGTH } from './v1';
+import { FILAMENT_COLORS } from '../filaments';
 
 /** blockId -> fieldName -> value. Always fully populated and canonical. */
 export type MorphotypeGenome = Record<BlockId, Record<string, number>>;
@@ -33,14 +34,15 @@ export function defaultGenome(): MorphotypeGenome {
 }
 
 function defaultValue(_b: BlockDef, f: Field): number {
-  return f.kind === 'step' ? 2 : f.kind === 'fine' ? FINE_ZERO : f.def; // step 2 = first step of class 1 ("2: Średni")
+  return f.kind === 'step' ? 2 : f.kind === 'fine' ? FINE_ZERO : f.kind === 'color' ? 0 : f.def; // step 2 = first step of class 1 ("2: Średni")
 }
 
 export const cloneGenome = (g: MorphotypeGenome): MorphotypeGenome =>
   Object.fromEntries(Object.entries(g).map(([k, v]) => [k, { ...v }])) as MorphotypeGenome;
 
 /** Fieldwise max value (exclusive) for validation. */
-export const fieldRange = (f: Field): number => (f.kind === 'step' ? STEPS : f.kind === 'fine' ? FINE_LEVELS : f.options.length);
+export const fieldRange = (f: Field): number =>
+  (f.kind === 'step' ? STEPS : f.kind === 'fine' ? FINE_LEVELS : f.kind === 'color' ? FILAMENT_COLORS.length + 1 : f.options.length);
 
 /** Clamp every field into its legal range, zero 'none' blocks. Pure. */
 export function canonicalize(g: MorphotypeGenome): MorphotypeGenome {
@@ -166,6 +168,7 @@ export function geneText(g: MorphotypeGenome, gd: GeneDef): string {
   const sizes = gd.sizes.map((sz) => {
     const v = g[sz.block]![sz.field]!;
     if (field(sz.block, sz.field).kind === 'fine') return v.toString(16).toUpperCase(); // one hex digit, 8 = unchanged
+    if (field(sz.block, sz.field).kind === 'color') return hex2(v); // two hex digits, 00 = the palette's colour
     return absent ? '0' : String(v + 1);
   }).join('');
   return gd.letter + hex2(id) + (gd.sizes.length ? '.' + sizes : '');
@@ -211,17 +214,21 @@ export function describeGene(genome: MorphotypeGenome, gd: GeneDef): string {
   const f = field(block, name);
   const v = genome[block]![name]!;
   const variant = f.kind === 'enum' ? f.options[v]?.label ?? '?' : String(v + 1);
-  const absent = variantId(block, name, v) === 0 && zeroBased(block, f);
-  const sizes = absent ? [] : gd.sizes.map((sz) => {
+  const absent = variantId(block, name, v) === 0 && zeroBased(block, f) && block !== 'palette';
+  const sizes = absent ? [] : gd.sizes.flatMap((sz) => {
     const sf = field(sz.block, sz.field), v2 = genome[sz.block]![sz.field]!;
-    return sf.kind === 'step' ? `${sf.label} ${v2 + 1}` : sf.kind === 'fine' ? `${sf.label} ${fineText(sf, v2)}`
-      : `${sf.label ?? 'Kierunek'}: ${sf.options[v2]?.label ?? '?'}`;
+    if (sf.kind === 'color') return v2 ? [`${sf.label}: ${FILAMENT_COLORS[v2 - 1]?.label ?? '?'}`] : []; // only the colours picked
+    return [sf.kind === 'step' ? `${sf.label} ${v2 + 1}` : sf.kind === 'fine' ? `${sf.label} ${fineText(sf, v2)}`
+      : `${sf.label ?? 'Kierunek'}: ${sf.options[v2]?.label ?? '?'}`];
   });
   return [`${gd.label}: ${variant}`, ...sizes].join(' · ');
 }
 
 /** Genes that grew a size digit at their end: how many digits they had before. */
-const LEGACY_DIGITS: Record<string, number> = { L: 1, N: 1, H: 0, O: 2, V: 1, D: 0, X: 2, W: 1 };
+const LEGACY_DIGITS: Record<string, number> = { L: 1, N: 1, H: 0, O: 2, V: 1, D: 0, X: 2, W: 1, P: 0 };
+
+/** Characters a size field takes in the code: element colours two hex digits, the rest one. */
+const widthOf = (f: Field): number => (f.kind === 'color' ? 2 : 1);
 
 const GENE_RE = /^([A-Z])([0-9A-F]{2})(?:\.([0-9A-F]*))?$/;
 
@@ -247,15 +254,22 @@ function parseV2(body: string, base?: MorphotypeGenome): ParseResult {
       g[gd.variant.block]![gd.variant.field] = v;
     } else if (id !== 0) { badGenes.push(tok); continue; }
     const digits = m[3] ?? '';
+    let at = 0;
     gd.sizes.forEach((sz, i) => {
-      if (field(sz.block, sz.field).kind === 'fine') { // one hex digit
-        const ch = digits[i];
+      const sf = field(sz.block, sz.field), ch = digits.slice(at, at + widthOf(sf)) || undefined;
+      at += widthOf(sf);
+      if (sf.kind === 'fine') { // one hex digit
         if (ch !== undefined) g[sz.block]![sz.field] = parseInt(ch, 16);
         return;
       }
       // a digit the gene did not have yet when the code was written: the look of that time (the default)
-      if (digits[i] === undefined && i >= (LEGACY_DIGITS[gd.letter] ?? Infinity)) { g[sz.block]![sz.field] = defaultValue(blockDef(sz.block), field(sz.block, sz.field)); return; }
-      const d = Number(digits[i] ?? NaN);
+      if (ch === undefined && i >= (LEGACY_DIGITS[gd.letter] ?? Infinity)) { g[sz.block]![sz.field] = defaultValue(blockDef(sz.block), sf); return; }
+      if (sf.kind === 'color') { // two hex digits
+        const n = ch?.length === 2 ? parseInt(ch, 16) : NaN;
+        if (n >= 0 && n < fieldRange(sf)) g[sz.block]![sz.field] = n; else badGenes.push(tok);
+        return;
+      }
+      const d = Number(ch ?? NaN);
       if (d >= 1 && d <= fieldRange(field(sz.block, sz.field))) g[sz.block]![sz.field] = d - 1;
       else if (!(d === 0 || Number.isNaN(d))) badGenes.push(tok);
     });
@@ -337,6 +351,7 @@ export function mulberry32(seed: number): () => number {
 /** Values a menu or the dice may pick: every step, every enum option that is not retired. */
 export const offered = (f: Field): number[] =>
   f.kind === 'fine' ? [FINE_ZERO] // the dice never deform: that is the sculptor's job
+  : f.kind === 'color' ? [0] // nor paint: a rolled creature wears its palette
   : f.kind === 'step' ? Array.from({ length: STEPS }, (_, i) => i) : f.options.flatMap((o, i) => (o.retired ? [] : [i]));
 
 export function randomGenome(rand: () => number): MorphotypeGenome {
@@ -384,7 +399,7 @@ export function surpriseGenome(rand: () => number): MorphotypeGenome {
 /** Change `count` random fields by one notch/variant. */
 export function mutate(g: MorphotypeGenome, rand: () => number, count = 2): MorphotypeGenome {
   let out = cloneGenome(g);
-  const all = BLOCKS.flatMap((b) => b.fields.map((f) => [b, f] as const));
+  const all = BLOCKS.flatMap((b) => b.fields.filter((f) => f.kind !== 'color').map((f) => [b, f] as const));
   for (let i = 0; i < count; i++) {
     const [b, f] = all[Math.floor(rand() * all.length)]!;
     const cur = out[b.id]![f.name]!;

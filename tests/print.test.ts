@@ -20,9 +20,9 @@ describe('element contract: 2D <-> 3D <-> print', () => {
     expect(missing, `2D elements without a 3D/print spec: ${missing.join(', ')}`).toEqual([]);
   });
 
-  it('every visible genome block has a part spec (palette is colour only)', () => {
+  it('every visible genome block has a part spec (palette and element colours are colour only)', () => {
     const blocks = new Set(PARTS.flatMap((p) => p.blocks));
-    const missing = BLOCKS.map((b) => b.id).filter((b) => b !== 'palette' && !blocks.has(b));
+    const missing = BLOCKS.map((b) => b.id).filter((b) => b !== 'palette' && b !== 'colors' && !blocks.has(b));
     expect(missing).toEqual([]);
   });
 

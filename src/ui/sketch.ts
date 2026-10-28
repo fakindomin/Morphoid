@@ -12,6 +12,7 @@ import type { XY } from '../core/art/path';
 import { HEAT, heatAt, type HeatLevel, type PrintReport } from '../core/print';
 import { SLOT_TILE } from './tiles';
 import type { ColorKey } from '../core/art/spec3d';
+import { inkOf, isHex, type ElementColors, type Ink } from '../core/filaments';
 
 export type SketchMode = 'color' | 'print';
 
@@ -102,6 +103,8 @@ export interface SketchInput {
   paths: SlotPaths;
   mode: SketchMode;
   palette: readonly [string, string, string];
+  /** the element colours picked in the studio (they replace the palette's on their elements) */
+  colors?: ElementColors;
   report: PrintReport;
   /** category lit up (hovered on the sketch or in the left column) */
   hot: string | null;
@@ -141,10 +144,11 @@ export function drawSketch(ctx: CanvasRenderingContext2D, px: number, s: SketchI
     return lv as HeatLevel;
   };
 
-  const baseOf = (kind: SlotKind): string =>
+  const paletteBase = (kind: SlotKind): string =>
     kind === 'skin' ? c1 : kind === 'skinFar' ? mix(c1, '#000000', 0.3)
       : kind === 'accent' ? c2 : kind === 'accentFar' ? mix(c2, '#000000', 0.3)
         : kind === 'accentSoft' ? mix(c2, '#ffffff', 0.45) : c3;
+  const picked = (id: SlotId, kind: SlotKind): string | null => (s.colors ? pickedColour(s.colors, id, kind) : null);
 
 
   // the lit element first: a bright outline round the whole part (drawn behind it, so only its rim shows outside the
@@ -189,9 +193,10 @@ export function drawSketch(ctx: CanvasRenderingContext2D, px: number, s: SketchI
     if (tile) hits.push({ slot: id, tile, polys });
     const far = FAR.includes(kind);
 
+    const baseOf = (k: SlotKind): string => picked(id, k) ?? paletteBase(k);
     if (!FACETED.includes(kind)) {
       // details (eyes, mouth, teeth, claws) in flat colour
-      const col = detailColour(kind, s.mode, c1, c2, c3);
+      const col = (s.mode === 'color' ? picked(id, kind) : null) ?? detailColour(kind, s.mode, c1, c2, c3);
       ctx.fillStyle = lit ? mix(col, '#ffffff', 0.15) : col;
       for (const poly of polys) { fillPoly(poly); ctx.fill(); }
       continue;
@@ -260,6 +265,21 @@ export function drawSketch(ctx: CanvasRenderingContext2D, px: number, s: SketchI
   return { hits, area };
 }
 
+/** The palette key a drawing kind stands for, where an element colour may replace it. */
+const KIND_KEY: Partial<Record<SlotKind, ColorKey>> = {
+  skin: 'c1', skinFar: 'c1', accent: 'c2', accentFar: 'c2', accentSoft: 'c2soft', pattern: 'c3', iris: 'c2soft',
+  lid: 'c1dark', lip: 'c1dark', claw: 'c1dark',
+};
+/** How much darker than its element colour a kind is drawn (the palette's shades, see detailColour). */
+const KIND_DARK: Partial<Record<SlotKind, number>> = { skinFar: 0.3, accentFar: 0.3, lid: 0.12, lip: 0.38, claw: 0.45 };
+
+/** The colour picked for the element of slot `id`, in the shade of drawing kind `kind`; null = the palette's. */
+export function pickedColour(colors: ElementColors, id: SlotId, kind: SlotKind): string | null {
+  const key = KIND_KEY[kind];
+  const ink = key ? inkOf(colors, id, key) : null;
+  return ink && isHex(ink) ? mix(ink, '#000000', KIND_DARK[kind] ?? 0) : null;
+}
+
 function detailColour(kind: SlotKind, mode: SketchMode, c1: string, c2: string, c3: string): string {
   const ink = '#0b1220';
   if (mode === 'print') {
@@ -290,7 +310,7 @@ function detailColour(kind: SlotKind, mode: SketchMode, c1: string, c2: string, 
 /** One part of a turned view (front, top, or between two views), its outline already morphed. */
 export interface ViewPartDraw {
   slot: SlotId;
-  color: ColorKey;
+  color: Ink;
   /** the outline resampled to an even count, index 0 = the cut's start */
   ring: XY[];
   /** smaller outlines of the same part, drawn flat */
@@ -320,8 +340,8 @@ export function drawParts(ctx: CanvasRenderingContext2D, px: number, s: PartsInp
     poly.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
     ctx.closePath();
   };
-  const baseOf = (k: ColorKey): string | null =>
-    k === 'c1' ? c1 : k === 'c1dark' ? mix(c1, '#000000', 0.3) : k === 'c2' ? c2 : k === 'c2soft' ? mix(c2, '#ffffff', 0.45) : k === 'c3' ? c3 : null;
+  const baseOf = (k: Ink): string | null =>
+    isHex(k) ? k : k === 'c1' ? c1 : k === 'c1dark' ? mix(c1, '#000000', 0.3) : k === 'c2' ? c2 : k === 'c2soft' ? mix(c2, '#ffffff', 0.45) : k === 'c3' ? c3 : null;
 
   if (s.hot) {
     ctx.save();

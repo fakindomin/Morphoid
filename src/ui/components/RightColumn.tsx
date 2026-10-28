@@ -3,10 +3,12 @@ import { parse } from '../../core';
 import { exportBundle } from '../../core/bake/orient';
 import { export3mf } from '../../core/bake/threemf';
 import { PALETTES } from '../../core/palette';
-import { GROUPS, isSeparate, planKind, planModular, planWhole, type PartGroup } from '../../core/print';
+import { GROUPS, PRINTERS, filamentSlots, isSeparate, planKind, planModular, planWhole, type PartGroup } from '../../core/print';
+import { filamentPlan, printHex } from '../../core/filaments';
+import { inkName } from '../../core/bake/threemf';
 import { bakeStore } from '../bakeStore';
 import { download } from '../download';
-import { fittedPlan, restGeometry, usePrintReport } from '../printReport';
+import { creatureInks, fittedPlan, restGeometry, usePrintReport } from '../printReport';
 import { newSeed, storage, studio, useStudioState } from '../studio';
 import { useBakeFresh } from './BakeStatus';
 import { previewStore, usePreview } from '../previewStore';
@@ -125,6 +127,55 @@ function ProjectBody() {
   );
 }
 
+/**
+ * The printer the 3MF is set up for and its AMS units: how many filaments the creature needs, and which colours
+ * share a filament when the printer has fewer slots than that.
+ */
+function PrinterBody() {
+  const { genome, plan } = useStudioState();
+  const machine = PRINTERS[plan.printer] ?? PRINTERS.p1s!;
+  const palette = PALETTES[genome.palette!.index!] ?? PALETTES[0]!;
+  const inks = useMemo(() => creatureInks(genome), [genome]);
+  const slots = filamentSlots(plan.ams);
+  const fp = filamentPlan(inks.map((k) => printHex(k, palette)), slots);
+  const nameOf = (hex: string): string => inkName(inks.find((k) => printHex(k, palette) === hex) ?? 'c1', palette);
+  const units = Array.from({ length: machine.amsMax + 1 }, (_, i) => i);
+  return (
+    <>
+      <label className="field-row">
+        <span className="control-label">Drukarka</span>
+        <select value={machine.id} onChange={(e) => studio.setPrinter(e.target.value, plan.ams)} aria-label="Drukarka">
+          {Object.values(PRINTERS).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+      </label>
+      <div>
+        <div className="control-label">{machine.amsName}</div>
+        <div className="segment">
+          {units.map((n) => (
+            <button key={n} type="button" className={`seg-pill${plan.ams === n ? ' active' : ''}`} onClick={() => studio.setPrinter(machine.id, n)}>
+              {n === 0 ? 'Brak' : machine.amsMax === 1 ? 'Jest' : `${n} × ${filamentSlots(1)}`}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <div className="control-label">Filamenty w pliku 3MF <b>{fp.filaments.length} z {slots}</b></div>
+        <ol className="filaments">
+          {fp.filaments.map((hex, i) => (
+            <li key={hex}><i className="sw-dot" style={{ background: hex }} /><span>{i + 1}. {nameOf(hex)}</span></li>
+          ))}
+        </ol>
+        {fp.merged.length > 0 && (
+          <p className="hint">
+            Morphoid ma {inks.length} {inks.length < 5 ? 'kolory' : 'kolorów'}, a {plan.ams ? `${machine.amsName} mieści ${slots} ${slots < 5 ? 'filamenty' : 'filamentów'}` : 'bez AMS drukarka ma jeden filament'}.
+            Najbliższe kolory drukują się razem: {fp.merged.map(([a, b]) => `${nameOf(a).toLowerCase()} jako ${nameOf(b).toLowerCase()}`).join(', ')}.
+          </p>
+        )}
+      </div>
+    </>
+  );
+}
+
 /** Whole or modules; with modules, the creature's own parts, each one a separate module or printed with the body. */
 function PrintBody({ view, explode, setExplode }: Props) {
   const { genome, plan } = useStudioState();
@@ -137,11 +188,13 @@ function PrintBody({ view, explode, setExplode }: Props) {
   const fix = issues.find((i) => i.fix);
   return (
     <>
+      <PrinterBody />
+      <div className="control-label">Sposób druku</div>
       <div className="segment">
         <button type="button" className={`seg-pill${kind === 'whole' ? ' active' : ''}`}
-          onClick={() => studio.setPlan({ ...planWhole(plan.printer), maxBridge: plan.maxBridge })}>Całość</button>
+          onClick={() => studio.setPlan({ ...planWhole(plan.printer, plan.ams), maxBridge: plan.maxBridge })}>Całość</button>
         <button type="button" className={`seg-pill${kind !== 'whole' ? ' active' : ''}`}
-          onClick={() => { if (kind === 'whole') studio.setPlan(fittedPlan(genome, { ...planModular(plan.printer), maxBridge: plan.maxBridge })); }}>Części</button>
+          onClick={() => { if (kind === 'whole') studio.setPlan(fittedPlan(genome, { ...planModular(plan.printer, plan.ams), maxBridge: plan.maxBridge })); }}>Części</button>
       </div>
       {kind === 'whole' ? <p className="hint">Cały Morphoid drukuje się w jednym kawałku{present.some((g) => g.forced) ? ` (oprócz: ${present.filter((g) => g.forced).map((g) => g.label.toLowerCase()).join(', ')}, zawsze osobno)` : ''}.</p> : (
         <div>
@@ -244,7 +297,11 @@ function ExportFooter() {
   const save = (format: Format): boolean => {
     const r = job.result!;
     if (!r.pieces.every((p) => p.validation.watertight && p.validation.volume > 0)) return false;
-    const f = format === '3mf' ? export3mf(r, studio.creature(), PALETTES[genome.palette!.index!]!) : exportBundle(r, studio.creature());
+    if (format === '3mf') {
+      void export3mf(r, studio.creature(), PALETTES[genome.palette!.index!]!, plan.printer, plan.ams).then((f) => download(f.name, f.bytes));
+      return true;
+    }
+    const f = exportBundle(r, studio.creature());
     download(f.name, f.bytes);
     return true;
   };
@@ -270,7 +327,7 @@ function ExportFooter() {
       <div className="segment">
         <button type="button" className={`seg-pill${fmt === 'stl' ? ' active' : ''}`} onClick={() => setFmt('stl')}>STL</button>
         <button type="button" className={`seg-pill${fmt === '3mf' ? ' active' : ''}`} onClick={() => setFmt('3mf')}
-          title="Bambu Studio, OrcaSlicer, PrusaSlicer: kolory jako pomalowane obszary, filamenty 1–4 = c1, c2, c3, biały">3MF w kolorach</button>
+          title={`Projekt Bambu Studio dla ${PRINTERS[plan.printer]?.name ?? 'drukarki'} z filamentami w kolorach Morphoida (Opcje druku). Otwiera się też w OrcaSlicer i PrusaSlicer.`}>3MF w kolorach</button>
       </div>
       <button type="button" className={`dl-btn${running ? ' running' : ''}`} onClick={go} aria-live="polite">
         {running && <i className="dl-bar" style={{ width: `${Math.max(3, pct)}%` }} />}
@@ -306,7 +363,7 @@ export function RightColumn(props: Props) {
         <Category id="view" title="Widok" value={props.view === '2d' ? (viewSketch === 'color' ? 'Kolor Morphoida' : 'Druk') : 'Studio 3D'} open={open} setOpen={setOpen}><ViewBody view={props.view} /></Category>
         <Category id="morphoid" title="Morphoid" value={studio.creature().name} open={open} setOpen={setOpen}><MorphoidBody /></Category>
         <Category id="project" title="Projekt" value={saved ? 'zapisany' : 'niezapisany'} open={open} setOpen={setOpen}><ProjectBody /></Category>
-        <Category id="print" title="Opcje druku" value={kind === 'whole' ? 'Całość' : `Części · ${parts}`} badge={issues} open={open} setOpen={setOpen}><PrintBody {...props} /></Category>
+        <Category id="print" title="Opcje druku" value={`${PRINTERS[plan.printer]?.name.replace('Bambu Lab ', '') ?? ''} · ${kind === 'whole' ? 'Całość' : `Części · ${parts}`}`} badge={issues} open={open} setOpen={setOpen}><PrintBody {...props} /></Category>
       </div>
       <ExportFooter />
     </aside>

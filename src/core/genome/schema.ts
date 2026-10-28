@@ -12,6 +12,8 @@
  *            step it carries over into the step itself (and so into the 2D drawing), see codec carryFine.
  */
 
+import { COLOR_TARGETS } from '../filaments';
+
 export const STEPS = 6; // 2N
 export const SIZE_CLASSES = 3; // N
 /** Levels of a 'fine' field (one hex digit) and the level that changes nothing. */
@@ -20,7 +22,8 @@ export const FINE_ZERO = 8;
 
 export type BlockId =
   | 'body' | 'legs' | 'head' | 'snout' | 'ears' | 'horns' | 'wings'
-  | 'tail' | 'crest' | 'face' | 'coat' | 'accessory' | 'palette' | 'build' | 'plan' | 'stand' | 'antennae' | 'hands' | 'sculpt';
+  | 'tail' | 'crest' | 'face' | 'coat' | 'accessory' | 'palette' | 'build' | 'plan' | 'stand' | 'antennae' | 'hands' | 'sculpt'
+  | 'colors';
 
 export interface EnumOption { id: string; label: string; retired?: boolean }
 export interface EnumField {
@@ -45,7 +48,13 @@ export interface FineField {
   /** the step field this one fine-tunes (its value is a fraction of one of that field's steps) */
   coarse?: { block: BlockId; field: string };
 }
-export type Field = EnumField | StepField | FineField;
+/** An element colour: two hex digits, 0 = the palette's colour, n = FILAMENT_COLORS[n - 1] (see filaments.ts). */
+export interface ColorField {
+  kind: 'color';
+  name: string;
+  label: string;
+}
+export type Field = EnumField | StepField | FineField | ColorField;
 
 export interface BlockDef {
   id: BlockId;
@@ -170,6 +179,8 @@ export const BLOCKS: readonly BlockDef[] = [
     fine('neckLength', 'Długość szyi', { block: 'head', field: 'neckLength' }),
     fine('neckThick', 'Grubość szyi'),
   ] },
+  // element colours (2026-10-28): written in the P gene after the palette, two hex digits each, 00 = the palette's
+  { id: 'colors', letter: 'P', label: 'Kolory elementów', fields: COLOR_TARGETS.map((t): ColorField => ({ kind: 'color', name: t.id, label: t.label })) },
 ] as const;
 
 /**
@@ -215,7 +226,7 @@ export const GENES: readonly GeneDef[] = [
   gene('D', 'Deseń', 'coat', 'pattern', 'patternSize'),
   gene('A', 'Dodatek na ciało', 'accessory', 'type'),
   gene('G', 'Dodatek na głowę', null),
-  gene('P', 'Paleta', 'palette', 'index'),
+  { ...gene('P', 'Paleta', 'palette', 'index'), sizes: COLOR_TARGETS.map((t) => ({ block: 'colors' as BlockId, field: t.id })) },
   gene('J', 'Budowa', 'build', 'type'),
   gene('Y', 'Plan ciała', 'plan', 'type'),
   gene('Q', 'Podstawka', 'stand', 'type'),

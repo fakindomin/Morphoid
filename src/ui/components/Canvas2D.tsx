@@ -132,7 +132,7 @@ export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPick
         shown = null;
       }
       boxRef.current?.setAttribute('data-view', turn ? turn.to.view : shown?.view ?? 'side');
-      const key = `${rig.code}|${sb}|${md}|${hot}|${g.palette!.index}|${shown?.view ?? '-'}|${vs ? 1 : 0}`;
+      const key = `${rig.code}|${sb}|${md}|${hot}|${g.palette!.index}|${Object.values(g.colors ?? {}).join(',')}|${shown?.view ?? '-'}|${vs ? 1 : 0}`;
       if (key !== lastKey) { dirtyRef.current = true; lastKey = key; }
 
       const c = canvasRef.current, v = viewRef.current;
@@ -177,7 +177,7 @@ export function Canvas2D({ showBones, mode, report, hotTile, onHoverTile, onPick
           const paths = buildPaths(cur!, g, rig, sb);
           const torso = cur!.pos.torso;
           return drawSketch(ctx, 1 / (v.scale * k), {
-            paths, mode: md, palette, report: rep, hot, showBones: sb,
+            paths, mode: md, palette, colors: g.colors, report: rep, hot, showBones: sb,
             insect: rig.dims.plan === D.PLAN.insect, away: [torso[0], torso[1]], torso: [torso[0], torso[1]],
           });
         };

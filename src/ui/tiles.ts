@@ -105,6 +105,23 @@ export const TILE_GROUPS: TileGroup[] = [
 
 export const TILES: TileDef[] = TILE_GROUPS.flatMap((g) => g.tiles);
 
+/** The element colours (filaments.ts COLOR_TARGETS) each category sets, at the end of its controls. */
+export const TILE_COLORS: Partial<Record<string, { target: string; label: string }[]>> = {
+  head: [{ target: 'head', label: 'Kolor głowy' }, { target: 'eyes', label: 'Kolor tęczówek' }],
+  snout: [{ target: 'snout', label: 'Kolor pyska' }],
+  ears: [{ target: 'ears', label: 'Kolor uszu' }],
+  horns: [{ target: 'horns', label: 'Kolor rogów i czułków' }],
+  crest: [{ target: 'crest', label: 'Kolor wyrostków' }],
+  neck: [{ target: 'neck', label: 'Kolor szyi' }],
+  body: [{ target: 'body', label: 'Kolor tułowia' }],
+  wings: [{ target: 'wings', label: 'Kolor skrzydeł' }],
+  legs: [{ target: 'legs', label: 'Kolor nóg' }],
+  hands: [{ target: 'hands', label: 'Kolor rąk' }],
+  tail: [{ target: 'tail', label: 'Kolor ogona' }],
+  coat: [{ target: 'pattern', label: 'Kolor wzoru' }],
+  stand: [{ target: 'stand', label: 'Kolor podstawki' }],
+};
+
 /** Which category a click on a part of the sketch (its radial-menu socket) opens. */
 export const SOCKET_TILE: Record<string, string> = { head: 'head', chest: 'neck', tail: 'tail', legF: 'legs', legB: 'legs' };
 

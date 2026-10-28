@@ -1,9 +1,6 @@
 import * as THREE from 'three';
 import type { PreviewSolid } from '../../core/bake/preview';
-import type { ColorKey } from '../../core/art/spec3d';
 import { previewColors, type Model } from './model';
-
-const KEYS: ColorKey[] = ['c1', 'c1dark', 'c2', 'c2soft', 'c3', 'ink', 'white'];
 
 /** "Grey filament": how a hobbyist judges a sculpt, without the colours. */
 const GREY = new THREE.Color('#a7abb1');
@@ -19,13 +16,13 @@ export function buildSolidModel(solid: PreviewSolid, palette: number, grey = fal
   const I = solid.indices, nt = I.length / 3, index = new Uint32Array(I.length);
   const mats: THREE.MeshStandardMaterial[] = [];
   let at = 0;
-  KEYS.forEach((key) => {
+  [...new Set(solid.colors)].forEach((key) => {
     const start = at;
     for (let t = 0; t < nt; t++) if (solid.colors[t] === key) { index.set(I.subarray(3 * t, 3 * t + 3), at); at += 3; }
     if (at === start) return;
     geo.addGroup(start, at - start, mats.length);
     const glossy = !grey && (key === 'white' || key === 'ink'); // eyes and the nose catch a highlight
-    mats.push(new THREE.MeshStandardMaterial({ color: grey ? GREY : colors[key], roughness: glossy ? 0.25 : grey ? 0.62 : 0.55, metalness: 0, vertexColors: true }));
+    mats.push(new THREE.MeshStandardMaterial({ color: grey ? GREY : colors(key), roughness: glossy ? 0.25 : grey ? 0.62 : 0.55, metalness: 0, vertexColors: true }));
   });
   geo.setIndex(new THREE.BufferAttribute(index, 1));
   geo.setAttribute('normal', new THREE.BufferAttribute(solid.normals, 3));

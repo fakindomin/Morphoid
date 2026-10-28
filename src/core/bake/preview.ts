@@ -7,7 +7,8 @@ import type { MorphotypeGenome } from '../genome';
 import { solveRig } from '../rig';
 import { targetPose } from '../art/pose';
 import { buildPaths } from '../art/shapes';
-import { buildParts3D, type ColorKey } from '../art/spec3d';
+import { buildParts3D } from '../art/spec3d';
+import { patternInk, type Ink } from '../filaments';
 import { BLEND_MM, CARVE_BLEND_MM, INSET_BLEND_MM, MIN_SOLID_MM, SMOOTH_MOVE } from './bake';
 import { fuseParts, gridDims, makeGrid } from './field';
 import { flipMesh, validateMesh } from './mesh';
@@ -28,7 +29,7 @@ export interface PreviewSolid {
   ao: Float32Array;
   indices: Uint32Array;
   /** colour of every triangle */
-  colors: ColorKey[];
+  colors: Ink[];
   ms: number;
 }
 
@@ -46,7 +47,7 @@ export function previewSolid(genome: MorphotypeGenome, h = PREVIEW_VOXEL_MM): Pr
   let mesh = surfaceNets(grid);
   if (validateMesh(mesh).volume < 0) mesh = flipMesh(mesh);
   mesh = smoothMesh(mesh, SMOOTH_MOVE * h);
-  const colorAt = painter(parts.filter((p) => !p.carve), all.filter((p) => p.thickness < MIN_SOLID_MM), paths.pattern.flatten(8));
+  const colorAt = painter(parts.filter((p) => !p.carve), all.filter((p) => p.thickness < MIN_SOLID_MM), paths.pattern.flatten(8), patternInk(genome.colors ?? {}));
   return { ...paintSmooth(mesh.positions, mesh.indices, colorAt, grid), ms: performance.now() - t0 };
 }
 
@@ -58,7 +59,7 @@ const BORDER_SPLITS = 2;
  * a pupil or a mouth line has a clean edge instead of the voxel staircase. New vertices sit on the flat triangle and
  * take interpolated normals, so the shading stays smooth.
  */
-function paintSmooth(P: Float32Array, I: Uint32Array, colorAt: (x: number, y: number, z: number, nz: number) => ColorKey, grid: Grid3): Omit<PreviewSolid, 'ms'> {
+function paintSmooth(P: Float32Array, I: Uint32Array, colorAt: (x: number, y: number, z: number, nz: number) => Ink, grid: Grid3): Omit<PreviewSolid, 'ms'> {
   const nv = P.length / 3;
   const N = new Float32Array(P.length);
   for (let t = 0; t < I.length; t += 3) {
@@ -71,12 +72,12 @@ function paintSmooth(P: Float32Array, I: Uint32Array, colorAt: (x: number, y: nu
   for (let v = 0; v < nv; v++) { const l = Math.hypot(N[3 * v]!, N[3 * v + 1]!, N[3 * v + 2]!) || 1; N[3 * v]! /= l; N[3 * v + 1]! /= l; N[3 * v + 2]! /= l; }
   const A = new Float32Array(nv);
   for (let v = 0; v < nv; v++) A[v] = occlusion(grid, P[3 * v]!, P[3 * v + 1]!, P[3 * v + 2]!, N[3 * v]!, N[3 * v + 1]!, N[3 * v + 2]!);
-  const vKey: ColorKey[] = new Array(nv);
+  const vKey: Ink[] = new Array(nv);
   for (let v = 0; v < nv; v++) vKey[v] = colorAt(P[3 * v]!, P[3 * v + 1]!, P[3 * v + 2]!, N[3 * v + 2]!);
 
-  const pos: number[] = [], nor: number[] = [], occ: number[] = [], idx: number[] = [], colors: ColorKey[] = [];
+  const pos: number[] = [], nor: number[] = [], occ: number[] = [], idx: number[] = [], colors: Ink[] = [];
   const keep: number[] = [];
-  type V = { p: [number, number, number]; n: [number, number, number]; k: ColorKey; a: number };
+  type V = { p: [number, number, number]; n: [number, number, number]; k: Ink; a: number };
   const vert = (v: number): V => ({ p: [P[3 * v]!, P[3 * v + 1]!, P[3 * v + 2]!], n: [N[3 * v]!, N[3 * v + 1]!, N[3 * v + 2]!], k: vKey[v]!, a: A[v]! });
   const mid = (a: V, b: V): V => {
     const p: [number, number, number] = [(a.p[0] + b.p[0]) / 2, (a.p[1] + b.p[1]) / 2, (a.p[2] + b.p[2]) / 2];
@@ -101,7 +102,7 @@ function paintSmooth(P: Float32Array, I: Uint32Array, colorAt: (x: number, y: nu
     if (vKey[I[t]!] === vKey[I[t + 1]!] && vKey[I[t + 1]!] === vKey[I[t + 2]!]) keep.push(t); else mixed.push(t);
   }
   // shared-vertex triangles first (their colour is the one their corners agree on), then the split border triangles
-  const outIdx: number[] = [], outColors: ColorKey[] = [];
+  const outIdx: number[] = [], outColors: Ink[] = [];
   for (const t of keep) { outIdx.push(I[t]!, I[t + 1]!, I[t + 2]!); outColors.push(vKey[I[t]!]!); }
   for (const t of mixed) split(vert(I[t]!), vert(I[t + 1]!), vert(I[t + 2]!), BORDER_SPLITS);
   const positions = new Float32Array(P.length + pos.length); positions.set(P); positions.set(pos, P.length);

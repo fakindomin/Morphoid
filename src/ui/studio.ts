@@ -41,7 +41,10 @@ try {
   const raw = storage.get(PLAN_KEY);
   if (raw) {
     const plan = JSON.parse(raw) as import('../core/print').PrintPlan;
-    if (plan && Array.isArray(plan.separate) && typeof plan.maxBridge === 'number') studio.setPlan({ ...plan, supports: plan.supports ?? 'allowed' });
+    if (plan && Array.isArray(plan.separate) && typeof plan.maxBridge === 'number') {
+      studio.setPlan({ ...plan, supports: plan.supports ?? 'allowed' });
+      studio.setPrinter(plan.printer, typeof plan.ams === 'number' ? plan.ams : 1); // a plan saved before the printer choice: P1S with one AMS
+    }
   }
 } catch { /* ignore a corrupted value */ }
 let lastPlan = studio.getState().plan;

@@ -7,6 +7,7 @@ import { analyzePrint, fitPlan, touchIssues, type PrintPlan, type PrintReport } 
 import { buildParts3D } from '../core/art/spec3d';
 import { touchesOf } from '../core/art/settle';
 import { serialize } from '../core/genome';
+import { patternInk, printKey, type Ink } from '../core/filaments';
 
 /** Rest-pose geometry in mm: exactly what gets printed (no breathing, no mouse). */
 export function restGeometry(g: MorphotypeGenome): { rig: Rig; paths: SlotPaths } {
@@ -42,4 +43,18 @@ export function usePrintReport(g: MorphotypeGenome, plan: PrintPlan): PrintRepor
 export function fittedPlan(g: MorphotypeGenome, plan: PrintPlan): PrintPlan {
   const { rig, paths } = restGeometry(g);
   return fitPlan(paths, rig, plan);
+}
+
+/**
+ * The print colours a creature uses, before any bake: one per filament (palette shades folded), the body's first.
+ * The bake finds the same set, give or take a colour region too small to matter.
+ */
+export function creatureInks(g: MorphotypeGenome): Ink[] {
+  const { rig, paths } = restGeometry(g);
+  const parts = buildParts3D(paths, g, rig, true);
+  const out: Ink[] = [printKey(parts.find((p) => p.slot === 'torso')?.color ?? 'c1')];
+  const add = (k: Ink): void => { const p = printKey(k); if (!out.includes(p)) out.push(p); };
+  for (const p of parts) add(p.color);
+  if (!paths.pattern.empty) add(patternInk(g.colors ?? {}));
+  return out;
 }

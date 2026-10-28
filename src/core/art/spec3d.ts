@@ -19,6 +19,7 @@ import { blendGroup, edgesOf, sdPolys, slabDist, type Edge } from '../bake/field
 import { neckLimb, sculptOf, trunkLimb } from './anatomy';
 import { hostsOf, mountAt, skinZ, slabSd, type Host } from './mounts';
 import { cutPlanes, langOf, speakLanguage, type Cut } from './form';
+import { inkOf, isHex, type Ink } from '../filaments';
 import './settle'; // registers the settling of touching elements with solveRig
 
 export type ColorKey = 'c1' | 'c1dark' | 'c2' | 'c2soft' | 'c3' | 'ink' | 'white';
@@ -40,7 +41,8 @@ export interface Part3D {
   thickness: number;
   /** rounding radius (mm) of the edges (<= thickness / 2) */
   bevel: number;
-  color: ColorKey;
+  /** palette key, or the filament colour picked for this element (filaments.ts) */
+  color: Ink;
   /** -1 / +1 for paired parts, 0 on the centre plane */
   side: -1 | 0 | 1;
   /**
@@ -293,6 +295,8 @@ export function buildParts3D(paths: SlotPaths, g: MorphotypeGenome, rig: Rig, pr
     else if (p.slot === 'tail' && p.limb) p.coat = coat(COAT_LIMB, 'u');
     else if (LEG_SLOTS.has(p.slot) && p.limb && (plan === D.PLAN.quadruped || biped)) p.coat = coat(COAT_LIMB, 'v');
   }
+  // element colours picked in the studio replace the palette's
+  if (g.colors) for (const p of out) if (!isHex(p.color)) p.color = inkOf(g.colors, p.slot, p.color);
   return out;
 }
 

@@ -81,11 +81,11 @@ function blockNode(block: BlockId, icon?: string): MenuNode {
     });
     return node;
   }
-  node.children = def.fields.filter((f) => f.name !== 'dir' && f.kind !== 'fine').map((f): MenuNode => {
+  node.children = def.fields.filter((f) => f.name !== 'dir' && f.kind !== 'fine' && f.kind !== 'color').map((f): MenuNode => {
     const id = `${block}.${f.name}`;
     const preview = { ops: [], block, field: f.name };
     if (f.kind === 'step') return { id, label: f.label.toUpperCase(), preview, children: sizeLeaves(id, f.name) };
-    if (f.kind === 'fine') return { id, label: f.label.toUpperCase(), preview, children: [] }; // 3D sliders only
+    if (f.kind === 'fine' || f.kind === 'color') return { id, label: f.label.toUpperCase(), preview, children: [] }; // 3D sliders only
     return {
       id, label: FIELD_LABELS[f.name] ?? f.name.toUpperCase(), preview,
       children: f.options.flatMap((o, i) => (o.retired ? [] : [{

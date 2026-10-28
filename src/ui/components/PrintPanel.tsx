@@ -60,9 +60,9 @@ export function PrintPanel() {
       <div className="control-label">Sposób druku</div>
       <div className="segment">
         <button type="button" className={`seg-pill${kind === 'whole' ? ' active' : ''}`}
-          onClick={() => studio.setPlan({ ...planWhole(plan.printer), maxBridge: plan.maxBridge })}>Całość</button>
+          onClick={() => studio.setPlan({ ...planWhole(plan.printer, plan.ams), maxBridge: plan.maxBridge })}>Całość</button>
         <button type="button" className={`seg-pill${kind === 'modular' ? ' active' : ''}`}
-          onClick={() => studio.setPlan(fittedPlan(genome, { ...planModular(plan.printer), maxBridge: plan.maxBridge }))}>Moduły</button>
+          onClick={() => studio.setPlan(fittedPlan(genome, { ...planModular(plan.printer, plan.ams), maxBridge: plan.maxBridge }))}>Moduły</button>
         <button type="button" className={`seg-pill${kind === 'custom' ? ' active' : ''}`} disabled={kind !== 'custom'}>Własny</button>
       </div>
 

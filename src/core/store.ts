@@ -9,7 +9,7 @@ import {
 } from './genome';
 import { applyOp, type Op } from './radial';
 import { solveRig, type Rig } from './rig';
-import { planWhole, planModular, toggleGroup, type PartGroup, type PrintPlan } from './print/plan';
+import { PRINTERS, planWhole, planModular, toggleGroup, type PartGroup, type PrintPlan } from './print/plan';
 
 export interface StudioState {
   genome: MorphotypeGenome;
@@ -90,13 +90,19 @@ export function createStudioStore(initial: MorphotypeGenome = defaultGenome()) {
 
     setPlan(plan: PrintPlan): void { state = { ...state, plan }; emit(); },
     planPreset(kind: 'whole' | 'modular'): void {
-      const base = kind === 'whole' ? planWhole(state.plan.printer) : planModular(state.plan.printer);
+      const base = kind === 'whole' ? planWhole(state.plan.printer, state.plan.ams) : planModular(state.plan.printer, state.plan.ams);
       state = { ...state, plan: { ...base, maxBridge: state.plan.maxBridge } };
       emit();
     },
     setSeparate(group: PartGroup, separate: boolean): void { state = { ...state, plan: toggleGroup(state.plan, group, separate) }; emit(); },
     setSupports(mode: 'allowed' | 'avoid'): void { state = { ...state, plan: { ...state.plan, supports: mode } }; emit(); },
     setBridge(mm: number): void { state = { ...state, plan: { ...state.plan, maxBridge: mm } }; emit(); },
+    /** the printer the 3MF is set up for and how many AMS units it has (0 = none) */
+    setPrinter(printer: string, ams: number): void {
+      const p = PRINTERS[printer] ?? PRINTERS.p1s!;
+      state = { ...state, plan: { ...state.plan, printer: p.id, ams: Math.max(0, Math.min(p.amsMax, Math.round(ams))) } };
+      emit();
+    },
 
     undo(): void {
       const prev = state.past[state.past.length - 1];

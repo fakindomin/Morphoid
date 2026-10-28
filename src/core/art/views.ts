@@ -12,7 +12,8 @@
  */
 import type { XY } from './path';
 import type { SlotId } from './shapes';
-import type { ColorKey, Part3D } from './spec3d';
+import type { Part3D } from './spec3d';
+import type { Ink } from '../filaments';
 import { addPart, BIG, makeGrid } from '../bake/field';
 
 export type ViewId = 'side' | 'front' | 'top';
@@ -27,7 +28,7 @@ export interface DepthMap { u0: number; v0: number; cell: number; w: number; h: 
 export interface ViewPart {
   id: string;
   slot: SlotId;
-  color: ColorKey;
+  color: Ink;
   side: -1 | 0 | 1;
   /** outlines in view mm, biggest first */
   rings: XY[][];

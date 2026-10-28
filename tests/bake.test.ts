@@ -246,7 +246,11 @@ describe('3MF for AMS: painted triangles', () => {
     const { export3mf } = await import('../src/core/bake/threemf');
     const { unzipSync, strFromU8 } = await import('fflate');
     const r = bake(defaultGenome(), planModular(), 'draft');
-    const used = (id: string): number[] => { const c = [0, 0, 0, 0]; for (const f of r.pieces.find((p) => p.id === id)!.paint) c[f]!++; return c; };
+    // the palette's four filaments, the body's first
+    expect(r.inks[0]).toBe('c1');
+    expect([...r.inks].sort()).toEqual(['c1', 'c2', 'c3', 'white']);
+    const order = ['c1', 'c2', 'c3', 'white'].map((k) => r.inks.indexOf(k as never));
+    const used = (id: string): number[] => { const c = [0, 0, 0, 0]; for (const f of r.pieces.find((p) => p.id === id)!.paint) c[order.indexOf(f)]!++; return c; };
     const head = used('head');
     expect(head[0]).toBeGreaterThan(head[2]! + head[3]!);
     expect(head[2]).toBeGreaterThan(0); // pupils, nose, mouth
@@ -254,14 +258,17 @@ describe('3MF for AMS: painted triangles', () => {
     expect(used('ears')[1]).toBeGreaterThan(0); // inner ear
     for (const p of r.pieces) expect(p.paint.length).toBe(p.mesh.indices.length / 3);
 
-    const f = export3mf(r, { name: 'Żbik', code: 'MPH2:B01.33#00' }, ['#e8e2d4', '#c25e4e', '#1c2230']);
+    const f = await export3mf(r, { name: 'Żbik', code: 'MPH2:B01.33#00' }, ['#e8e2d4', '#c25e4e', '#1c2230'], 'p1s', 1);
     expect(f.name).toBe('Morphoid Żbik.3mf');
     const zip = unzipSync(f.bytes);
     expect(Object.keys(zip).sort()).toEqual(['3D/3dmodel.model', 'Metadata/dna.txt', 'Metadata/project_settings.config', '[Content_Types].xml', '_rels/.rels']);
     // Bambu Studio only reads the project config of a file it takes for its own; the config gives four filaments in the creature's colours
     const project = JSON.parse(strFromU8(zip['Metadata/project_settings.config']!));
     expect(project.printer_model).toBe('Bambu Lab P1S');
-    expect(project.filament_colour).toEqual(['#E8E2D4', '#C25E4E', '#1C2230', '#FFFFFF']);
+    expect([...project.filament_colour].sort()).toEqual(['#1C2230', '#C25E4E', '#E8E2D4', '#FFFFFF']);
+    expect(project.filament_colour[0]).toBe('#E8E2D4');
+    expect(project.filament_self_index).toEqual(['1', '2', '3', '4']);
+    expect(project.flush_volumes_matrix).toHaveLength(16);
     for (const k of ['filament_diameter', 'filament_settings_id', 'filament_type', 'nozzle_temperature']) expect(project[k]).toHaveLength(4);
     expect(strFromU8(zip['Metadata/dna.txt']!)).toContain('DNA: MPH2:B01.33#00');
     const xml = strFromU8(zip['3D/3dmodel.model']!);

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { MorphotypeGenome } from '../../core/genome';
 import { PALETTES } from '../../core/palette';
+import { isHex, patternInk, type Ink } from '../../core/filaments';
 import { solveRig, type NodeId } from '../../core/rig';
 import { targetPose } from '../../core/art/pose';
 import { buildPaths } from '../../core/art/shapes';
@@ -153,13 +154,14 @@ function coatMaterial(base: THREE.MeshStandardMaterial, pat: { polys: [number, n
   return mat;
 }
 
-/** The preview's colour of every colour key in a palette (shades of the palette colours, ink, white). */
-export function previewColors(palette: number): Record<ColorKey, THREE.Color> {
+/** The preview's colour of every ink in a palette (shades of the palette colours, ink, white, picked colours). */
+export function previewColors(palette: number): (k: Ink) => THREE.Color {
   const [hc1, hc2, hc3] = PALETTES[palette]!;
-  return {
+  const keys: Record<ColorKey, THREE.Color> = {
     c1: new THREE.Color(hc1), c1dark: mix(hc1, '#000000', 0.35), c2: new THREE.Color(hc2), c2soft: mix(hc2, '#ffffff', 0.45),
     c3: new THREE.Color(hc3), ink: new THREE.Color('#1d2335'), white: new THREE.Color('#ffffff'),
   };
+  return (k) => (isHex(k) ? new THREE.Color(k) : keys[k]);
 }
 
 export function buildModel(genome: MorphotypeGenome, plan: PrintPlan, report: PrintReport): Model {
@@ -167,10 +169,10 @@ export function buildModel(genome: MorphotypeGenome, plan: PrintPlan, report: Pr
   const paths = buildPaths(targetPose(rig, genome, 0, false, { x: 0, y: 0 }), genome, rig, false);
   const parts = buildParts3D(paths, genome, rig);
   const colors = previewColors(genome.palette!.index!);
-  const mats = new Map<ColorKey, THREE.MeshStandardMaterial>();
-  const matFor = (k: ColorKey): THREE.MeshStandardMaterial => {
+  const mats = new Map<Ink, THREE.MeshStandardMaterial>();
+  const matFor = (k: Ink): THREE.MeshStandardMaterial => {
     let m = mats.get(k);
-    if (!m) { m = new THREE.MeshStandardMaterial({ color: colors[k], roughness: 0.55, metalness: 0 }); mats.set(k, m); }
+    if (!m) { m = new THREE.MeshStandardMaterial({ color: colors(k), roughness: 0.55, metalness: 0 }); mats.set(k, m); }
     return m;
   };
 
@@ -200,7 +202,7 @@ export function buildModel(genome: MorphotypeGenome, plan: PrintPlan, report: Pr
     const key = piece === 'body' ? 'body' : `${piece}:${side}`;
     const holder = container(key, off);
     let material = matFor(part.color);
-    const pat = part.slot === 'torso' && box2 ? { polys: patPolys, box: box2, color: colors.c3 } : null;
+    const pat = part.slot === 'torso' && box2 ? { polys: patPolys, box: box2, color: colors(patternInk(genome.colors ?? {})) } : null;
     if (pat || part.coat) material = coatMaterial(material, pat, part.coat, part.limb ? 0 : part.z);
     for (const geo of geometryFor(part)) {
       geometries.push(geo);
