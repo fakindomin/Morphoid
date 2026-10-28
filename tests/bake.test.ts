@@ -257,10 +257,16 @@ describe('3MF for AMS: painted triangles', () => {
     const f = export3mf(r, { name: 'Żbik', code: 'MPH2:B01.33#00' }, ['#e8e2d4', '#c25e4e', '#1c2230']);
     expect(f.name).toBe('Morphoid Żbik.3mf');
     const zip = unzipSync(f.bytes);
-    expect(Object.keys(zip).sort()).toEqual(['3D/3dmodel.model', 'Metadata/dna.txt', '[Content_Types].xml', '_rels/.rels']);
+    expect(Object.keys(zip).sort()).toEqual(['3D/3dmodel.model', 'Metadata/dna.txt', 'Metadata/project_settings.config', '[Content_Types].xml', '_rels/.rels']);
+    // Bambu Studio only reads the project config of a file it takes for its own; the config gives four filaments in the creature's colours
+    const project = JSON.parse(strFromU8(zip['Metadata/project_settings.config']!));
+    expect(project.printer_model).toBe('Bambu Lab P1S');
+    expect(project.filament_colour).toEqual(['#E8E2D4', '#C25E4E', '#1C2230', '#FFFFFF']);
+    for (const k of ['filament_diameter', 'filament_settings_id', 'filament_type', 'nozzle_temperature']) expect(project[k]).toHaveLength(4);
     expect(strFromU8(zip['Metadata/dna.txt']!)).toContain('DNA: MPH2:B01.33#00');
     const xml = strFromU8(zip['3D/3dmodel.model']!);
     expect(xml).toContain('<metadata name="Title">Morphoid Żbik</metadata>');
+    expect(xml).toMatch(/<metadata name="Application">BambuStudio-[\d.]+<\/metadata>/);
     expect(xml.match(/<object /g)!.length).toBe(r.pieces.length);
     expect(xml.match(/<item /g)!.length).toBe(r.pieces.length);
     expect(xml).toContain('paint_color="1C"');
